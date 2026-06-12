@@ -1,0 +1,45 @@
+Categories:
+  - Multimedia
+License: Apache-2.0
+AuthorName: Radio Breaker contributors
+WebSite: https://github.com/r94/radio-breaker
+SourceCode: https://github.com/r94/radio-breaker
+IssueTracker: https://github.com/r94/radio-breaker/issues
+Changelog: https://github.com/r94/radio-breaker/releases
+
+AutoName: Radio Breaker
+Summary: Procedural electronic music generator for Android
+Description: |-
+    Radio Breaker generates synthetic electronic music directly on your Android device.
+
+    It is built as a minimalist generated-music player: press PLAY, let the engine create a track, press NEXT when you want a new generated composition, or set TRACK SECONDS for longer pieces.
+
+    The music engine uses procedural drums, bass, leads, motifs, sections, hooks, breakdowns, and returns. It uses no samples and does not try to imitate acoustic instruments.
+
+    Privacy and freedom properties:
+
+    * no Internet permission
+    * no accounts
+    * no advertising SDKs
+    * no analytics
+    * no trackers
+    * no external sound assets
+    * no sample packs
+
+    Radio Breaker is experimental. Its purpose is to explore on-device electronic music generation as a replacement for passive algorithmic radio.
+
+RepoType: git
+Repo: https://github.com/r94/radio-breaker.git
+
+Builds:
+  - versionName: 0.6.0
+    versionCode: 6
+    commit: v0.6.0
+    subdir: .
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 0.6.0
+CurrentVersionCode: 6

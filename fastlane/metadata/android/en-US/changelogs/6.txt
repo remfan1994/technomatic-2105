@@ -1,0 +1,9 @@
+Publication-readiness release.
+
+* Added custom launcher icon and round icon.
+* Added custom notification icon.
+* Added release build configuration with optional external signing.
+* Added GitHub Actions CI/release workflows.
+* Added F-Droid metadata draft.
+* Added Fastlane app-store metadata.
+* Added license, privacy, changelog, and release documentation.

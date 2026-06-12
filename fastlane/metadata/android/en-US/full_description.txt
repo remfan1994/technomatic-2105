@@ -1,0 +1,17 @@
+Radio Breaker generates synthetic electronic music directly on your Android device.
+
+It is built as a minimalist generated-music player: press PLAY, let the engine create a track, press NEXT when you want a new generated composition, or set TRACK SECONDS for longer pieces.
+
+The music engine uses procedural drums, bass, leads, motifs, sections, hooks, breakdowns, and returns. It uses no samples and does not try to imitate acoustic instruments.
+
+Privacy and freedom properties:
+
+* no Internet permission
+* no accounts
+* no advertising SDKs
+* no analytics
+* no trackers
+* no external sound assets
+* no sample packs
+
+Radio Breaker is experimental. Its purpose is to explore on-device electronic music generation as a replacement for passive algorithmic radio.

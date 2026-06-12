@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Radio Breaker</string>
+    <string name="notification_channel_name">Radio Breaker playback</string>
+    <string name="notification_channel_description">Procedural electronic music playback</string>
+    <string name="notification_title">Radio Breaker</string>
+    <string name="notification_text">Generating electronic music</string>
+</resources>

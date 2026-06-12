@@ -1,0 +1,97 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing is intentionally externalized. Do not commit keystores.
+// Command-line example:
+//   gradle assembleRelease \
+//     -PRADIO_BREAKER_RELEASE_STORE_FILE=/absolute/path/release.jks \
+//     -PRADIO_BREAKER_RELEASE_STORE_PASSWORD=... \
+//     -PRADIO_BREAKER_RELEASE_KEY_ALIAS=... \
+//     -PRADIO_BREAKER_RELEASE_KEY_PASSWORD=...
+def hasReleaseSigning = project.hasProperty('RADIO_BREAKER_RELEASE_STORE_FILE') &&
+        project.hasProperty('RADIO_BREAKER_RELEASE_STORE_PASSWORD') &&
+        project.hasProperty('RADIO_BREAKER_RELEASE_KEY_ALIAS') &&
+        project.hasProperty('RADIO_BREAKER_RELEASE_KEY_PASSWORD')
+
+android {
+    namespace 'vip.thatiam.radiobreaker'
+    compileSdk 33
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        applicationId 'vip.thatiam.radiobreaker'
+        minSdk 26
+        targetSdk 33
+        versionCode 6
+        versionName '0.6.0'
+
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++17 -O3 -Wall -Wextra'
+                arguments '-DANDROID_STL=c++_shared'
+            }
+        }
+
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(project.property('RADIO_BREAKER_RELEASE_STORE_FILE'))
+                storePassword project.property('RADIO_BREAKER_RELEASE_STORE_PASSWORD')
+                keyAlias project.property('RADIO_BREAKER_RELEASE_KEY_ALIAS')
+                keyPassword project.property('RADIO_BREAKER_RELEASE_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            debuggable true
+        }
+        release {
+            debuggable false
+            jniDebuggable false
+            renderscriptDebuggable false
+            pseudoLocalesEnabled false
+            minifyEnabled false
+            shrinkResources false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    buildFeatures {
+        prefab true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+        resources {
+            excludes += [
+                    'META-INF/AL2.0',
+                    'META-INF/LGPL2.1'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.google.oboe:oboe:1.10.0'
+}
