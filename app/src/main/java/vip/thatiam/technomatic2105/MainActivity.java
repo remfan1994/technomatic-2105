@@ -146,8 +146,8 @@ public final class MainActivity extends Activity {
 
         controls.addView(startStopButton, params(292, 70, 0));
         controls.addView(next, params(292, 54, 5));
-        controls.addView(genreButton, params(320, 86, 16));
-        controls.addView(elapsedButton, params(320, 86, 8));
+        controls.addView(genreButton, params(320, 104, 16));
+        controls.addView(elapsedButton, params(320, 96, 8));
         controls.addView(notice, params(320, -2, 20));
 
         setRoot(controls, false);
@@ -180,11 +180,10 @@ public final class MainActivity extends Activity {
         blendGroup.addView(hybrid, new RadioGroup.LayoutParams(dp(138), dp(48)));
         blendGroup.check(loadGenreBlendMode() == GENRE_BLEND_HYBRID ? hybrid.getId() : pool.getId());
 
-        LinearLayout topRow = new LinearLayout(this);
-        topRow.setOrientation(LinearLayout.HORIZONTAL);
-        topRow.setGravity(Gravity.CENTER);
-        topRow.addView(random, new LinearLayout.LayoutParams(dp(122), dp(52)));
-        topRow.addView(blendGroup, new LinearLayout.LayoutParams(dp(260), dp(52)));
+        LinearLayout blendRow = new LinearLayout(this);
+        blendRow.setOrientation(LinearLayout.HORIZONTAL);
+        blendRow.setGravity(Gravity.CENTER);
+        blendRow.addView(blendGroup, new LinearLayout.LayoutParams(dp(292), dp(52)));
 
         TextView message = status(genreSelectorMessage(random.isChecked(), selectedBlendMode(pool, hybrid)));
 
@@ -259,7 +258,8 @@ public final class MainActivity extends Activity {
 
         controls.addView(back, params(292, 50, 0));
         controls.addView(label("GENRE SELECTOR"), params(292, -2, 12));
-        controls.addView(topRow, params(384, 58, 10));
+        controls.addView(random, params(292, 52, 10));
+        controls.addView(blendRow, params(292, 56, 2));
         controls.addView(message, params(320, -2, 8));
         for (CheckBox box : checks) controls.addView(box, params(292, 48, 4));
 
@@ -460,7 +460,7 @@ public final class MainActivity extends Activity {
         } else {
             value = "Pool: " + selectedGenreSummary();
         }
-        return "Current Genre\n" + value + "\nTap to choose";
+        return "Current Genre - tap to choose\n" + value;
     }
 
     private String currentElapsedText() {
@@ -474,7 +474,7 @@ public final class MainActivity extends Activity {
         } else {
             totalText = formatDuration(loadTrackSeconds());
         }
-        return "Duration\nElapsed: " + formatDuration(elapsed) + " / " + totalText + "\nTap to change";
+        return "Duration - tap to change\nElapsed: " + formatDuration(elapsed) + " / " + totalText;
     }
 
     private String selectedGenreSummary() {
@@ -611,7 +611,12 @@ public final class MainActivity extends Activity {
         Button button = button(text, size);
         button.setTextColor(Color.WHITE);
         button.setGravity(Gravity.CENTER);
-        button.setPadding(dp(6), dp(4), dp(6), dp(4));
+        button.setSingleLine(false);
+        button.setMaxLines(4);
+        button.setIncludeFontPadding(true);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setPadding(dp(8), dp(6), dp(8), dp(6));
         return button;
     }
 

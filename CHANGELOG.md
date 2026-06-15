@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.2
+
+- Fixed main-screen genre/duration touchbox text clipping.
+- Fixed Genre Selector layout on narrow screens.
+- Random now has its own row; Pool and Hybrid sit underneath.
+- Shortened tappable main-screen labels to two lines and increased touchbox heights.
+- Bumped versionCode to 18 and versionName to 0.16.2.
+
 ## 0.16.0
 
 - Added Infinite duration mode so a composition can continue until NEXT is pressed.

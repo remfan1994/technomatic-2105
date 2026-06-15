@@ -34,14 +34,14 @@ RepoType: git
 Repo: https://github.com/r94/technomatic-2105.git
 
 Builds:
-  - versionName: 0.16.0
-    versionCode: 16
-    commit: v0.16.0
+  - versionName: 0.16.2
+    versionCode: 18
+    commit: v0.16.2
     subdir: .
     gradle:
       - yes
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 0.16.0
-CurrentVersionCode: 16
+CurrentVersion: 0.16.2
+CurrentVersionCode: 18

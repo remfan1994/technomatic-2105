@@ -2,7 +2,7 @@
 
 Technomatic 2105 is an Android procedural electronic music app. It generates synthetic electronic tracks on-device without samples, network access, accounts, ads, analytics, trackers, or external audio assets.
 
-v16 keeps the phone interface focused on immediate listening. The editor, saved-sound system, generated names, and counter remain removed. The main player uses Start/Stop, Next, explicit tappable genre and duration controls, and a dedicated Genre Selector screen using original Technomatic style-family names plus No Genre. v16 adds Infinite duration and Pool/Hybrid style-family selection.
+v16.2 keeps the phone interface focused on immediate listening. The editor, saved-sound system, generated names, and counter remain removed. The main player uses Start/Stop, Next, explicit tappable genre and duration controls, and a dedicated Genre Selector screen using original Technomatic style-family names plus No Genre. v16 adds Infinite duration and Pool/Hybrid style-family selection; v16.2 fixes narrow-screen selector and main touchbox layout clipping.
 
 ## Current screens
 
@@ -213,12 +213,12 @@ Suggested repository setup:
 ```sh
 git init
 git add .
-git commit -m "Technomatic 2105 0.16.0"
+git commit -m "Technomatic 2105 0.16.2"
 git branch -M main
 git remote add origin git@github.com:r94/technomatic-2105.git
 git push -u origin main
-git tag v0.16.0
-git push origin v0.16.0
+git tag v0.16.2
+git push origin v0.16.2
 ```
 
 Change `r94/technomatic-2105` if you use a different GitHub path.
@@ -232,10 +232,10 @@ fdroid/metadata/vip.thatiam.technomatic2105.yml
 fastlane/metadata/android/en-US/title.txt
 fastlane/metadata/android/en-US/short_description.txt
 fastlane/metadata/android/en-US/full_description.txt
-fastlane/metadata/android/en-US/changelogs/16.txt
+fastlane/metadata/android/en-US/changelogs/18.txt
 ```
 
-Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.16.0` tag, and verify that F-Droid can build the release from source.
+Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.16.2` tag, and verify that F-Droid can build the release from source.
 
 ## Preview renderer
 

@@ -23,8 +23,8 @@ android {
         applicationId 'vip.thatiam.technomatic2105'
         minSdk 26
         targetSdk 33
-        versionCode 16
-        versionName '0.16.0'
+        versionCode 18
+        versionName '0.16.2'
 
         externalNativeBuild {
             cmake {

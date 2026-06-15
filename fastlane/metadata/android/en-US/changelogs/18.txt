@@ -1,0 +1,1 @@
+Fixed Genre Selector row layout and main-screen genre/duration touchbox text clipping on narrow displays.
