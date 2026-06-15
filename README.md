@@ -1,56 +1,124 @@
-# Radio Breaker
+# Technomatic 2105
 
-Radio Breaker is an Android procedural electronic music app. It generates synthetic electronic tracks on-device without samples, network access, accounts, ads, analytics, or external audio assets.
+Technomatic 2105 is an Android procedural electronic music app. It generates synthetic electronic tracks on-device without samples, network access, accounts, ads, analytics, trackers, or external audio assets.
 
-v6 is a publication-readiness release. The music engine is intentionally kept close to v5; the focus is packaging, release builds, app identity, and F-Droid/GitHub preparation.
+v16 keeps the phone interface focused on immediate listening. The editor, saved-sound system, generated names, and counter remain removed. The main player uses Start/Stop, Next, explicit tappable genre and duration controls, and a dedicated Genre Selector screen using original Technomatic style-family names plus No Genre. v16 adds Infinite duration and Pool/Hybrid style-family selection.
 
-## Current controls
-
-```text
-PLAY / PAUSE
-NEXT
-TRACK SECONDS
-```
-
-`TRACK SECONDS` accepts an integer from 8 to 999999. Examples:
+## Current screens
 
 ```text
-1200 = 20 minutes
-1800 = 30 minutes
-3600 = 1 hour
+Main Player:
+  Start / Stop
+  Next
+  Current Genre (tap to change)
+  Duration / elapsed time (tap to change)
 ```
 
-NEXT skips the current generated composition immediately.
-
-## Music model
-
-The engine keeps the current composition split:
+Tap the Duration line to choose:
 
 ```text
-INTER-SONG:
-  high randomness
-  new key, tempo, style, motif, progression, arrangement identity
-
-INTRA-SONG:
-  high stability
-  fixed composition identity while the track runs
-
-INTRA-SONG LITTLE RANDOMNESS:
-  section changes
-  hook returns
-  breakdowns
-  motif variation
-  drum-only mutation
+30 sec
+1 min
+3 min
+5 min
+10 min
+20 min
+1 hour
+Custom
+Random
+Infinite
 ```
 
-The compositional hierarchy is:
+Custom opens two numeric fields:
 
 ```text
-song
-  sections
-    phrases
-      motifs
+Minutes: 0-60
+Seconds: 0-60
 ```
+
+Values above 60 are clamped to 60. Infinite keeps the current composition alive until NEXT is pressed.
+
+Genre Selector:
+
+```text
+Random
+Pool / Hybrid
+Chrome Pulse
+Velvet Circuit
+Glass Trap
+Dust Machine
+Liquid Grid
+Neon Drift
+Broken Speaker
+Deep Magnet
+Pixel Ritual
+Soft Voltage
+Heavy Orbit
+Cold Arcade
+No Genre
+```
+
+Removed from the phone UI:
+
+```text
+saved sounds
+song naming
+load/delete library
+track counter
+generator-data editor
+track-seconds text field
+apply buttons
+```
+
+The phone app is aimed at simple listening: choose a style family or leave Random on, press START, and press NEXT when you want a new generated composition.
+
+## Genre selector behavior
+
+```text
+Random checked:
+  full engine selection
+  individual style boxes are dimmed
+  tapping any style box disables Random and selects that style
+
+Random unchecked:
+  one or more style families can be selected
+  Pool mode selects one chosen style for each new piece
+  Hybrid mode blends chosen styles while preserving a dominant identity
+  unselecting the last style falls back to Random
+  changes are applied automatically
+  if music is playing, a clean new generated piece starts automatically
+```
+
+The selector does not retrieve old compositions. Pool mode selects the eligible style-family pool for newly generated tracks. Hybrid mode makes a new style-family mixture from the selected styles. The main player shows the actual current style identity.
+
+## Music engine
+
+The sound engine is fully synthetic/electronic. It uses no samples and does not try to imitate acoustic instruments.
+
+v16 keeps the v11-v15 engine improvements and adds another music-focused pass:
+
+```text
+candidate composition scoring before playback
+stronger motif/theme selection
+stronger melody and counter-melody emphasis
+more call-and-response pressure
+more long-memory pressure inside tracks
+24 internal abstract style families
+expanded synthetic lane bank
+larger motif-shape library
+expanded harmonic progression pool
+stronger phrase-contour scoring
+stronger answer-contrast scoring
+more counter-line shapes
+clean forced regeneration when genre settings change
+Pool and Hybrid style-family generation
+Infinite composition duration mode
+conclusive outros and planned pre-end fades
+```
+
+The visible Genre Selector maps user-facing Technomatic style families onto internal engine style-family pools. For example, Deep Magnet and Heavy Orbit bias toward low-register, bass-centered internal families; Pixel Ritual and Cold Arcade bias toward harder grid and bright pulse behavior.
+
+The engine remains conservative in the audio callback: no allocation, no file IO, no neural model, no sample decoding, no convolution reverb.
 
 ## Android build
 
@@ -85,9 +153,9 @@ app/src/main/cpp/MusicEngine.cpp
 app/src/main/cpp/MusicEngine.h
 app/src/main/cpp/AudioEngine.cpp
 app/src/main/cpp/native-lib.cpp
-app/src/main/java/vip/thatiam/radiobreaker/MainActivity.java
-app/src/main/java/vip/thatiam/radiobreaker/AudioService.java
-app/src/main/java/vip/thatiam/radiobreaker/NativeAudio.java
+app/src/main/java/vip/thatiam/technomatic2105/MainActivity.java
+app/src/main/java/vip/thatiam/technomatic2105/AudioService.java
+app/src/main/java/vip/thatiam/technomatic2105/NativeAudio.java
 ```
 
 ## Debug build
@@ -119,8 +187,8 @@ Create a release keystore outside the repository:
 ```sh
 keytool -genkeypair \
   -v \
-  -keystore radio-breaker-release.jks \
-  -alias radio-breaker \
+  -keystore technomatic-2105-release.jks \
+  -alias technomatic-2105 \
   -keyalg RSA \
   -keysize 4096 \
   -validity 10000
@@ -130,60 +198,44 @@ Then build with external signing properties:
 
 ```sh
 gradle assembleRelease \
-  -PRADIO_BREAKER_RELEASE_STORE_FILE=/absolute/path/radio-breaker-release.jks \
-  -PRADIO_BREAKER_RELEASE_STORE_PASSWORD='store-password' \
-  -PRADIO_BREAKER_RELEASE_KEY_ALIAS='radio-breaker' \
-  -PRADIO_BREAKER_RELEASE_KEY_PASSWORD='key-password'
+  -PTECHNOMATIC_2105_RELEASE_STORE_FILE=/absolute/path/technomatic-2105-release.jks \
+  -PTECHNOMATIC_2105_RELEASE_STORE_PASSWORD='store-password' \
+  -PTECHNOMATIC_2105_RELEASE_KEY_ALIAS='technomatic-2105' \
+  -PTECHNOMATIC_2105_RELEASE_KEY_PASSWORD='key-password'
 ```
 
 Do not commit the keystore or passwords. `.gitignore` blocks common signing file names.
 
 ## GitHub publication
 
-Suggested first repository setup:
+Suggested repository setup:
 
 ```sh
 git init
 git add .
-git commit -m "Radio Breaker 0.6.0"
+git commit -m "Technomatic 2105 0.16.0"
 git branch -M main
-git remote add origin git@github.com:r94/radio-breaker.git
+git remote add origin git@github.com:r94/technomatic-2105.git
 git push -u origin main
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.16.0
+git push origin v0.16.0
 ```
 
-Change `r94/radio-breaker` if you use a different GitHub path.
-
-This archive includes GitHub Actions workflows:
-
-```text
-.github/workflows/android-ci.yml
-.github/workflows/android-release.yml
-```
-
-The release workflow expects these repository secrets if you want signed APK artifacts from GitHub Actions:
-
-```text
-ANDROID_KEYSTORE_BASE64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
-ANDROID_KEY_PASSWORD
-```
+Change `r94/technomatic-2105` if you use a different GitHub path.
 
 ## F-Droid preparation
 
 This archive includes:
 
 ```text
-fdroid/metadata/vip.thatiam.radiobreaker.yml
+fdroid/metadata/vip.thatiam.technomatic2105.yml
 fastlane/metadata/android/en-US/title.txt
 fastlane/metadata/android/en-US/short_description.txt
 fastlane/metadata/android/en-US/full_description.txt
-fastlane/metadata/android/en-US/changelogs/6.txt
+fastlane/metadata/android/en-US/changelogs/16.txt
 ```
 
-Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/radio-breaker`, push the `v0.6.0` tag, and verify that F-Droid can build the release from source.
+Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.16.0` tag, and verify that F-Droid can build the release from source.
 
 ## Preview renderer
 
@@ -191,7 +243,7 @@ A native preview renderer is included for desktop testing:
 
 ```sh
 g++ -std=c++17 -O3 app/src/main/cpp/MusicEngine.cpp tools/render_preview.cpp -o render_preview
-./render_preview radio_breaker_v6_preview.wav 180 0x52423630 1200
+./render_preview technomatic_2105_v16_preview.wav 180 5 180 0 0
 ```
 
 Arguments:
@@ -200,7 +252,8 @@ Arguments:
 1: output WAV path
 2: render seconds
 3: seed
-4: generated track length in seconds
+4: generated track length in seconds, or 0 for random duration mode
+5: genre mask, 0 for Random/full engine
 ```
 
 ## License

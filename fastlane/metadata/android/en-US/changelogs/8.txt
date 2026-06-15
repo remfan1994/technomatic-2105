@@ -1,0 +1,5 @@
+* Added reversible phonetic song names for remembering/regenerating generated tracks.
+* Added REMEMBER and LOAD SONG NAME controls.
+* Expanded internal style families and widened the instrument palette window.
+* Added auxiliary arp, counter-melody, chord-stab, drone, sparkle, and FX lanes.
+* Increased occasional breakdown/drop/return drama while preserving intra-song grammar.

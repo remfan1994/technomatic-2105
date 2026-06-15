@@ -1,8 +1,10 @@
-Radio Breaker generates synthetic electronic music directly on your Android device.
+Technomatic 2105 generates synthetic electronic music directly on your Android device.
 
-It is built as a minimalist generated-music player: press PLAY, let the engine create a track, press NEXT when you want a new generated composition, or set TRACK SECONDS for longer pieces.
+It is built as a minimalist generated-music player: press START, let the engine create a track, press NEXT when you want a new generated composition, and use the Genre Selector when you want a particular sound character.
 
-The music engine uses procedural drums, bass, leads, motifs, sections, hooks, breakdowns, and returns. It uses no samples and does not try to imitate acoustic instruments.
+The Genre Selector has Random checked by default. While Random is checked, the full engine is used. Tapping a style family turns Random off and focuses generation. When Random is off, one or more style families can be selected. Pool mode chooses one selected style family for each newly generated piece. Hybrid mode blends selected style families while preserving a dominant identity: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, Cold Arcade, and No Genre.
+
+The music engine uses procedural drums, bass, leads, auxiliary arps, counter-melodies, theme recall, call-and-response, motif families, counter-lines, sections, hooks, orbit sections, mirror phrases, cascade phrases, and surge returns. It uses no samples and does not try to imitate acoustic instruments.
 
 Privacy and freedom properties:
 
@@ -14,4 +16,4 @@ Privacy and freedom properties:
 * no external sound assets
 * no sample packs
 
-Radio Breaker is experimental. Its purpose is to explore on-device electronic music generation as a replacement for passive algorithmic radio.
+Technomatic 2105 is experimental. Its purpose is to explore on-device electronic music generation as a source of passive generated electronic listening.

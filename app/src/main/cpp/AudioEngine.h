@@ -19,7 +19,15 @@ public:
     bool start();
     void stop();
     void next();
+    void forceNew();
     void setPieceLengthSeconds(int32_t seconds);
+    void setGenreMask(int32_t mask);
+    void setGenreBlendMode(int32_t mode);
+    int32_t currentGenreMask() const;
+    int32_t currentGenreBlendMode() const;
+    int32_t currentGenreMode() const;
+    double currentElapsedSeconds() const;
+    int32_t currentPieceLengthSeconds() const;
     bool isPlaying() const;
 
     oboe::DataCallbackResult onAudioReady(
@@ -34,8 +42,13 @@ private:
     std::shared_ptr<oboe::AudioStream> mStream;
     MusicEngine mMusic;
     std::atomic<bool> mNextRequested{false};
+    std::atomic<bool> mForceNewRequested{false};
     std::atomic<bool> mLengthChangeRequested{false};
-    std::atomic<int32_t> mPieceLengthSeconds{1200};
+    std::atomic<bool> mGenreMaskChangeRequested{false};
+    std::atomic<bool> mGenreBlendModeChangeRequested{false};
+    std::atomic<int32_t> mPieceLengthSeconds{180};
+    std::atomic<int32_t> mGenreMask{0};
+    std::atomic<int32_t> mGenreBlendMode{0};
     bool mPlaying = false;
 };
 

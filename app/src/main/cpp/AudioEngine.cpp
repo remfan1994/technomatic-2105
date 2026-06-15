@@ -6,7 +6,7 @@
 
 namespace rb {
 namespace {
-constexpr const char* kTag = "RadioBreaker";
+constexpr const char* kTag = "Technomatic2105";
 }
 
 AudioEngine::~AudioEngine() {
@@ -23,6 +23,8 @@ bool AudioEngine::start() {
             ->setSharingMode(oboe::SharingMode::Exclusive)
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(oboe::ChannelCount::Stereo)
+            ->setUsage(oboe::Usage::Media)
+            ->setContentType(oboe::ContentType::Music)
             ->setDataCallback(this)
             ->setErrorCallback(this);
 
@@ -43,6 +45,8 @@ bool AudioEngine::start() {
 
     const int32_t sampleRate = mStream->getSampleRate() > 0 ? mStream->getSampleRate() : 48000;
     mMusic.prepare(static_cast<double>(sampleRate));
+    mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
+    mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
     mMusic.setPieceLengthSeconds(mPieceLengthSeconds.load(std::memory_order_acquire));
 
     const uint32_t seed = static_cast<uint32_t>(
@@ -67,10 +71,48 @@ void AudioEngine::next() {
     mNextRequested.store(true, std::memory_order_release);
 }
 
+void AudioEngine::forceNew() {
+    mForceNewRequested.store(true, std::memory_order_release);
+}
+
 void AudioEngine::setPieceLengthSeconds(int32_t seconds) {
-    seconds = std::max(8, std::min(999999, seconds));
+    if (seconds < -1) seconds = 180;
+    if (seconds > 0 && seconds < 8) seconds = 8;
+    if (seconds > 999999) seconds = 999999;
     mPieceLengthSeconds.store(seconds, std::memory_order_release);
     mLengthChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenreMask(int32_t mask) {
+    mask = std::max(0, std::min(8191, mask));
+    mGenreMask.store(mask, std::memory_order_release);
+    mGenreMaskChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenreBlendMode(int32_t mode) {
+    mode = std::max(0, std::min(1, mode));
+    mGenreBlendMode.store(mode, std::memory_order_release);
+    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
+}
+
+int32_t AudioEngine::currentGenreMask() const {
+    return std::max(0, std::min(8191, mGenreMask.load(std::memory_order_acquire)));
+}
+
+int32_t AudioEngine::currentGenreBlendMode() const {
+    return std::max(0, std::min(1, mGenreBlendMode.load(std::memory_order_acquire)));
+}
+
+int32_t AudioEngine::currentGenreMode() const {
+    return mMusic.currentGenreMode();
+}
+
+double AudioEngine::currentElapsedSeconds() const {
+    return mMusic.currentElapsedSeconds();
+}
+
+int32_t AudioEngine::currentPieceLengthSeconds() const {
+    return mMusic.currentPieceLengthSeconds();
 }
 
 void AudioEngine::stop() {
@@ -103,6 +145,18 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
 
     if (mLengthChangeRequested.exchange(false, std::memory_order_acq_rel)) {
         mMusic.setPieceLengthSeconds(mPieceLengthSeconds.load(std::memory_order_acquire));
+    }
+
+    if (mGenreBlendModeChangeRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
+    }
+
+    if (mGenreMaskChangeRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
+    }
+
+    if (mForceNewRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.forceNewPiece();
     }
 
     if (mNextRequested.exchange(false, std::memory_order_acq_rel)) {

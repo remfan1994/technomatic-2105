@@ -1,8 +1,112 @@
 # Changelog
 
-## 0.6.0
+## 0.16.0
 
-Release-preparation milestone.
+- Added Infinite duration mode so a composition can continue until NEXT is pressed.
+- Changed Custom duration to Minutes and Seconds only, with overflow clamped to 60 for each field and a minimum usable duration of 8 seconds.
+- Added Pool and Hybrid generation modes to the Genre Selector.
+- Pool mode chooses one selected style family per new generated piece; Hybrid mode blends selected style families through a dominant-primary influence model.
+- Made Current Genre and Duration rows more obviously interactive on the main screen.
+- Improved Random/genre checkbox behavior: tapping a dimmed genre disables Random, and unselecting the final genre falls back to Random with a visible message.
+- Fixed genre-change carryover by forcing a clean composition, voice, delay, AGC, transition, and hash-state reset when style selection changes while playing.
+- Added composition endings: some pieces now form conclusive outros, while non-conclusive pieces fade out before the duration boundary.
+- Deepened the music engine with more symbolic candidates, motif variants, progressions, counter-line shapes, and theme-memory behavior.
+- Bumped versionCode to 16 and versionName to 0.16.0.
+
+## 0.15.0
+
+- Made duration and current-genre controls explicit tappable buttons.
+- Changed genre selection from mood labels to original Technomatic style-family pools.
+- Added No Genre as a selectable raw-engine option.
+- Made selected genre checkboxes auto-activate when tapped from Random mode.
+- Changed unselecting the last genre to fall back to Random with a visible message.
+- Main screen now shows the actual current genre mode for the playing piece.
+- Genre changes while playing now force a clean new piece to prevent old-style carryover.
+- Custom duration now uses separate Hours, Minutes, and Seconds inputs with capped values.
+- Deepened the music engine with a larger motif-shape library and expanded harmonic progression pool.
+- Increased symbolic candidate search before playback and strengthened scoring for phrase contour, answer contrast, strong anchors, and motif recognizability.
+- Expanded counter-line shape behavior and strengthened long-track theme recall logic.
+
+
+## 0.14.0
+
+- Replaced the generic mood selector labels with original Technomatic style families: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, and Cold Arcade.
+- Removed the genre Apply button; selector changes now save immediately.
+- When music is playing, genre changes automatically start a new generated piece.
+- Made the genre selector honor Android back by returning to the main player instead of leaving the app.
+- Changed the main playback button from Play/Pause to Start/Stop.
+- Replaced the track-seconds text field and Apply Seconds button with a tappable elapsed/total-time line.
+- Added preset duration choices: 30 sec, 1 min, 3 min, 5 min, 10 min, 20 min, Custom, and Random.
+- Added native random-duration mode for new generated pieces.
+- Updated the bottom main-screen notice text.
+- Bumped versionCode to 14 and versionName to 0.14.0.
+
+## 0.13.0
+
+- Replaced the main-screen single genre control with a dedicated Genre Selector screen.
+- Added Random as the top genre selector checkbox, checked by default.
+- Disabled individual genre checkboxes while Random is checked.
+- Added multi-select genre masks so users can combine genre biases when Random is unchecked.
+- Kept the v12 simplified player: Play/Pause, Next, elapsed time, track seconds, and no phone editor/save/load/counter UI.
+- Bumped versionCode to 13 and versionName to 0.13.0.
+
+## 0.12.0
+
+- Removed phone-side generator editor, saved-sound naming/loading, and the track counter.
+- Set default track duration to 180 seconds for public sharing while retaining manual seconds entry.
+- Added native genre-mode biasing and symbolic candidate composition scoring.
+- Strengthened melody, motif, call-and-response, counter-melody, and long-memory pressure.
+- Explicitly permits Android audio playback capture for external recording tools.
+
+## 0.11.0
+
+- Deepened the music engine with theme-level generation above motif generation.
+- Added long-term theme recall, call-and-response behavior, and counterpoint-like reply lines.
+- Expanded internal abstract style families from 20 to 24.
+- Added more synthetic musical lanes: pluck, bell, pulse, grain, comet, and rotor.
+- Widened layer behavior so pieces can carry more simultaneous musical roles without samples.
+- Updated the generator editor range and fields for the expanded engine.
+- Bumped versionCode to 11 and versionName to 0.11.0.
+
+## 0.10.0
+
+- Renamed the app to Technomatic 2105 with package id `vip.thatiam.technomatic2105`.
+- Cleaned up the main player around Play/Pause, Next, Current Sound, elapsed time, track counter, Save Sound, Load Sound, and Sound Data Editor.
+- Removed automatic phonetic song names from the user interface.
+- Added user-named saved sounds backed by hidden generator data.
+- Added a separate saved-sounds screen with load and delete confirmation.
+- Added a human-readable generator-data editor for seed, duration, musical values, and instrument-lane values.
+- Made edited generator values affect the native engine instead of acting as seed-only labels.
+- Replaced the old human-template arrangement device with original arrangement devices: suspension, orbit, mirror, cascade, and surge.
+- Expanded style families from 16 to 20.
+- Expanded simultaneous instrument lanes and synthetic timbre variety.
+- Increased melody/motif prominence while keeping all sounds locally synthesized.
+- Replaced launcher artwork with a no-bolt Technomatic 2105 icon.
+- Bumped versionCode to 10 and versionName to 0.10.0.
+
+## 0.8.0
+
+- Added reversible phonetic song names for remembered/generated tracks.
+- Added REMEMBER and LOAD SONG NAME controls.
+- Added native seed/duration loading path so a song name can regenerate the same composition.
+- Expanded from 12 to 16 internal abstract electronic style families.
+- Widened the per-song instrument window so generated tracks use fuller arrangements.
+- Added auxiliary arp, counter-melody, chord-stab, drone, sparkle, and FX lanes.
+- Increased occasional breakdown/drop/return drama while preserving intra-song grammar.
+- Bumped versionCode to 8 and versionName to 0.8.0.
+
+## 0.7.0
+
+- Renamed app to Technomatic 2105.
+- Changed package/application id to `vip.thatiam.technomatic2105` for first public publishing.
+- Expanded the music engine to 12 internal abstract electronic style families.
+- Added per-composition instrument palette selection so songs use different subsets of synthetic voices.
+- Broadened synthesized bass, lead, pad, percussion, and texture timbres without samples.
+- Increased occasional dramatic breakdown, hold, hook, and climax behavior while preserving intra-song grammar.
+- Updated GitHub/F-Droid/Fastlane metadata for the new name.
+- Bumped versionCode to 7 and versionName to 0.7.0.
+
+## 0.6.0
 
 - Added custom launcher icon and round launcher icon.
 - Added custom notification status icon.
@@ -11,9 +115,6 @@ Release-preparation milestone.
 - Added F-Droid metadata draft.
 - Added Fastlane-style store metadata.
 - Added license, privacy, release, and publication documentation.
-- Bumped versionCode to 6 and versionName to 0.6.0.
-
-Music engine behavior is intentionally kept close to v5. This version focuses on publication readiness.
 
 ## 0.5.0
 

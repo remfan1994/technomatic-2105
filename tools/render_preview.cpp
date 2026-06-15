@@ -56,18 +56,23 @@ static void writeWav(const char* path, const std::vector<float>& samples, int sa
 }
 
 int main(int argc, char** argv) {
-    const char* out = argc > 1 ? argv[1] : "radio_breaker_preview.wav";
+    const char* out = argc > 1 ? argv[1] : "technomatic_2105_preview.wav";
     constexpr int sampleRate = 48000;
     constexpr int channels = 2;
     const int seconds = argc > 2 ? std::max(1, std::atoi(argv[2])) : 180;
     const uint32_t seed = argc > 3 ? static_cast<uint32_t>(std::strtoul(argv[3], nullptr, 0)) : 0x52423934u;
-    const int trackSeconds = argc > 4 ? std::max(8, std::atoi(argv[4])) : 1200;
+    const int trackSeconds = argc > 4 ? std::atoi(argv[4]) : 180;
+    const int genreMask = argc > 5 ? std::max(0, std::atoi(argv[5])) : 0;
+    const int genreBlendMode = argc > 6 ? std::max(0, std::min(1, std::atoi(argv[6]))) : 0;
     constexpr int blockFrames = 256;
 
     rb::MusicEngine engine;
     engine.prepare(sampleRate);
+    engine.setGenreBlendMode(genreBlendMode);
+    engine.setGenreMask(genreMask);
     engine.setPieceLengthSeconds(trackSeconds);
     engine.reset(seed);
+    std::printf("song data: %s\n", engine.currentSongData().c_str());
 
     std::vector<float> all(static_cast<size_t>(sampleRate * seconds * channels), 0.0f);
     std::vector<float> block(static_cast<size_t>(blockFrames * channels), 0.0f);
@@ -84,6 +89,6 @@ int main(int argc, char** argv) {
     }
 
     writeWav(out, all, sampleRate, channels);
-    std::printf("wrote %s (%d sec render, %d sec track length)\n", out, seconds, trackSeconds);
+    std::printf("wrote %s (%d sec render, %d sec track length, genre mask %d, blend %d)\n", out, seconds, trackSeconds, genreMask, genreBlendMode);
     return 0;
 }

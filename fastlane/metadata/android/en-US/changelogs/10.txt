@@ -1,0 +1,6 @@
+* Renamed app to Technomatic 2105.
+* Cleaned up player, save, load, and generator editor screens.
+* Added elapsed time and track counter to the main screen.
+* Added user-named saved sounds backed by editable generator data.
+* Made generator editor values affect native sound generation.
+* Retained no samples, no network, no ads, no analytics.

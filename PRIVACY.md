@@ -1,6 +1,6 @@
 # Privacy
 
-Radio Breaker generates electronic music locally on the device.
+Technomatic 2105 generates electronic music locally on the device.
 
 The app does not request Internet access, does not create user accounts, does not use analytics, does not use advertising SDKs, and does not upload listening behavior or generated audio.
 

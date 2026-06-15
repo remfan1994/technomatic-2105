@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'RadioBreaker'
+rootProject.name = 'Technomatic2105'
 include ':app'

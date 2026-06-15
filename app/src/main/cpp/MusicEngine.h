@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
+#include <mutex>
+#include <string>
 #include <vector>
 
 namespace rb {
@@ -13,23 +16,36 @@ public:
     void prepare(double sampleRate);
     void reset(uint32_t seed);
     void next();
+    void forceNewPiece();
     void setPieceLengthSeconds(int32_t seconds);
+    void setGenreMask(int32_t mask);
+    void setGenreBlendMode(int32_t mode);
+    int32_t currentGenreMask() const;
+    int32_t currentGenreBlendMode() const;
+    int32_t currentGenreMode() const;
     void render(float* output, int32_t frames, int32_t channelCount);
+    std::string currentSongData() const;
+    bool loadSongData(const std::string& data);
+    double currentElapsedSeconds() const;
+    int32_t currentPieceLengthSeconds() const;
+    static bool decodeSongData(const std::string& data, uint32_t& seedOut, int32_t& secondsOut);
 
 private:
     static constexpr int kPatternSteps = 64;
     static constexpr int kMotifSteps = 32;
     static constexpr int kChordSteps = 16;
     static constexpr int kMaxDrumVoices = 64;
-    static constexpr int kMaxBassVoices = 16;
-    static constexpr int kMaxPadVoices = 18;
-    static constexpr int kMaxLeadVoices = 24;
-    static constexpr int kMaxEvents = 128;
+    static constexpr int kMaxBassVoices = 24;
+    static constexpr int kMaxPadVoices = 36;
+    static constexpr int kMaxLeadVoices = 64;
+    static constexpr int kMaxEvents = 320;
     static constexpr int kMemorySlots = 24;
     static constexpr int kRecentHashes = 64;
     static constexpr int kPhraseSteps = 16;
     static constexpr int kMaxFormSlots = 16;
     static constexpr int kMaxProgressionSlots = 8;
+    static constexpr int kThemeSlots = 8;
+    static constexpr int kGenreModeCount = 13;
     static constexpr float kPi = 3.14159265358979323846f;
     static constexpr float kTwoPi = 6.28318530717958647692f;
 
@@ -54,16 +70,31 @@ private:
     };
 
     enum class StyleType : int32_t {
-        BoomBap = 0,
-        TrapNoir = 1,
-        BreakRush = 2,
-        ElectroFunk = 3,
-        MicroHouse = 4,
-        Synthwave = 5,
-        GlitchHop = 6,
-        VaporDrift = 7,
-        PulseDub = 8,
-        Count = 9
+        ConcretePulse = 0,
+        GlassNoir = 1,
+        ShardRush = 2,
+        NeonLatch = 3,
+        TinyGrid = 4,
+        PrismCruise = 5,
+        BrokenMagnet = 6,
+        VelvetDrift = 7,
+        SubOrbit = 8,
+        SoftVoltage = 9,
+        DeepMagnet = 10,
+        ChromeBloom = 11,
+        WarmCurrent = 12,
+        PulseGarden = 13,
+        VoidStep = 14,
+        SolarFold = 15,
+        IonGarden = 16,
+        MarbleBass = 17,
+        EchoCrown = 18,
+        BitFog = 19,
+        MagentaWell = 20,
+        CarbonRain = 21,
+        LatticeSun = 22,
+        StrangeHarbor = 23,
+        Count = 24
     };
 
     enum class TransitionStage : int32_t {
@@ -79,9 +110,12 @@ private:
         Repeat = 1,
         Answer = 2,
         Variation = 3,
-        Breakdown = 4,
-        Climax = 5,
-        Hook = 6
+        Suspension = 4,
+        Surge = 5,
+        Hook = 6,
+        Mirror = 7,
+        Orbit = 8,
+        Cascade = 9
     };
 
     enum class SectionType : int32_t {
@@ -89,9 +123,12 @@ private:
         Theme = 1,
         Hook = 2,
         Variation = 3,
-        Breakdown = 4,
-        Climax = 5,
-        Outro = 6
+        Suspension = 4,
+        Surge = 5,
+        Outro = 6,
+        Mirror = 7,
+        Orbit = 8,
+        Cascade = 9
     };
 
     struct Rng {
@@ -105,7 +142,7 @@ private:
     };
 
     struct StyleProfile {
-        StyleType type = StyleType::BoomBap;
+        StyleType type = StyleType::ConcretePulse;
         float bpmMin = 82.0f;
         float bpmMax = 96.0f;
         float swingMin = 0.04f;
@@ -122,6 +159,9 @@ private:
         float hatRoll = 0.12f;
         float melodyRun = 0.20f;
         float transitionSilence = 0.35f;
+        float drama = 0.35f;
+        float palette = 0.60f;
+        float brightness = 0.50f;
         bool fourOnFloor = false;
         bool halfTime = false;
         bool breakbeat = false;
@@ -144,23 +184,106 @@ private:
         std::array<int32_t, kPhraseSteps> motifA{};
         std::array<int32_t, kPhraseSteps> motifB{};
         std::array<int32_t, kPhraseSteps> motifC{};
+        std::array<int32_t, kPhraseSteps> motifD{};
+        std::array<int32_t, kPhraseSteps> motifE{};
         std::array<float, kPhraseSteps> gateA{};
         std::array<float, kPhraseSteps> gateB{};
         std::array<float, kPhraseSteps> gateC{};
+        std::array<float, kPhraseSteps> gateD{};
+        std::array<float, kPhraseSteps> gateE{};
         std::array<float, kPhraseSteps> durA{};
         std::array<float, kPhraseSteps> durB{};
         std::array<float, kPhraseSteps> durC{};
+        std::array<float, kPhraseSteps> durD{};
+        std::array<float, kPhraseSteps> durE{};
+        std::array<int32_t, kThemeSlots> themeOffset{};
+        std::array<int32_t, kThemeSlots> themeContour{};
+        std::array<float, kThemeSlots> themeWeight{};
         std::array<int32_t, kPhraseSteps> bassRel{};
         std::array<float, kPhraseSteps> bassGate{};
         std::array<float, kPhraseSteps> chordGate{};
         int32_t hookOffset = 0;
         int32_t answerOffset = 0;
+        int32_t themeCount = 3;
+        int32_t recallCycle = 9;
+        int32_t dialogueCycle = 5;
+        int32_t counterShape = 0;
+        int32_t themeShapeId = 0;
         int32_t octaveBias = 2;
+        float longMemory = 0.55f;
+        float callResponse = 0.45f;
+        float counterpoint = 0.40f;
+        float melodicGravity = 0.68f;
+        float phraseArc = 0.50f;
+        float layerDepth = 0.70f;
         float motifGain = 1.0f;
         float bassGain = 1.0f;
         float chordGain = 1.0f;
         float ornament = 0.20f;
         float leadSpace = 0.22f;
+        float drama = 0.35f;
+        float deviceDepth = 0.45f;
+        bool conclusiveOutro = false;
+        int32_t outroFadeSteps = kPhraseSteps * 4;
+        float hookEmphasis = 1.0f;
+        float surgeLift = 1.0f;
+        float useKick = 1.0f;
+        float useSnare = 1.0f;
+        float useHat = 1.0f;
+        float useOpenHat = 1.0f;
+        float usePerc = 1.0f;
+        float useBass = 1.0f;
+        float useChord = 1.0f;
+        float useLead = 1.0f;
+        float useTexture = 1.0f;
+        float useArp = 0.0f;
+        float useCounter = 0.0f;
+        float useStab = 0.0f;
+        float useDrone = 0.0f;
+        float useSpark = 0.0f;
+        float useFx = 0.0f;
+        float useEcho = 0.0f;
+        float useOrbit = 0.0f;
+        float useBloom = 0.0f;
+        float useGlyph = 0.0f;
+        float useSub = 0.0f;
+        float useSheen = 0.0f;
+        float usePluck = 0.0f;
+        float useBell = 0.0f;
+        float usePulse = 0.0f;
+        float useGrain = 0.0f;
+        float useComet = 0.0f;
+        float useRotor = 0.0f;
+        int32_t motifTemplateId = 0;
+        int32_t progressionId = 0;
+        uint32_t paletteHash = 0u;
+        uint32_t motifHash = 0u;
+        float kickTone = 0.45f;
+        float snareTone = 0.45f;
+        float hatTone = 0.45f;
+        float percTone = 0.45f;
+        float bassTone = 0.45f;
+        float padTone = 0.45f;
+        float leadTone = 0.45f;
+        float arpTone = 0.45f;
+        float counterTone = 0.45f;
+        float stabTone = 0.45f;
+        float droneTone = 0.45f;
+        float sparkTone = 0.45f;
+        float fxTone = 0.45f;
+        float echoTone = 0.45f;
+        float orbitTone = 0.45f;
+        float bloomTone = 0.45f;
+        float glyphTone = 0.45f;
+        float subTone = 0.45f;
+        float sheenTone = 0.45f;
+        float pluckTone = 0.45f;
+        float bellTone = 0.45f;
+        float pulseTone = 0.45f;
+        float grainTone = 0.45f;
+        float cometTone = 0.45f;
+        float rotorTone = 0.45f;
+        float textureTone = 0.45f;
     };
 
     struct Pattern {
@@ -177,7 +300,7 @@ private:
         std::array<int32_t, kMotifSteps> leadMotif{};
         std::array<float, kMotifSteps> leadGate{};
         std::array<int32_t, kChordSteps> chordMotif{};
-        StyleType style = StyleType::BoomBap;
+        StyleType style = StyleType::ConcretePulse;
         int32_t rootMidi = 36;
         int32_t scaleMode = 0;
         float swing = 0.08f;
@@ -295,7 +418,13 @@ private:
     float mBpmTarget = 92.0f;
     int32_t mStyleAgeSteps = 0;
     int32_t mStyleTargetSteps = 800;
-    int32_t mRequestedPieceSeconds = 1200;
+    int32_t mRequestedPieceSeconds = 180;
+    bool mRandomPieceLength = false;
+    bool mInfinitePieceLength = false;
+    int32_t mGenreMask = 0;
+    int32_t mGenreBlendMode = 0;
+    int32_t mWorkingGenreMode = 0;
+    std::atomic<int32_t> mCurrentGenreMode{0};
     int32_t mPhraseSeed = 0;
     int32_t mLeadRunSteps = 0;
     int32_t mLastKickStep = -1000;
@@ -305,7 +434,13 @@ private:
     int32_t mSilentSteps = 0;
 
     TransitionStage mTransitionStage = TransitionStage::None;
-    StyleType mPendingStyle = StyleType::BoomBap;
+    StyleType mPendingStyle = StyleType::ConcretePulse;
+    uint32_t mCurrentSongSeed = 0x52423934u;
+    uint32_t mPendingSongSeed = 0x52423934u;
+    bool mCurrentSongEdited = false;
+    std::atomic<int64_t> mCurrentPieceSamples{0};
+    mutable std::mutex mSongDataMutex;
+    std::string mCurrentSongData;
     int32_t mTransitionSamplesLeft = 0;
     int32_t mTransitionSamplesTotal = 1;
     int32_t mDeadAirSamples = 0;
@@ -338,10 +473,21 @@ private:
     StyleProfile profile(StyleType style) const;
     StyleType randomStyle();
     StyleType randomDifferentStyle(StyleType current);
+    bool styleAllowedForGenre(StyleType style, int32_t genreMode) const;
+    bool styleAllowedForNoGenre(StyleType style) const;
+    bool styleAllowedForGenreMask(StyleType style, int32_t genreMask) const;
+    int32_t chooseGenreModeFromMask(int32_t genreMask);
+    void applyHybridGenreBias(StyleProfile& p) const;
+    float scoreCurrentComposition() const;
     void scheduleNextStyleTarget();
     int32_t pieceStepsFromSeconds(int32_t seconds, float bpm) const;
+    int32_t randomPieceSeconds();
+    void generateSeededSong(uint32_t seed);
+    void updateCurrentSongData();
+    void applySongDataOverrides(const std::string& data);
     void generatePattern(StyleType style);
     void generateComposition(const StyleProfile& p);
+    void chooseInstrumentPalette(const StyleProfile& p);
     void fillMotifFromTemplate(std::array<int32_t, kPhraseSteps>& motif,
                                std::array<float, kPhraseSteps>& gate,
                                std::array<float, kPhraseSteps>& dur,
@@ -360,6 +506,9 @@ private:
     SectionType currentSectionType(int32_t step) const;
     PhraseType currentPhraseType(int32_t step) const;
     int32_t grammarDegree(PhraseType phrase, int32_t phrasePos, int32_t chordRoot, bool& isRest, float& gate, float& dur) const;
+    int32_t themeIndexForStep(int32_t step) const;
+    int32_t applyThemeTransform(int32_t degree, int32_t step, int32_t phrasePos, int32_t chordRoot, PhraseType phrase) const;
+    int32_t counterpointDegree(int32_t step, int32_t phrasePos, int32_t chordRoot) const;
     int32_t bassDegreeForStep(int32_t phrasePos, int32_t chordRoot, int32_t nextChordRoot) const;
 
     void beginTransition();

@@ -10,15 +10,15 @@ Check:
 app/build.gradle
 CHANGELOG.md
 fastlane/metadata/android/en-US/changelogs/<versionCode>.txt
-fdroid/metadata/vip.thatiam.radiobreaker.yml
+fdroid/metadata/vip.thatiam.technomatic2105.yml
 ```
 
-For v6:
+For v16:
 
 ```text
-versionName: 0.6.0
-versionCode: 6
-tag: v0.6.0
+versionName: 0.16.0
+versionCode: 16
+tag: v0.16.0
 ```
 
 ## 2. Build locally
@@ -39,10 +39,10 @@ Signed release build:
 
 ```sh
 gradle assembleRelease \
-  -PRADIO_BREAKER_RELEASE_STORE_FILE=/absolute/path/radio-breaker-release.jks \
-  -PRADIO_BREAKER_RELEASE_STORE_PASSWORD='store-password' \
-  -PRADIO_BREAKER_RELEASE_KEY_ALIAS='radio-breaker' \
-  -PRADIO_BREAKER_RELEASE_KEY_PASSWORD='key-password'
+  -PTECHNOMATIC_2105_RELEASE_STORE_FILE=/absolute/path/technomatic-2105-release.jks \
+  -PTECHNOMATIC_2105_RELEASE_STORE_PASSWORD='store-password' \
+  -PTECHNOMATIC_2105_RELEASE_KEY_ALIAS='technomatic-2105' \
+  -PTECHNOMATIC_2105_RELEASE_KEY_PASSWORD='key-password'
 ```
 
 ## 3. Device test checklist
@@ -50,15 +50,26 @@ gradle assembleRelease \
 ```text
 install fresh
 launch from app list icon
-PLAY starts generated music
-PAUSE stops generated music
-NEXT changes composition
-TRACK SECONDS persists after app restart
+START starts generated music and elapsed time advances
+STOP stops generated music
+NEXT changes generated composition
+Genre Selector opens its own screen
+Random is checked by default
+tapping a dimmed genre while Random is checked disables Random and selects that genre
+Pool and Hybrid mode buttons are visible
+Pool mode shows Sounds pooled from:
+Hybrid mode shows Sounds hybridized from:
+selecting one or more genre checkboxes immediately starts a clean new generated track while playing
+tapping elapsed/total time opens 30 sec, 1 min, 3 min, 5 min, 10 min, 20 min, 1 hour, Custom, Random, and Infinite choices
+Custom duration uses Minutes and Seconds only and clamps each field to 60
+Infinite duration keeps the current composition alive until NEXT is pressed
+track length defaults to 180 seconds
+No editor, save screen, load screen, or counter is visible
 screen off keeps audio running
 switch app keeps audio running
-notification shows Radio Breaker icon/text
+notification shows Technomatic 2105 icon/text
 notification Next works
-notification Pause works
+notification Stop works
 headphones route audio correctly
 volume remains steady between generated pieces
 ```
@@ -66,13 +77,13 @@ volume remains steady between generated pieces
 ## 4. Tag release
 
 ```sh
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.16.0
+git push origin v0.16.0
 ```
 
 ## 5. GitHub release
 
-Create a GitHub release from tag `v0.6.0`.
+Create a GitHub release from tag `v0.16.0`.
 
 Attach:
 
@@ -87,7 +98,7 @@ Do not attach or publish keystores.
 
 F-Droid builds and signs apps from source. The fdroiddata merge request should point to the public Git repository and tag. Use the draft metadata file under `fdroid/metadata/` as the starting point.
 
-If your repository path is not `r94/radio-breaker`, update these fields:
+If your repository path is not `r94/technomatic-2105`, update these fields:
 
 ```text
 SourceCode

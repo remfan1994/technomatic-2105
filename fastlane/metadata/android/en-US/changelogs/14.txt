@@ -1,0 +1,1 @@
+Replaced generic mood labels with original Technomatic style-family names, removed genre apply behavior, added automatic style-change regeneration, fixed genre-screen back navigation, changed Play/Pause to Start/Stop, replaced the track-seconds field with tappable duration presets including Random, and kept the simplified no-editor/no-save player flow.

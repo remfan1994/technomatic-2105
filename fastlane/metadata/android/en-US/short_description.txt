@@ -1,1 +1,1 @@
-Procedural electronic music generator for Android
+Procedural electronic music generated locally on Android.

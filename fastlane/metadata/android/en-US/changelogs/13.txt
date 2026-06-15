@@ -1,0 +1,5 @@
+* Added a dedicated Genre Selector screen.
+* Added Random as the top checkbox, checked by default.
+* Disabled individual genre checkboxes while Random is checked.
+* Added multi-select genre masks for combining genre biases.
+* Kept the simplified listening-first UI: Play/Pause, Next, elapsed time, and track seconds.
