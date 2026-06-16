@@ -1,0 +1,5 @@
+Restores lightweight saved sounds and adds sound lists.
+Improves landscape scrolling and genre selector layout.
+Moves -- No Genre -- to the top of the genre list.
+Adds a harder native genre reset path to reduce genre carryover.
+Deepens motif, theme-memory, harmony, and counter-line generation.

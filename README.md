@@ -2,16 +2,17 @@
 
 Technomatic 2105 is an Android procedural electronic music app. It generates synthetic electronic tracks on-device without samples, network access, accounts, ads, analytics, trackers, or external audio assets.
 
-v16.2 keeps the phone interface focused on immediate listening. The editor, saved-sound system, generated names, and counter remain removed. The main player uses Start/Stop, Next, explicit tappable genre and duration controls, and a dedicated Genre Selector screen using original Technomatic style-family names plus No Genre. v16 adds Infinite duration and Pool/Hybrid style-family selection; v16.2 fixes narrow-screen selector and main touchbox layout clipping.
+v0.20.5 keeps the phone interface focused on immediate listening. The saved-name/list UI and editor are removed. The main player is reorganized around Start/Stop, a compact Genre line, a compact Elapsed line, Previous/Restart/Next, the vegetarian notice, and an Advanced seed/export screen. Genre selection uses original Technomatic style-family names with one-line descriptions, Random/Pool/Hybrid selection, and No Genre as a special raw-engine option. v0.20.5 fixes OGG export to snapshot the current seed/duration and render exactly that sound without following live track changes.
 
 ## Current screens
 
 ```text
 Main Player:
   Start / Stop
-  Next
-  Current Genre (tap to change)
-  Duration / elapsed time (tap to change)
+  Genre: <current genre>
+  Elapsed: <elapsed> / <duration>
+  Previous / Restart / Next
+  Advanced
 ```
 
 Tap the Duration line to choose:
@@ -61,9 +62,9 @@ No Genre
 Removed from the phone UI:
 
 ```text
-saved sounds
-song naming
-load/delete library
+saved-name library UI
+sound-list UI
+song naming UI
 track counter
 generator-data editor
 track-seconds text field
@@ -71,6 +72,22 @@ apply buttons
 ```
 
 The phone app is aimed at simple listening: choose a style family or leave Random on, press START, and press NEXT when you want a new generated composition.
+
+Advanced screen:
+
+```text
+Seed: tap to copy
+Load seed
+Export to OGG
+```
+
+Export to OGG snapshots the current generated sound and renders it offline without restarting or altering live playback. It requires Android 10/API 29 or later because the app uses the platform Ogg/Opus path. Successful exports are published to:
+
+```text
+Music/Technomatic2105/<filename>.ogg
+```
+
+The Advanced screen shows the last export path after a successful export.
 
 ## Genre selector behavior
 
@@ -95,7 +112,7 @@ The selector does not retrieve old compositions. Pool mode selects the eligible 
 
 The sound engine is fully synthetic/electronic. It uses no samples and does not try to imitate acoustic instruments.
 
-v16 keeps the v11-v15 engine improvements and adds another music-focused pass:
+v0.20.5 keeps the v11-v19 engine improvements and adds a final stability pass:
 
 ```text
 candidate composition scoring before playback
@@ -111,6 +128,9 @@ stronger phrase-contour scoring
 stronger answer-contrast scoring
 more counter-line shapes
 clean forced regeneration when genre settings change
+clean residual audio-state reset between generated pieces
+per-song recall memory reset to prevent previous-genre bleed
+symbolic anti-repetition memory preserved across manual Next/genre changes
 Pool and Hybrid style-family generation
 Infinite composition duration mode
 conclusive outros and planned pre-end fades
@@ -213,12 +233,12 @@ Suggested repository setup:
 ```sh
 git init
 git add .
-git commit -m "Technomatic 2105 0.16.2"
+git commit -m "Technomatic 2105 0.20.5"
 git branch -M main
 git remote add origin git@github.com:r94/technomatic-2105.git
 git push -u origin main
-git tag v0.16.2
-git push origin v0.16.2
+git tag v0.20.5
+git push origin v0.20.5
 ```
 
 Change `r94/technomatic-2105` if you use a different GitHub path.
@@ -232,10 +252,10 @@ fdroid/metadata/vip.thatiam.technomatic2105.yml
 fastlane/metadata/android/en-US/title.txt
 fastlane/metadata/android/en-US/short_description.txt
 fastlane/metadata/android/en-US/full_description.txt
-fastlane/metadata/android/en-US/changelogs/18.txt
+fastlane/metadata/android/en-US/changelogs/26.txt
 ```
 
-Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.16.2` tag, and verify that F-Droid can build the release from source.
+Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.20.5` tag, and verify that F-Droid can build the release from source.
 
 ## Preview renderer
 
@@ -243,7 +263,7 @@ A native preview renderer is included for desktop testing:
 
 ```sh
 g++ -std=c++17 -O3 app/src/main/cpp/MusicEngine.cpp tools/render_preview.cpp -o render_preview
-./render_preview technomatic_2105_v16_preview.wav 180 5 180 0 0
+./render_preview technomatic_2105_v20_1_preview.wav 180 5 180 0 0
 ```
 
 Arguments:

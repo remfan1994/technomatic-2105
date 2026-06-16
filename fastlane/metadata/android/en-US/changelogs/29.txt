@@ -1,0 +1,6 @@
+Technomatic 2105 v0.20.5
+
+- OGG export no longer restarts or alters live playback.
+- Export snapshots the current generated sound and renders it offline as an independent job.
+- Added candidate-index generator data for more reliable snapshot reconstruction.
+- Only Cancel Export cancels an active export job.

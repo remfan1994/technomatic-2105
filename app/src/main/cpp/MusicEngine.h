@@ -29,6 +29,7 @@ public:
     double currentElapsedSeconds() const;
     int32_t currentPieceLengthSeconds() const;
     static bool decodeSongData(const std::string& data, uint32_t& seedOut, int32_t& secondsOut);
+    static bool exportPcm16File(const std::string& data, int32_t seconds, const std::string& path, const std::atomic<bool>* cancelFlag = nullptr);
 
 private:
     static constexpr int kPatternSteps = 64;
@@ -40,7 +41,8 @@ private:
     static constexpr int kMaxLeadVoices = 64;
     static constexpr int kMaxEvents = 320;
     static constexpr int kMemorySlots = 24;
-    static constexpr int kRecentHashes = 64;
+    static constexpr int kRecentHashes = 192;
+    static constexpr int kRecentMotifHashes = 256;
     static constexpr int kPhraseSteps = 16;
     static constexpr int kMaxFormSlots = 16;
     static constexpr int kMaxProgressionSlots = 8;
@@ -94,7 +96,15 @@ private:
         CarbonRain = 21,
         LatticeSun = 22,
         StrangeHarbor = 23,
-        Count = 24
+        CopperChord = 24,
+        GhostMeter = 25,
+        ObsidianBloom = 26,
+        VoltageMoth = 27,
+        QuartzTide = 28,
+        StaticCathedral = 29,
+        MercuryThread = 30,
+        NightLatch = 31,
+        Count = 32
     };
 
     enum class TransitionStage : int32_t {
@@ -115,7 +125,10 @@ private:
         Hook = 6,
         Mirror = 7,
         Orbit = 8,
-        Cascade = 9
+        Cascade = 9,
+        Crystallize = 10,
+        Eclipse = 11,
+        Afterimage = 12
     };
 
     enum class SectionType : int32_t {
@@ -128,7 +141,10 @@ private:
         Outro = 6,
         Mirror = 7,
         Orbit = 8,
-        Cascade = 9
+        Cascade = 9,
+        Crystallize = 10,
+        Eclipse = 11,
+        Afterimage = 12
     };
 
     struct Rng {
@@ -314,6 +330,9 @@ private:
         float melody = 0.35f;
         float delay = 0.16f;
         float drive = 0.55f;
+        float profileTexture = 0.20f;
+        bool profileAmbient = false;
+        bool profileBreakbeat = false;
     };
 
     struct ScheduledEvent {
@@ -421,6 +440,8 @@ private:
     int32_t mRequestedPieceSeconds = 180;
     bool mRandomPieceLength = false;
     bool mInfinitePieceLength = false;
+    bool mExportSinglePieceMode = false;
+    int64_t mExportStopSamples = 0;
     int32_t mGenreMask = 0;
     int32_t mGenreBlendMode = 0;
     int32_t mWorkingGenreMode = 0;
@@ -437,6 +458,8 @@ private:
     StyleType mPendingStyle = StyleType::ConcretePulse;
     uint32_t mCurrentSongSeed = 0x52423934u;
     uint32_t mPendingSongSeed = 0x52423934u;
+    int32_t mCurrentCandidateIndex = 0;
+    int32_t mForcedCandidateIndex = -1;
     bool mCurrentSongEdited = false;
     std::atomic<int64_t> mCurrentPieceSamples{0};
     mutable std::mutex mSongDataMutex;
@@ -469,6 +492,8 @@ private:
 
     std::array<uint32_t, kRecentHashes> mRecentHash{};
     int32_t mRecentHashWrite = 0;
+    std::array<uint32_t, kRecentMotifHashes> mRecentMotifHash{};
+    int32_t mRecentMotifHashWrite = 0;
 
     StyleProfile profile(StyleType style) const;
     StyleType randomStyle();
@@ -502,7 +527,10 @@ private:
     void recallMemory(float amount);
     uint32_t patternHash() const;
     bool isHashRecent(uint32_t hash) const;
+    uint32_t motifSignatureHash() const;
+    bool isMotifHashRecent(uint32_t hash) const;
     int32_t currentChordRoot(int32_t step) const;
+    int32_t outroGravitySteps() const;
     SectionType currentSectionType(int32_t step) const;
     PhraseType currentPhraseType(int32_t step) const;
     int32_t grammarDegree(PhraseType phrase, int32_t phrasePos, int32_t chordRoot, bool& isRest, float& gate, float& dur) const;

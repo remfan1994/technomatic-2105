@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 
 #include <oboe/Oboe.h>
 
@@ -23,6 +24,10 @@ public:
     void setPieceLengthSeconds(int32_t seconds);
     void setGenreMask(int32_t mask);
     void setGenreBlendMode(int32_t mode);
+    void setGenreStateAndForceNew(int32_t mask, int32_t mode);
+    std::string currentSongData() const;
+    bool loadSongData(const std::string& data);
+    bool exportPcm16ToFile(const std::string& data, int32_t seconds, const std::string& path);
     int32_t currentGenreMask() const;
     int32_t currentGenreBlendMode() const;
     int32_t currentGenreMode() const;
@@ -46,9 +51,12 @@ private:
     std::atomic<bool> mLengthChangeRequested{false};
     std::atomic<bool> mGenreMaskChangeRequested{false};
     std::atomic<bool> mGenreBlendModeChangeRequested{false};
+    std::atomic<bool> mLoadSongDataRequested{false};
     std::atomic<int32_t> mPieceLengthSeconds{180};
     std::atomic<int32_t> mGenreMask{0};
     std::atomic<int32_t> mGenreBlendMode{0};
+    mutable std::mutex mSongDataLock;
+    std::string mPendingSongData;
     bool mPlaying = false;
 };
 

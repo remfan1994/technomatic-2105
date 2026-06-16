@@ -34,14 +34,30 @@ RepoType: git
 Repo: https://github.com/r94/technomatic-2105.git
 
 Builds:
-  - versionName: 0.16.2
-    versionCode: 18
-    commit: v0.16.2
+  - versionName: 0.20.5
+    versionCode: 29
+    commit: v0.20.5
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.20.5"
+
+  - versionName: 0.20.1
+    versionCode: 25
+    commit: v0.20.1
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.20.1"
+
+  - versionName: 0.20.0
+    versionCode: 24
+    commit: v0.20.0
     subdir: .
     gradle:
       - yes
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 0.16.2
-CurrentVersionCode: 18
+CurrentVersion: 0.20.5
+CurrentVersionCode: 29

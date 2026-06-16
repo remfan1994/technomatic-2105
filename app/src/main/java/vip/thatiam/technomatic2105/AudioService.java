@@ -19,9 +19,12 @@ public final class AudioService extends Service {
     public static final String ACTION_START = "vip.thatiam.technomatic2105.START";
     public static final String ACTION_STOP = "vip.thatiam.technomatic2105.STOP";
     public static final String ACTION_NEXT = "vip.thatiam.technomatic2105.NEXT";
+    public static final String ACTION_LOAD_SOUND = "vip.thatiam.technomatic2105.LOAD_SOUND";
     public static final String EXTRA_TRACK_SECONDS = "vip.thatiam.technomatic2105.TRACK_SECONDS";
     public static final String EXTRA_GENRE_MASK = "vip.thatiam.technomatic2105.GENRE_MASK";
     public static final String EXTRA_GENRE_BLEND_MODE = "vip.thatiam.technomatic2105.GENRE_BLEND_MODE";
+    public static final String EXTRA_SONG_DATA = "vip.thatiam.technomatic2105.SONG_DATA";
+    public static final String EXTRA_FORCE_RESTART = "vip.thatiam.technomatic2105.FORCE_RESTART";
 
     private static final String CHANNEL_ID = "technomatic_2105_playback";
     private static final int NOTIFICATION_ID = 2105;
@@ -55,31 +58,36 @@ public final class AudioService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : ACTION_START;
-        if (intent != null && intent.hasExtra(EXTRA_TRACK_SECONDS)) {
-            int seconds = intent.getIntExtra(EXTRA_TRACK_SECONDS, 180);
-            if (seconds < -1) seconds = 180;
-            if (seconds > 0 && seconds < 8) seconds = 8;
-            if (seconds > 999999) seconds = 999999;
-            NativeAudio.setPieceLengthSeconds(seconds);
-        }
-        if (intent != null && intent.hasExtra(EXTRA_GENRE_BLEND_MODE)) {
-            int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, 0);
-            NativeAudio.setGenreBlendMode(mode);
-        }
-        if (intent != null && intent.hasExtra(EXTRA_GENRE_MASK)) {
-            int mask = intent.getIntExtra(EXTRA_GENRE_MASK, 0);
-            NativeAudio.setGenreMask(mask);
-        }
+        applyIntentGeneratorState(intent);
+
         if (ACTION_STOP.equals(action)) {
             stopPlayback();
             stopSelf();
             return START_NOT_STICKY;
         }
 
+        if (intent != null && intent.getBooleanExtra(EXTRA_FORCE_RESTART, false)) {
+            int mask = intent.getIntExtra(EXTRA_GENRE_MASK, NativeAudio.currentGenreMask());
+            int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, NativeAudio.currentGenreBlendMode());
+            NativeAudio.setGenreStateAndForceNew(mask, mode);
+            if (!NativeAudio.isPlaying()) {
+                startPlayback();
+            }
+            return START_STICKY;
+        }
+
+        if (ACTION_LOAD_SOUND.equals(action)) {
+            String data = intent != null ? intent.getStringExtra(EXTRA_SONG_DATA) : null;
+            if (data != null && data.length() > 0) NativeAudio.loadSongData(data);
+            startPlayback();
+            return START_STICKY;
+        }
+
         if (ACTION_NEXT.equals(action)) {
             if (NativeAudio.isPlaying()) {
                 NativeAudio.next();
             } else {
+                NativeAudio.forceNew();
                 startPlayback();
             }
             return START_STICKY;
@@ -98,6 +106,24 @@ public final class AudioService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void applyIntentGeneratorState(Intent intent) {
+        if (intent != null && intent.hasExtra(EXTRA_TRACK_SECONDS)) {
+            int seconds = intent.getIntExtra(EXTRA_TRACK_SECONDS, 180);
+            if (seconds < -1) seconds = 180;
+            if (seconds > 0 && seconds < 8) seconds = 8;
+            if (seconds > 999999) seconds = 999999;
+            NativeAudio.setPieceLengthSeconds(seconds);
+        }
+        if (intent != null && intent.hasExtra(EXTRA_GENRE_BLEND_MODE)) {
+            int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, 0);
+            NativeAudio.setGenreBlendMode(mode);
+        }
+        if (intent != null && intent.hasExtra(EXTRA_GENRE_MASK)) {
+            int mask = intent.getIntExtra(EXTRA_GENRE_MASK, 0);
+            NativeAudio.setGenreMask(mask);
+        }
     }
 
     private void startPlayback() {
@@ -169,20 +195,16 @@ public final class AudioService extends Service {
     }
 
     private void acquireWakeLock() {
-        if (wakeLock != null && !wakeLock.isHeld()) {
-            wakeLock.acquire();
-        }
+        if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire();
     }
 
     private void releaseWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-        }
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager manager = (NotificationManager) getSystemService(NotificationManager.class);
         if (manager == null) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
@@ -234,9 +256,7 @@ public final class AudioService extends Service {
 
     private int pendingIntentFlags() {
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
         return flags;
     }
 }

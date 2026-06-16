@@ -83,6 +83,8 @@ void MusicEngine::reset(uint32_t seed) {
     mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
     mRecentHash.fill(0u);
     mRecentHashWrite = 0;
+    mRecentMotifHash.fill(0u);
+    mRecentMotifHashWrite = 0;
     mComposition = Composition{};
 
     mCurrentSongSeed = seed ? seed : 0x52423934u;
@@ -131,17 +133,25 @@ void MusicEngine::forceNewPiece() {
     mNovelty = 0.0f;
     mBpm = 0.0f;
     mBpmTarget = 92.0f;
-    mRecentHash.fill(0u);
-    mRecentHashWrite = 0;
+    // Keep recent symbolic hashes across manual Next/genre changes.
+    // These hashes are anti-repetition memory, not audio state.
     if (!mDelayL.empty()) std::fill(mDelayL.begin(), mDelayL.end(), 0.0f);
     if (!mDelayR.empty()) std::fill(mDelayR.begin(), mDelayR.end(), 0.0f);
     mDelayWrite = 0;
     mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
     mTextureLp = 0.0f;
     mTextureHp = 0.0f;
+    mTexturePhaseA = 0.0f;
+    mTexturePhaseB = 0.0f;
+    mTextureNoise = mRng.nextU32();
+    mSidechain = 1.0f;
 
     uint32_t seed = mRng.nextU32();
+    seed ^= static_cast<uint32_t>(currentGenreMask() + 1) * 0x9e3779b9u;
+    seed ^= static_cast<uint32_t>(currentGenreBlendMode() + 17) * 0x85ebca6bu;
+    seed ^= static_cast<uint32_t>(mCurrentPieceSamples.load(std::memory_order_acquire) + 0x27d4eb2du);
     if (seed == 0u) seed = 0x52423934u;
+    mRng = Rng(seed ^ 0xa511e9b3u);
     generateSeededSong(seed);
     for (auto& slot : mMemory) slot = mPattern;
     mMemoryWrite = 0;
@@ -326,19 +336,106 @@ bool MusicEngine::decodeSongData(const std::string& data, uint32_t& seedOut, int
     return true;
 }
 
+
+bool MusicEngine::exportPcm16File(const std::string& data, int32_t seconds, const std::string& path, const std::atomic<bool>* cancelFlag) {
+    if (path.empty()) return false;
+    if (seconds < 8 || seconds > 999999) return false;
+
+    MusicEngine engine;
+    engine.prepare(48000.0);
+    if (!data.empty()) {
+        if (!engine.loadSongData(data)) return false;
+    }
+    engine.setPieceLengthSeconds(seconds);
+    // Export is a single generated sound, not the live radio stream.
+    // Keep the rendered file sample-accurate and prevent any live-stream auto-advance.
+    engine.mExportSinglePieceMode = true;
+    engine.mExportStopSamples = static_cast<int64_t>(seconds) * 48000LL;
+
+    FILE* file = std::fopen(path.c_str(), "wb");
+    if (!file) return false;
+
+    static constexpr int32_t kSampleRate = 48000;
+    static constexpr int32_t kChannels = 2;
+    static constexpr int32_t kFramesPerChunk = 1024;
+    const int64_t totalFrames = static_cast<int64_t>(seconds) * kSampleRate;
+    std::vector<float> floats(static_cast<size_t>(kFramesPerChunk * kChannels), 0.0f);
+    std::vector<int16_t> pcm(static_cast<size_t>(kFramesPerChunk * kChannels), 0);
+
+    int64_t rendered = 0;
+    // Final file fade only. Do not fade for a large part of short exports.
+    // A 30-second export should still sound like a 30-second piece, not a 20-second piece.
+    const int64_t fadeFrames = std::max<int64_t>(kSampleRate / 8,
+            std::min<int64_t>(static_cast<int64_t>(kSampleRate) / 2, totalFrames / 40));
+    const int64_t fadeStart = std::max<int64_t>(0, totalFrames - fadeFrames);
+    bool ok = true;
+    while (rendered < totalFrames) {
+        if (cancelFlag && cancelFlag->load(std::memory_order_relaxed)) {
+            ok = false;
+            break;
+        }
+        const int32_t frames = static_cast<int32_t>(std::min<int64_t>(kFramesPerChunk, totalFrames - rendered));
+        std::fill(floats.begin(), floats.begin() + static_cast<size_t>(frames * kChannels), 0.0f);
+        engine.render(floats.data(), frames, kChannels);
+        for (int32_t frame = 0; frame < frames; ++frame) {
+            const int64_t absoluteFrame = rendered + frame;
+            float tailGain = 1.0f;
+            if (absoluteFrame >= fadeStart && fadeFrames > 0) {
+                const float remain = static_cast<float>(totalFrames - absoluteFrame) / static_cast<float>(fadeFrames);
+                tailGain = engine.clamp(remain * remain, 0.0f, 1.0f);
+            }
+            for (int32_t ch = 0; ch < kChannels; ++ch) {
+                const int32_t i = frame * kChannels + ch;
+                float v = engine.clamp(floats[static_cast<size_t>(i)] * tailGain, -1.0f, 1.0f);
+                pcm[static_cast<size_t>(i)] = static_cast<int16_t>(std::lrint(v * 32767.0f));
+            }
+        }
+        const size_t wrote = std::fwrite(pcm.data(), sizeof(int16_t), static_cast<size_t>(frames * kChannels), file);
+        if (wrote != static_cast<size_t>(frames * kChannels)) {
+            ok = false;
+            break;
+        }
+        rendered += frames;
+    }
+
+    if (std::fclose(file) != 0) ok = false;
+    return ok;
+}
+
 bool MusicEngine::loadSongData(const std::string& data) {
     uint32_t seed = 0;
     int32_t seconds = 0;
     if (!decodeSongData(data, seed, seconds)) return false;
+
+    const int32_t oldMask = mGenreMask;
+    const int32_t oldBlend = mGenreBlendMode;
+    int32_t savedMask = 0;
+    int32_t savedBlend = 0;
+    int32_t savedCandidate = -1;
+    const bool hasSavedMask = parseSignedField(data, "gmask", savedMask);
+    const bool hasSavedBlend = parseSignedField(data, "gblend", savedBlend);
+    const bool hasSavedCandidate = parseSignedField(data, "cand", savedCandidate);
+    if (hasSavedMask) mGenreMask = clampInt32(savedMask, 0, (1 << kGenreModeCount) - 1);
+    if (hasSavedBlend) mGenreBlendMode = clampInt32(savedBlend, 0, 1);
+    mForcedCandidateIndex = hasSavedCandidate ? clampInt32(savedCandidate, 0, 47) : -1;
+
     setPieceLengthSeconds(seconds);
     reset(seed);
+    mForcedCandidateIndex = -1;
+
+    if (hasSavedMask) mGenreMask = oldMask;
+    if (hasSavedBlend) mGenreBlendMode = oldBlend;
+
     int32_t edited = 0;
-    if (parseSignedField(data, "edited", edited) && edited == 1) {
+    const bool hasExtendedGeneratorData = data.find(";style=") != std::string::npos ||
+                                          data.find(";tempo=") != std::string::npos ||
+                                          data.find(";motif=") != std::string::npos;
+    if ((parseSignedField(data, "edited", edited) && edited == 1) || (!hasSavedMask && hasExtendedGeneratorData)) {
         applySongDataOverrides(data);
+    }
+    {
         std::lock_guard<std::mutex> guard(mSongDataMutex);
         mCurrentSongData = data;
-    } else {
-        updateCurrentSongData();
     }
     return true;
 }
@@ -355,6 +452,9 @@ void MusicEngine::updateCurrentSongData() {
     std::snprintf(header, sizeof(header), "technomatic2105-v1;seed=%u;seconds=%d", mCurrentSongSeed, seconds);
     std::string out(header);
     appendField(out, "edited", mCurrentSongEdited ? 1 : 0);
+    appendField(out, "gmask", currentGenreMask());
+    appendField(out, "gblend", currentGenreBlendMode());
+    appendField(out, "cand", clampInt32(mCurrentCandidateIndex, 0, 47));
 
     appendField(out, "style", clampInt32(static_cast<int32_t>(mPattern.style), 0, static_cast<int32_t>(StyleType::Count) - 1));
     appendField(out, "tempo", clampInt32(static_cast<int32_t>(std::lround(mBpmTarget)), 40, 220));
@@ -531,7 +631,8 @@ void MusicEngine::applySongDataOverrides(const std::string& data) {
 }
 
 void MusicEngine::generateSeededSong(uint32_t seed) {
-    mCurrentSongSeed = seed ? seed : 0x52423934u;
+    const uint32_t requestedSeed = seed ? seed : 0x52423934u;
+    mCurrentSongSeed = requestedSeed;
     mCurrentSongEdited = false;
     mCurrentPieceSamples.store(0, std::memory_order_release);
     if (mRandomPieceLength) {
@@ -540,18 +641,37 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
 
     const auto recentCopy = mRecentHash;
     const int32_t recentWriteCopy = mRecentHashWrite;
+    const auto recentMotifCopy = mRecentMotifHash;
+    const int32_t recentMotifWriteCopy = mRecentMotifHashWrite;
+
+    auto inRecentPatternCopy = [&](uint32_t hash) {
+        if (hash == 0u) return false;
+        for (uint32_t h : recentCopy) {
+            if (h == hash) return true;
+        }
+        return false;
+    };
+    auto inRecentMotifCopy = [&](uint32_t hash) {
+        if (hash == 0u) return false;
+        for (uint32_t h : recentMotifCopy) {
+            if (h == hash) return true;
+        }
+        return false;
+    };
 
     Pattern bestPattern{};
     Composition bestComposition{};
     Rng bestRng(mCurrentSongSeed);
-    uint32_t bestSeed = mCurrentSongSeed;
     float bestBpm = 92.0f;
     float bestBpmTarget = 92.0f;
     int32_t bestStyleTarget = 0;
     int32_t bestGenreMode = 0;
+    int32_t bestCandidateIndex = 0;
     float bestScore = -1000000.0f;
+    const int32_t forcedCandidateIndex = clampInt32(mForcedCandidateIndex, -1, 47);
 
-    for (int32_t i = 0; i < 12; ++i) {
+    for (int32_t i = 0; i < 48; ++i) {
+        if (forcedCandidateIndex >= 0 && i != forcedCandidateIndex) continue;
         const uint32_t salt = 0x9e3779b9u * static_cast<uint32_t>(i + 1) + 0x85ebca6bu;
         const uint32_t candidateSeed = (i == 0) ? mCurrentSongSeed : (mCurrentSongSeed ^ salt);
         mRecentHash = recentCopy;
@@ -562,10 +682,16 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
         const StyleType initial = randomStyle();
         const int32_t candidateGenreMode = mWorkingGenreMode;
         generatePattern(initial);
-        const float score = scoreCurrentComposition() + 0.015f * static_cast<float>(mRng.rangeInt(0, 100));
+        const uint32_t candidatePatternHash = patternHash();
+        const uint32_t candidateMotifHash = motifSignatureHash();
+        float score = scoreCurrentComposition() + 0.010f * static_cast<float>(mRng.rangeInt(0, 100));
+        if (forcedCandidateIndex < 0) {
+            if (inRecentPatternCopy(candidatePatternHash)) score -= 1.10f;
+            if (inRecentMotifCopy(candidateMotifHash)) score -= 1.75f;
+            if ((i % 7) == 0 && i > 0) score += 0.025f * static_cast<float>(i / 7);
+        }
         if (score > bestScore) {
             bestScore = score;
-            bestSeed = candidateSeed;
             bestPattern = mPattern;
             bestComposition = mComposition;
             bestRng = mRng;
@@ -573,10 +699,12 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
             bestBpmTarget = mBpmTarget;
             bestStyleTarget = mStyleTargetSteps;
             bestGenreMode = candidateGenreMode;
+            bestCandidateIndex = i;
         }
     }
 
-    mCurrentSongSeed = bestSeed;
+    mCurrentSongSeed = requestedSeed;
+    mCurrentCandidateIndex = bestCandidateIndex;
     mPattern = bestPattern;
     mComposition = bestComposition;
     mRng = bestRng;
@@ -586,9 +714,14 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
     mCurrentGenreMode.store(bestGenreMode, std::memory_order_release);
     mRecentHash = recentCopy;
     mRecentHashWrite = recentWriteCopy;
+    mRecentMotifHash = recentMotifCopy;
+    mRecentMotifHashWrite = recentMotifWriteCopy;
     const uint32_t h = patternHash();
     mRecentHash[mRecentHashWrite] = h;
     mRecentHashWrite = (mRecentHashWrite + 1) % kRecentHashes;
+    const uint32_t mh = motifSignatureHash();
+    mRecentMotifHash[mRecentMotifHashWrite] = mh;
+    mRecentMotifHashWrite = (mRecentMotifHashWrite + 1) % kRecentMotifHashes;
     repairPattern();
     updateCurrentSongData();
 }
@@ -893,6 +1026,74 @@ MusicEngine::StyleProfile MusicEngine::profile(StyleType style) const {
             p.drama = 0.48f; p.palette = 0.90f; p.brightness = 0.44f;
             p.ambient = true;
             break;
+        case StyleType::CopperChord:
+            p.bpmMin = 86.0f; p.bpmMax = 116.0f;
+            p.swingMin = 0.04f; p.swingMax = 0.16f;
+            p.density = 0.52f; p.drum = 0.50f; p.bass = 0.62f; p.melody = 0.78f; p.chord = 0.86f;
+            p.texture = 0.44f; p.rough = 0.20f; p.space = 0.50f; p.sync = 0.40f;
+            p.hatRoll = 0.04f; p.melodyRun = 0.72f; p.transitionSilence = 0.42f;
+            p.drama = 0.56f; p.palette = 0.96f; p.brightness = 0.62f;
+            break;
+        case StyleType::GhostMeter:
+            p.bpmMin = 74.0f; p.bpmMax = 126.0f;
+            p.swingMin = 0.06f; p.swingMax = 0.22f;
+            p.density = 0.44f; p.drum = 0.54f; p.bass = 0.56f; p.melody = 0.66f; p.chord = 0.38f;
+            p.texture = 0.56f; p.rough = 0.34f; p.space = 0.68f; p.sync = 0.72f;
+            p.hatRoll = 0.10f; p.melodyRun = 0.46f; p.transitionSilence = 0.54f;
+            p.drama = 0.62f; p.palette = 0.88f; p.brightness = 0.48f;
+            break;
+        case StyleType::ObsidianBloom:
+            p.bpmMin = 62.0f; p.bpmMax = 102.0f;
+            p.swingMin = 0.02f; p.swingMax = 0.12f;
+            p.density = 0.36f; p.drum = 0.36f; p.bass = 0.92f; p.melody = 0.58f; p.chord = 0.76f;
+            p.texture = 0.78f; p.rough = 0.24f; p.space = 0.76f; p.sync = 0.32f;
+            p.hatRoll = 0.01f; p.melodyRun = 0.50f; p.transitionSilence = 0.68f;
+            p.drama = 0.70f; p.palette = 0.92f; p.brightness = 0.26f;
+            p.ambient = true; p.halfTime = true;
+            break;
+        case StyleType::VoltageMoth:
+            p.bpmMin = 122.0f; p.bpmMax = 158.0f;
+            p.swingMin = 0.00f; p.swingMax = 0.08f;
+            p.density = 0.68f; p.drum = 0.62f; p.bass = 0.58f; p.melody = 0.94f; p.chord = 0.42f;
+            p.texture = 0.38f; p.rough = 0.32f; p.space = 0.36f; p.sync = 0.78f;
+            p.hatRoll = 0.14f; p.melodyRun = 0.98f; p.transitionSilence = 0.26f;
+            p.drama = 0.72f; p.palette = 1.00f; p.brightness = 0.92f;
+            break;
+        case StyleType::QuartzTide:
+            p.bpmMin = 70.0f; p.bpmMax = 98.0f;
+            p.swingMin = 0.03f; p.swingMax = 0.14f;
+            p.density = 0.34f; p.drum = 0.30f; p.bass = 0.46f; p.melody = 0.88f; p.chord = 0.92f;
+            p.texture = 0.86f; p.rough = 0.08f; p.space = 0.84f; p.sync = 0.30f;
+            p.hatRoll = 0.02f; p.melodyRun = 0.76f; p.transitionSilence = 0.72f;
+            p.drama = 0.44f; p.palette = 1.00f; p.brightness = 0.74f;
+            p.ambient = true;
+            break;
+        case StyleType::StaticCathedral:
+            p.bpmMin = 96.0f; p.bpmMax = 138.0f;
+            p.swingMin = 0.00f; p.swingMax = 0.10f;
+            p.density = 0.50f; p.drum = 0.48f; p.bass = 0.70f; p.melody = 0.52f; p.chord = 0.94f;
+            p.texture = 0.88f; p.rough = 0.62f; p.space = 0.66f; p.sync = 0.42f;
+            p.hatRoll = 0.04f; p.melodyRun = 0.36f; p.transitionSilence = 0.62f;
+            p.drama = 0.86f; p.palette = 0.98f; p.brightness = 0.42f;
+            break;
+        case StyleType::MercuryThread:
+            p.bpmMin = 136.0f; p.bpmMax = 172.0f;
+            p.swingMin = 0.00f; p.swingMax = 0.06f;
+            p.density = 0.76f; p.drum = 0.72f; p.bass = 0.52f; p.melody = 0.86f; p.chord = 0.30f;
+            p.texture = 0.38f; p.rough = 0.44f; p.space = 0.28f; p.sync = 0.94f;
+            p.hatRoll = 0.34f; p.melodyRun = 0.90f; p.transitionSilence = 0.20f;
+            p.drama = 0.74f; p.palette = 0.94f; p.brightness = 0.68f;
+            p.breakbeat = true;
+            break;
+        case StyleType::NightLatch:
+            p.bpmMin = 82.0f; p.bpmMax = 118.0f;
+            p.swingMin = 0.02f; p.swingMax = 0.12f;
+            p.density = 0.54f; p.drum = 0.62f; p.bass = 0.86f; p.melody = 0.48f; p.chord = 0.32f;
+            p.texture = 0.52f; p.rough = 0.58f; p.space = 0.48f; p.sync = 0.64f;
+            p.hatRoll = 0.08f; p.melodyRun = 0.34f; p.transitionSilence = 0.36f;
+            p.drama = 0.82f; p.palette = 0.86f; p.brightness = 0.30f;
+            p.halfTime = true;
+            break;
         case StyleType::ChromeBloom:
         default:
             p.bpmMin = 118.0f; p.bpmMax = 142.0f;
@@ -919,29 +1120,29 @@ bool MusicEngine::styleAllowedForGenre(StyleType style, int32_t genreMode) const
 
     switch (genreMode) {
         // Chrome Pulse: dry mechanized pulse, metallic motion, firm grid.
-        case 1: return style == StyleType::ConcretePulse || style == StyleType::ChromeBloom || style == StyleType::LatticeSun;
+        case 1: return style == StyleType::ConcretePulse || style == StyleType::ChromeBloom || style == StyleType::LatticeSun || style == StyleType::MercuryThread || style == StyleType::CopperChord;
         // Velvet Circuit: smoother low-pressure circuitry, softer harmonic glow.
-        case 2: return style == StyleType::VelvetDrift || style == StyleType::SoftVoltage || style == StyleType::WarmCurrent || style == StyleType::IonGarden;
+        case 2: return style == StyleType::VelvetDrift || style == StyleType::SoftVoltage || style == StyleType::WarmCurrent || style == StyleType::IonGarden || style == StyleType::CopperChord || style == StyleType::QuartzTide;
         // Glass Trap: crystalline high motion with half-time gravity and snapped hats.
         case 3: return style == StyleType::GlassNoir || style == StyleType::NeonLatch || style == StyleType::EchoCrown;
         // Dust Machine: rougher oxidized rhythm, noise edges, unstable machinery.
-        case 4: return style == StyleType::BrokenMagnet || style == StyleType::BitFog || style == StyleType::CarbonRain;
+        case 4: return style == StyleType::BrokenMagnet || style == StyleType::BitFog || style == StyleType::CarbonRain || style == StyleType::StaticCathedral || style == StyleType::GhostMeter;
         // Liquid Grid: melodic grid movement with smoother current and chord memory.
-        case 5: return style == StyleType::PrismCruise || style == StyleType::PulseGarden || style == StyleType::LatticeSun || style == StyleType::WarmCurrent;
+        case 5: return style == StyleType::PrismCruise || style == StyleType::PulseGarden || style == StyleType::LatticeSun || style == StyleType::WarmCurrent || style == StyleType::QuartzTide || style == StyleType::CopperChord;
         // Neon Drift: brighter drifting tones with long hooks and glowing motion.
-        case 6: return style == StyleType::NeonLatch || style == StyleType::SolarFold || style == StyleType::MagentaWell || style == StyleType::EchoCrown;
+        case 6: return style == StyleType::NeonLatch || style == StyleType::SolarFold || style == StyleType::MagentaWell || style == StyleType::EchoCrown || style == StyleType::VoltageMoth || style == StyleType::MercuryThread;
         // Broken Speaker: damaged pressure, fractured percussion, bit-fogged edges.
-        case 7: return style == StyleType::BrokenMagnet || style == StyleType::BitFog || style == StyleType::CarbonRain || style == StyleType::ShardRush;
+        case 7: return style == StyleType::BrokenMagnet || style == StyleType::BitFog || style == StyleType::CarbonRain || style == StyleType::ShardRush || style == StyleType::StaticCathedral || style == StyleType::MercuryThread;
         // Deep Magnet: bass-centered gravity, dark low movement, heavy tonal pull.
-        case 8: return style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::SubOrbit || style == StyleType::VoidStep;
+        case 8: return style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::SubOrbit || style == StyleType::VoidStep || style == StyleType::ObsidianBloom || style == StyleType::NightLatch;
         // Pixel Ritual: small-grid figures, bright square logic, repeated glyph behavior.
-        case 9: return style == StyleType::TinyGrid || style == StyleType::BitFog || style == StyleType::LatticeSun || style == StyleType::ConcretePulse;
+        case 9: return style == StyleType::TinyGrid || style == StyleType::BitFog || style == StyleType::LatticeSun || style == StyleType::ConcretePulse || style == StyleType::VoltageMoth || style == StyleType::GhostMeter;
         // Soft Voltage: gentle electronic charge, more air, slower melodic pressure.
-        case 10: return style == StyleType::SoftVoltage || style == StyleType::IonGarden || style == StyleType::StrangeHarbor || style == StyleType::VelvetDrift;
+        case 10: return style == StyleType::SoftVoltage || style == StyleType::IonGarden || style == StyleType::StrangeHarbor || style == StyleType::VelvetDrift || style == StyleType::QuartzTide || style == StyleType::CopperChord;
         // Heavy Orbit: lower-register orbit, surge, sub pressure, large circular movement.
-        case 11: return style == StyleType::SubOrbit || style == StyleType::VoidStep || style == StyleType::MarbleBass || style == StyleType::DeepMagnet;
+        case 11: return style == StyleType::SubOrbit || style == StyleType::VoidStep || style == StyleType::MarbleBass || style == StyleType::DeepMagnet || style == StyleType::ObsidianBloom || style == StyleType::NightLatch;
         // Cold Arcade: hard bright grid, colder pulse language, precise synthetic hooks.
-        case 12: return style == StyleType::TinyGrid || style == StyleType::ConcretePulse || style == StyleType::ChromeBloom || style == StyleType::LatticeSun;
+        case 12: return style == StyleType::TinyGrid || style == StyleType::ConcretePulse || style == StyleType::ChromeBloom || style == StyleType::LatticeSun || style == StyleType::VoltageMoth || style == StyleType::MercuryThread;
         // No Genre: raw engine selection with no named style-family restraint.
         case 13: return styleAllowedForNoGenre(style);
         default: return true;
@@ -1070,15 +1271,18 @@ void MusicEngine::generatePattern(StyleType style) {
     mPattern = Pattern{};
     mPattern.style = style;
     const StyleProfile p = profile(style);
+    mPattern.profileTexture = p.texture;
+    mPattern.profileAmbient = p.ambient;
+    mPattern.profileBreakbeat = p.breakbeat;
 
     const int32_t roots[] = {31, 33, 34, 36, 38, 39, 41, 43, 46};
     mPattern.rootMidi = roots[mRng.rangeInt(0, 8)];
-    if (style == StyleType::GlassNoir || style == StyleType::SubOrbit || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::StrangeHarbor) mPattern.rootMidi -= 2;
-    if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::IonGarden || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun) mPattern.rootMidi += 2;
+    if (style == StyleType::GlassNoir || style == StyleType::SubOrbit || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::StrangeHarbor || style == StyleType::ObsidianBloom || style == StyleType::NightLatch || style == StyleType::StaticCathedral) mPattern.rootMidi -= 2;
+    if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::IonGarden || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun || style == StyleType::VoltageMoth || style == StyleType::QuartzTide || style == StyleType::CopperChord || style == StyleType::MercuryThread) mPattern.rootMidi += 2;
 
-    if (style == StyleType::VelvetDrift || style == StyleType::SoftVoltage || style == StyleType::PulseGarden || style == StyleType::IonGarden || style == StyleType::StrangeHarbor) mPattern.scaleMode = mRng.chance(0.55f) ? 1 : 4;
-    else if (style == StyleType::GlassNoir || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::BitFog || style == StyleType::CarbonRain) mPattern.scaleMode = mRng.chance(0.55f) ? 2 : 0;
-    else if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun) mPattern.scaleMode = mRng.chance(0.50f) ? 0 : 3;
+    if (style == StyleType::VelvetDrift || style == StyleType::SoftVoltage || style == StyleType::PulseGarden || style == StyleType::IonGarden || style == StyleType::StrangeHarbor || style == StyleType::QuartzTide || style == StyleType::CopperChord) mPattern.scaleMode = mRng.chance(0.55f) ? 1 : 4;
+    else if (style == StyleType::GlassNoir || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::BitFog || style == StyleType::CarbonRain || style == StyleType::ObsidianBloom || style == StyleType::NightLatch || style == StyleType::StaticCathedral) mPattern.scaleMode = mRng.chance(0.55f) ? 2 : 0;
+    else if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun || style == StyleType::VoltageMoth || style == StyleType::MercuryThread || style == StyleType::GhostMeter) mPattern.scaleMode = mRng.chance(0.50f) ? 0 : 3;
     else mPattern.scaleMode = mRng.rangeInt(0, 4);
 
     mPattern.swing = p.swingMin + mRng.uni() * (p.swingMax - p.swingMin);
@@ -1096,6 +1300,32 @@ void MusicEngine::generatePattern(StyleType style) {
     mBpmTarget = p.bpmMin + mRng.uni() * (p.bpmMax - p.bpmMin);
     if (mBpm <= 10.0f) mBpm = mBpmTarget;
     else mBpm = 0.45f * mBpm + 0.55f * mBpmTarget;
+
+    static constexpr uint16_t kickDNA[24] = {
+        0x1101,0x1049,0x1481,0x9009,0x1189,0x8109,0x5421,0x1249,
+        0x9081,0x1141,0x8049,0x5085,0x2209,0x102d,0x2409,0x8901,
+        0x1501,0x4481,0x0189,0xa101,0x2105,0x1881,0x4029,0x9301
+    };
+    static constexpr uint16_t snareDNA[20] = {
+        0x1010,0x1100,0x0110,0x9010,0x1090,0x1018,0x1810,0x0018,
+        0x1091,0x1110,0x0410,0x1004,0x2010,0x1080,0x0181,0x1040,
+        0x5010,0x0118,0x1910,0x1050
+    };
+    static constexpr uint16_t hatDNA[18] = {
+        0x5555,0xffff,0xaaaa,0x3333,0xcccc,0x5d75,0xd575,0x7777,
+        0xeeee,0xbbbb,0x6db6,0xb6db,0x0f0f,0xf0f0,0x9696,0x6996,
+        0xdddd,0x7bde
+    };
+    static constexpr uint16_t percDNA[24] = {
+        0x0208,0x2080,0x4042,0x8400,0x0220,0x8840,0x2004,0x4280,
+        0x0802,0x2288,0x4410,0x8021,0x1204,0x0482,0x2810,0x8120,
+        0x0448,0x4804,0x1028,0x8044,0x2402,0x4208,0x9004,0x0490
+    };
+    const int32_t kickVariant = mRng.rangeInt(0, 23);
+    const int32_t snareVariant = mRng.rangeInt(0, 19);
+    const int32_t hatVariant = mRng.rangeInt(0, 17);
+    const int32_t percVariant = mRng.rangeInt(0, 23);
+    const float dnaStrength = clamp(0.20f + 0.42f * p.palette + 0.16f * mRng.uni(), 0.16f, 0.76f);
 
     for (int32_t i = 0; i < kPatternSteps; ++i) {
         const int32_t p16 = i & 15;
@@ -1401,6 +1631,103 @@ void MusicEngine::generatePattern(StyleType style) {
                 accent = down ? 0.72f : accent * 0.72f;
                 break;
 
+            case StyleType::CopperChord:
+                if (p16 == 0 || p16 == 8 || p16 == 13) kick = 0.54f;
+                if (p16 == 4 || p16 == 12) snare = 0.36f;
+                hat = eighth ? 0.28f : 0.10f;
+                openHat = (p16 == 6 || p16 == 14) ? 0.070f : 0.004f;
+                perc = (p16 == 2 || p16 == 9 || p16 == 15) ? 0.095f : 0.014f;
+                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 12) ? 0.36f : 0.032f;
+                chord = (p16 == 0 || p16 == 3 || p16 == 8 || p16 == 11) ? 0.130f : 0.020f;
+                lead = (p16 == 1 || p16 == 5 || p16 == 7 || p16 == 10 || p16 == 14) ? 0.120f : 0.018f;
+                accent = (p16 == 0 || p16 == 8) ? 0.88f : accent * 0.92f;
+                break;
+
+            case StyleType::GhostMeter:
+                if (p16 == 0 || p16 == 5 || p16 == 11 || (barTwo && p16 == 14)) kick = 0.58f;
+                if (p16 == 8 || (barTwo && p16 == 3)) snare = 0.42f;
+                hat = (p16 == 2 || p16 == 7 || p16 == 10 || p16 == 15) ? 0.32f : (eighth ? 0.12f : 0.044f);
+                openHat = (p16 == 7 || p16 == 15) ? 0.080f : 0.003f;
+                perc = (p16 == 1 || p16 == 6 || p16 == 9 || p16 == 13) ? 0.145f : 0.018f;
+                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 11) ? 0.36f : 0.030f;
+                chord = (p16 == 0 || p16 == 10) ? 0.075f : 0.012f;
+                lead = (p16 == 3 || p16 == 7 || p16 == 12 || p16 == 15) ? 0.090f : 0.010f;
+                accent = offEighth ? accent * 1.08f : accent * 0.90f;
+                break;
+
+            case StyleType::ObsidianBloom:
+                if (p16 == 0 || (barTwo && p16 == 10)) kick = 0.34f;
+                if (p16 == 8 && barTwo) snare = 0.20f;
+                hat = (p16 == 2 || p16 == 10) ? 0.090f : 0.018f;
+                openHat = (p16 == 14) ? 0.040f : 0.002f;
+                perc = (p16 == 5 || p16 == 13) ? 0.060f : 0.008f;
+                bass = (p16 == 0 || p16 == 8 || p16 == 11) ? 0.44f : 0.024f;
+                chord = (p16 == 0 || p16 == 8) ? 0.150f : 0.026f;
+                lead = (p16 == 4 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.080f : 0.010f;
+                accent = down ? 0.74f : accent * 0.70f;
+                break;
+
+            case StyleType::VoltageMoth:
+                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.58f;
+                if (p16 == 4 || p16 == 12) snare = 0.42f;
+                hat = offEighth ? 0.54f : (eighth ? 0.24f : 0.12f);
+                openHat = offEighth ? 0.110f : 0.004f;
+                perc = (p16 == 1 || p16 == 3 || p16 == 7 || p16 == 11 || p16 == 14) ? 0.155f : 0.024f;
+                bass = (p16 == 0 || p16 == 4 || p16 == 7 || p16 == 10 || p16 == 13) ? 0.32f : 0.036f;
+                chord = (p16 == 0 || p16 == 8) ? 0.060f : 0.010f;
+                lead = (p16 == 0 || p16 == 2 || p16 == 5 || p16 == 7 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.170f : 0.024f;
+                accent = offEighth ? accent * 1.08f : accent;
+                break;
+
+            case StyleType::QuartzTide:
+                kick = (p16 == 0 && !barTwo) ? 0.24f : ((p16 == 8 && barTwo) ? 0.18f : 0.003f);
+                snare = (p16 == 12 && barTwo) ? 0.14f : 0.003f;
+                hat = (p16 == 2 || p16 == 10 || p16 == 14) ? 0.075f : 0.012f;
+                openHat = (p16 == 14) ? 0.050f : 0.002f;
+                perc = (p16 == 3 || p16 == 9 || p16 == 15) ? 0.060f : 0.006f;
+                bass = (p16 == 0 || p16 == 10) ? 0.24f : 0.016f;
+                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.140f : 0.024f;
+                lead = (p16 == 1 || p16 == 6 || p16 == 11 || p16 == 15) ? 0.110f : 0.014f;
+                accent *= 0.76f;
+                break;
+
+            case StyleType::StaticCathedral:
+                if (p16 == 0 || p16 == 8) kick = 0.52f;
+                if (p16 == 4 || p16 == 12) snare = 0.28f;
+                hat = eighth ? 0.18f : 0.060f;
+                openHat = (p16 == 6 || p16 == 14) ? 0.060f : 0.003f;
+                perc = (p16 == 2 || p16 == 5 || p16 == 11 || p16 == 15) ? 0.120f : 0.018f;
+                bass = (p16 == 0 || p16 == 7 || p16 == 8 || p16 == 14) ? 0.42f : 0.032f;
+                chord = (p16 == 0 || p16 == 8 || p16 == 12) ? 0.155f : 0.024f;
+                lead = (p16 == 3 || p16 == 10 || p16 == 15) ? 0.075f : 0.010f;
+                accent = (p16 == 0 || p16 == 8) ? 0.86f : accent * 0.82f;
+                break;
+
+            case StyleType::MercuryThread:
+                if (p16 == 0 || p16 == 3 || p16 == 10 || (barTwo && p16 == 14)) kick = 0.84f;
+                if (p16 == 4 || p16 == 12) snare = 0.88f;
+                if (p16 == 7 || p16 == 15) snare = 0.16f;
+                hat = 0.48f + (eighth ? 0.14f : 0.24f);
+                openHat = offEighth ? 0.100f : 0.004f;
+                perc = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.210f : 0.034f;
+                bass = (p16 == 0 || p16 == 5 || p16 == 9 || p16 == 10 || p16 == 13) ? 0.36f : 0.046f;
+                chord = (p16 == 2 || p16 == 10) ? 0.034f : 0.006f;
+                lead = (p16 == 1 || p16 == 4 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.115f : 0.012f;
+                break;
+
+            case StyleType::NightLatch:
+                if (p16 == 0 || p16 == 3 || p16 == 9 || p16 == 14) kick = 0.72f;
+                if (p16 == 8) snare = 0.70f;
+                if (p16 == 5 || p16 == 15) snare = 0.12f;
+                hat = eighth ? 0.24f : 0.075f;
+                openHat = (p16 == 6 || p16 == 14) ? 0.065f : 0.003f;
+                perc = (p16 == 1 || p16 == 6 || p16 == 10 || p16 == 13) ? 0.130f : 0.020f;
+                bass = (p16 == 0 || p16 == 3 || p16 == 8 || p16 == 9 || p16 == 12 || p16 == 14) ? 0.54f : 0.045f;
+                chord = (p16 == 0 || p16 == 8) ? 0.058f : 0.006f;
+                lead = (p16 == 5 || p16 == 11 || p16 == 15) ? 0.070f : 0.010f;
+                accent = halfBack ? 0.88f : accent * 0.94f;
+                break;
+
             case StyleType::ChromeBloom:
             default:
                 if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.64f;
@@ -1414,6 +1741,18 @@ void MusicEngine::generatePattern(StyleType style) {
                 accent = offEighth ? accent * 1.05f : accent;
                 break;
         }
+
+        const bool kickDNAHit = (kickDNA[kickVariant] & static_cast<uint16_t>(1u << p16)) != 0;
+        const bool snareDNAHit = (snareDNA[snareVariant] & static_cast<uint16_t>(1u << p16)) != 0;
+        const bool hatDNAHit = (hatDNA[hatVariant] & static_cast<uint16_t>(1u << p16)) != 0;
+        const bool percDNAHit = (percDNA[percVariant] & static_cast<uint16_t>(1u << p16)) != 0;
+        const float dnaBar = ((i >> 4) & 1) ? 1.08f : 0.92f;
+        if (kickDNAHit && !p.ambient) kick = std::max(kick, (0.13f + 0.34f * p.drum) * dnaStrength * dnaBar);
+        if (snareDNAHit && !p.ambient) snare = std::max(snare, (0.10f + 0.30f * p.drum) * dnaStrength * (back ? 1.35f : 0.85f));
+        if (hatDNAHit) hat = std::max(hat, (0.20f + 0.36f * p.density) * (0.52f + 0.48f * dnaStrength));
+        if (percDNAHit) perc = std::max(perc, (0.045f + 0.24f * p.sync + 0.12f * p.rough) * dnaStrength);
+        if (((kickVariant + p16) % 11) == 0 && p.sync > 0.52f) bass = std::max(bass, 0.050f + 0.20f * p.bass * dnaStrength);
+        if (((hatVariant ^ p16) & 7) == 3 && p.hatRoll > 0.08f) openHat = std::max(openHat, 0.024f + 0.11f * p.hatRoll);
 
         const float randomScale = 0.95f + mRng.uni() * 0.10f;
         mPattern.kick[i] = clamp(kick * randomScale + mRng.bipolar() * 0.035f, 0.0f, 0.98f);
@@ -1451,8 +1790,10 @@ void MusicEngine::fillMotifFromTemplate(std::array<int32_t, kPhraseSteps>& motif
     dur.fill(0.70f);
 
     // These are not genre licks. They are abstract grammatical shapes.
-    // The base library is larger in v15 so the generator has more melodic grammar
-    // without using borrowed human genre phrases.
+    // v19 expands the symbolic melody space again.  The table below contains
+    // abstract grammatical shapes; higher template numbers transform these
+    // shapes by rotation, inversion, anchor motion, fragmentation, and reply
+    // pressure so long sessions do not keep recycling the same lead grammar.
     static constexpr int32_t degrees[20][16] = {
         {0, 0, 2, 0, 3, 0, 4, 0, 5, 0, 4, 0, 2, 0, 0, 0},
         {0, 0, 0, 2, 3, 0, 5, 0, 4, 0, 3, 0, 2, 0, 0, 0},
@@ -1498,11 +1839,22 @@ void MusicEngine::fillMotifFromTemplate(std::array<int32_t, kPhraseSteps>& motif
         {0.94f,0.58f,0.76f,0.48f,0.68f,0.54f,0.88f,0.52f,0.82f,0.48f,0.70f,0.42f,0.80f,0.54f,0.66f,0.92f}
     };
 
-    const int32_t t = std::max(0, std::min(63, templateId));
+    const int32_t t = std::max(0, std::min(255, templateId));
     const int32_t base = t % 20;
     for (int32_t i = 0; i < kPhraseSteps; ++i) {
-        int32_t d = degrees[base][i] + contourOffset;
-        float g = gates[base][i];
+        int32_t sourceBase = base;
+        int32_t sourcePos = i;
+        if (t >= 128) {
+            const int32_t rotate = 1 + ((t >> 3) & 7);
+            sourcePos = (i + rotate + ((i >= 8 && (t & 1)) ? 2 : 0)) & 15;
+            sourceBase = (base + ((t >> 5) & 7)) % 20;
+        }
+        if (t >= 192 && ((i + t) & 3) == 0) {
+            sourcePos = (15 - sourcePos) & 15;
+            sourceBase = (sourceBase + 11) % 20;
+        }
+        int32_t d = degrees[sourceBase][sourcePos] + contourOffset;
+        float g = gates[sourceBase][sourcePos];
         if (t >= 12 && (i == 2 || i == 6 || i == 10 || i == 14)) {
             d += (t & 1) ? 1 : -1;
             g = std::max(g, 0.38f + 0.10f * static_cast<float>((i >> 1) & 1));
@@ -1542,6 +1894,75 @@ void MusicEngine::fillMotifFromTemplate(std::array<int32_t, kPhraseSteps>& motif
         if (t >= 60 && (i == 3 || i == 11 || i == 15)) {
             d = (i == 15) ? contourOffset : contourOffset + ((i == 3) ? 4 : -1);
             g = std::max(g, 0.62f);
+        }
+        if (t >= 64 && (i == 2 || i == 6 || i == 9 || i == 14)) {
+            d = contourOffset + (((t + i) & 4) ? 6 : -3);
+            g = std::max(g, (i == 14) ? 0.68f : 0.48f);
+        }
+        if (t >= 70 && (i == 1 || i == 4 || i == 10 || i == 13)) {
+            d += ((i < 8) ? 1 : -1);
+            g = std::max(g, 0.46f);
+        }
+        if (t >= 74 && (i == 5 || i == 7 || i == 12)) {
+            d = contourOffset + ((i == 12) ? 0 : ((t & 1) ? 7 : 4));
+            g = std::max(g, 0.60f);
+        }
+        if (t >= 80 && (i == 1 || i == 6 || i == 9 || i == 14)) {
+            d += ((t + i) & 1) ? 2 : -2;
+            g = std::max(g, (i == 14) ? 0.66f : 0.44f);
+        }
+        if (t >= 88 && (i == 2 || i == 3 || i == 10 || i == 11)) {
+            d = contourOffset + ((i < 8) ? (3 + ((t >> 1) & 1)) : (-1 - (t & 1)));
+            g = std::max(g, 0.50f + 0.08f * static_cast<float>((i >> 1) & 1));
+        }
+        if (t >= 96 && (i == 4 || i == 5 || i == 12 || i == 13)) {
+            d += ((i == 5 || i == 12) ? 5 : -3);
+            g = std::max(g, 0.52f);
+        }
+        if (t >= 104 && ((i + t) & 3) == 2) {
+            d = contourOffset + ((i < 8) ? ((i & 4) ? 6 : 2) : ((i & 4) ? -2 : 4));
+            g = std::max(g, 0.46f);
+        }
+        if (t >= 112 && (i == 0 || i == 4 || i == 8 || i == 15)) {
+            d = contourOffset + (i == 4 ? ((t & 1) ? 5 : 3) : (i == 8 ? ((t & 2) ? 4 : 2) : 0));
+            g = std::max(g, i == 15 ? 0.84f : 0.74f);
+        }
+        if (t >= 120 && (i == 6 || i == 7 || i == 13 || i == 14)) {
+            d = contourOffset + ((i == 14) ? -1 : ((t & 1) ? 8 : 5));
+            g = std::max(g, 0.54f + (i == 7 ? 0.12f : 0.0f));
+        }
+        if (t >= 128) {
+            const int32_t group = (t - 128) >> 4;
+            const int32_t lane = t & 15;
+            if ((group & 1) != 0) d = contourOffset - (d - contourOffset) + ((i >= 8) ? 1 : -1);
+            if ((group & 2) != 0 && (i == 2 || i == 6 || i == 10 || i == 14)) {
+                d += ((lane + i) & 2) ? 3 : -2;
+                g = std::max(g, 0.42f + 0.10f * static_cast<float>((lane >> 1) & 1));
+            }
+            if ((group & 4) != 0 && (i == 1 || i == 5 || i == 9 || i == 13)) {
+                d = contourOffset + ((i < 8) ? (2 + (lane & 3)) : (5 - (lane & 3)));
+                g = std::max(g, 0.38f + 0.10f * static_cast<float>(lane & 1));
+            }
+            if (t >= 160 && (i == 0 || i == 8 || i == 15)) {
+                d = contourOffset + (i == 8 ? ((lane & 1) ? 5 : 3) : 0);
+                g = std::max(g, i == 15 ? 0.86f : 0.80f);
+            }
+            if (t >= 176 && ((i + lane) % 5) == 0) {
+                d += ((i & 8) ? -1 : 1) * (1 + ((lane >> 2) & 1));
+                g = std::max(g, 0.44f);
+            }
+            if (t >= 208 && (i == 3 || i == 4 || i == 11 || i == 12)) {
+                d = contourOffset + ((i < 8) ? ((lane & 1) ? 7 : 4) : ((lane & 2) ? -2 : 2));
+                g = std::max(g, 0.50f + (i == 4 || i == 12 ? 0.12f : 0.0f));
+            }
+            if (t >= 224 && (i == 6 || i == 10 || i == 14)) {
+                d = contourOffset + ((i == 14) ? 0 : ((lane & 1) ? -3 : 6));
+                g = std::max(g, i == 14 ? 0.80f : 0.54f);
+            }
+            if (t >= 240 && (i == 2 || i == 7 || i == 9 || i == 13)) {
+                d += ((i == 7 || i == 9) ? 4 : -1);
+                g = std::max(g, 0.56f);
+            }
         }
         motif[i] = d;
         gate[i] = clamp01(g);
@@ -1586,6 +2007,26 @@ void MusicEngine::deriveAnswerMotif() {
         mComposition.motifE[i] = recall;
         mComposition.gateE[i] = std::min(1.0f, mComposition.gateA[i] * 0.92f + ((i == 0 || i == 8 || i == 15) ? 0.24f : 0.0f));
         mComposition.durE[i] = std::max(0.35f, mComposition.durA[i] * 1.10f);
+
+        // v18.1: additional abstract grammar passes.  These make the derived motifs
+        // feel less like copies and more like related answers, recalls, and shadows.
+        if ((mComposition.themeShapeId & 1) == 0 && (i == 6 || i == 14)) {
+            mComposition.motifB[i] = (i == 14) ? 0 : (mComposition.hookOffset + 5);
+            mComposition.gateB[i] = std::max(mComposition.gateB[i], 0.66f);
+        }
+        if ((mComposition.counterShape % 3) == 1 && (i == 2 || i == 10)) {
+            mComposition.motifC[i] += (i == 2) ? 2 : -2;
+            mComposition.gateC[i] = std::max(mComposition.gateC[i], 0.62f);
+        }
+        if ((mComposition.counterShape % 5) == 2 && (i == 3 || i == 11 || i == 15)) {
+            mComposition.motifD[i] = (i == 15) ? 0 : mComposition.motifA[(i + 12) & 15] + ((i < 8) ? 1 : -1);
+            mComposition.gateD[i] = std::max(mComposition.gateD[i], 0.54f);
+        }
+        if (mComposition.longMemory > 0.70f && (i == 0 || i == 8 || i == 15)) {
+            mComposition.motifE[i] = (i == 8) ? mComposition.answerOffset : 0;
+            mComposition.gateE[i] = std::max(mComposition.gateE[i], i == 15 ? 0.82f : 0.68f);
+            mComposition.durE[i] = std::max(mComposition.durE[i], i == 15 ? 1.30f : 0.95f);
+        }
     }
 }
 
@@ -1699,6 +2140,62 @@ void MusicEngine::chooseInstrumentPalette(const StyleProfile& p) {
             mComposition.useComet = std::max(mComposition.useComet, 0.34f);
             mComposition.useBell = std::max(mComposition.useBell, 0.34f);
             break;
+        case StyleType::CopperChord:
+            mComposition.useChord = std::max(mComposition.useChord, 0.86f);
+            mComposition.useLead = std::max(mComposition.useLead, 0.78f);
+            mComposition.useCounter = std::max(mComposition.useCounter, 0.52f);
+            mComposition.useRotor = std::max(mComposition.useRotor, 0.46f);
+            mComposition.useBell = std::max(mComposition.useBell, 0.42f);
+            break;
+        case StyleType::GhostMeter:
+            mComposition.usePerc = std::max(mComposition.usePerc, 0.66f);
+            mComposition.useEcho = std::max(mComposition.useEcho, 0.58f);
+            mComposition.useOrbit = std::max(mComposition.useOrbit, 0.54f);
+            mComposition.useCounter = std::max(mComposition.useCounter, 0.44f);
+            mComposition.useGlyph = std::max(mComposition.useGlyph, 0.38f);
+            break;
+        case StyleType::ObsidianBloom:
+            mComposition.useBass = std::max(mComposition.useBass, 0.92f);
+            mComposition.useSub = std::max(mComposition.useSub, 0.72f);
+            mComposition.useChord = std::max(mComposition.useChord, 0.76f);
+            mComposition.useDrone = std::max(mComposition.useDrone, 0.68f);
+            mComposition.useBloom = std::max(mComposition.useBloom, 0.54f);
+            break;
+        case StyleType::VoltageMoth:
+            mComposition.useLead = std::max(mComposition.useLead, 0.94f);
+            mComposition.useArp = std::max(mComposition.useArp, 0.72f);
+            mComposition.useSheen = std::max(mComposition.useSheen, 0.60f);
+            mComposition.usePluck = std::max(mComposition.usePluck, 0.56f);
+            mComposition.useSpark = std::max(mComposition.useSpark, 0.52f);
+            break;
+        case StyleType::QuartzTide:
+            mComposition.useChord = std::max(mComposition.useChord, 0.86f);
+            mComposition.useTexture = std::max(mComposition.useTexture, 0.82f);
+            mComposition.useLead = std::max(mComposition.useLead, 0.74f);
+            mComposition.useBell = std::max(mComposition.useBell, 0.54f);
+            mComposition.useComet = std::max(mComposition.useComet, 0.40f);
+            break;
+        case StyleType::StaticCathedral:
+            mComposition.useChord = std::max(mComposition.useChord, 0.88f);
+            mComposition.useTexture = std::max(mComposition.useTexture, 0.78f);
+            mComposition.useDrone = std::max(mComposition.useDrone, 0.62f);
+            mComposition.useFx = std::max(mComposition.useFx, 0.46f);
+            mComposition.useRotor = std::max(mComposition.useRotor, 0.52f);
+            break;
+        case StyleType::MercuryThread:
+            mComposition.useHat = std::max(mComposition.useHat, 0.80f);
+            mComposition.usePerc = std::max(mComposition.usePerc, 0.76f);
+            mComposition.usePulse = std::max(mComposition.usePulse, 0.64f);
+            mComposition.useGrain = std::max(mComposition.useGrain, 0.52f);
+            mComposition.useArp = std::max(mComposition.useArp, 0.54f);
+            break;
+        case StyleType::NightLatch:
+            mComposition.useBass = std::max(mComposition.useBass, 0.86f);
+            mComposition.useSub = std::max(mComposition.useSub, 0.62f);
+            mComposition.usePerc = std::max(mComposition.usePerc, 0.56f);
+            mComposition.useEcho = std::max(mComposition.useEcho, 0.46f);
+            mComposition.useBloom = std::max(mComposition.useBloom, 0.42f);
+            break;
         case StyleType::TinyGrid:
             mComposition.useKick = std::max(mComposition.useKick, 0.82f);
             mComposition.useHat = std::max(mComposition.useHat, 0.62f);
@@ -1796,6 +2293,14 @@ void MusicEngine::chooseInstrumentPalette(const StyleProfile& p) {
         case StyleType::CarbonRain: bassBucket = 7; leadBucket = 4; padBucket = 2; kickBucket = 6; snareBucket = 8; hatBucket = 8; percBucket = 9; textureBucket = 8; break;
         case StyleType::LatticeSun: bassBucket = 1; leadBucket = 10; padBucket = 6; kickBucket = 1; snareBucket = 2; hatBucket = 5; percBucket = 4; textureBucket = 3; break;
         case StyleType::StrangeHarbor: bassBucket = 4; leadBucket = 3; padBucket = 10; kickBucket = 0; snareBucket = 1; hatBucket = 0; percBucket = 2; textureBucket = 10; break;
+        case StyleType::CopperChord: bassBucket = 2; leadBucket = 7; padBucket = 8; kickBucket = 1; snareBucket = 2; hatBucket = 2; percBucket = 3; textureBucket = 5; break;
+        case StyleType::GhostMeter: bassBucket = 3; leadBucket = 4; padBucket = 6; kickBucket = 2; snareBucket = 3; hatBucket = 5; percBucket = 7; textureBucket = 8; break;
+        case StyleType::ObsidianBloom: bassBucket = 9; leadBucket = 3; padBucket = 9; kickBucket = 5; snareBucket = 4; hatBucket = 0; percBucket = 5; textureBucket = 10; break;
+        case StyleType::VoltageMoth: bassBucket = 1; leadBucket = 10; padBucket = 6; kickBucket = 1; snareBucket = 2; hatBucket = 6; percBucket = 5; textureBucket = 4; break;
+        case StyleType::QuartzTide: bassBucket = 0; leadBucket = 9; padBucket = 10; kickBucket = 0; snareBucket = 1; hatBucket = 1; percBucket = 2; textureBucket = 10; break;
+        case StyleType::StaticCathedral: bassBucket = 8; leadBucket = 4; padBucket = 10; kickBucket = 5; snareBucket = 6; hatBucket = 3; percBucket = 8; textureBucket = 10; break;
+        case StyleType::MercuryThread: bassBucket = 2; leadBucket = 8; padBucket = 5; kickBucket = 3; snareBucket = 7; hatBucket = 9; percBucket = 9; textureBucket = 7; break;
+        case StyleType::NightLatch: bassBucket = 8; leadBucket = 2; padBucket = 5; kickBucket = 5; snareBucket = 5; hatBucket = 2; percBucket = 6; textureBucket = 8; break;
         case StyleType::ChromeBloom:
         default: bassBucket = 1; leadBucket = 6; padBucket = 5; kickBucket = 1; snareBucket = 1; hatBucket = 3; percBucket = 2; textureBucket = 2; break;
     }
@@ -1862,12 +2367,14 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     mStyleTargetSteps = mComposition.pieceSteps;
     mComposition.conclusiveOutro = !mInfinitePieceLength && mRng.chance(0.34f + 0.22f * p.drama + 0.10f * p.chord);
     mComposition.outroFadeSteps = kPhraseSteps * mRng.rangeInt(2, p.ambient ? 9 : 6);
+    const int32_t maxOutroFadeSteps = std::max(kPhraseSteps, std::min(kPhraseSteps * 6, mComposition.pieceSteps / 5));
+    mComposition.outroFadeSteps = std::min(mComposition.outroFadeSteps, maxOutroFadeSteps);
     mComposition.arcSeed = mRng.nextU32();
-    mComposition.themeCount = mRng.rangeInt(4, 8);
-    mComposition.recallCycle = mRng.rangeInt(6, 15);
-    mComposition.dialogueCycle = mRng.rangeInt(3, 8);
-    mComposition.counterShape = mRng.rangeInt(0, 13);
-    mComposition.themeShapeId = mRng.rangeInt(0, 7);
+    mComposition.themeCount = mRng.rangeInt(5, 8);
+    mComposition.recallCycle = mRng.rangeInt(5, 17);
+    mComposition.dialogueCycle = mRng.rangeInt(3, 10);
+    mComposition.counterShape = mRng.rangeInt(0, 47);
+    mComposition.themeShapeId = mRng.rangeInt(0, 15);
     mComposition.longMemory = clamp(0.44f + p.melody * 0.32f + mRng.uni() * 0.30f, 0.34f, 0.99f);
     mComposition.callResponse = clamp(0.34f + p.melody * 0.42f + p.sync * 0.18f + mRng.bipolar() * 0.07f, 0.24f, 0.98f);
     mComposition.counterpoint = clamp(0.30f + p.melody * 0.34f + p.chord * 0.18f + mRng.uni() * 0.24f, 0.18f, 0.94f);
@@ -1889,7 +2396,7 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     }
 
     mComposition.progressionLength = mRng.chance(0.25f) ? 8 : 4;
-    static constexpr int32_t prog[24][8] = {
+    static constexpr int32_t prog[80][8] = {
         {0, 5, 6, 0, 0, 5, 6, 4},
         {0, 3, 6, 0, 0, 3, 5, 4},
         {0, 0, 5, 6, 0, 0, 3, 4},
@@ -1913,10 +2420,66 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
         {0, 3, 2, 0, 5, 4, 2, 0},
         {0, 6, 7, 5, 0, 4, 3, 2},
         {0, -1, 2, 0, 4, 2, -1, 0},
-        {0, 5, 0, 7, 6, 4, 2, 0}
+        {0, 5, 0, 7, 6, 4, 2, 0},
+        {0, 2, 4, 2, 5, 4, 2, 0},
+        {0, -2, 3, 0, 6, 5, 3, 0},
+        {0, 7, 0, 5, 4, 2, 0, -1},
+        {0, 0, 6, 4, 0, 3, 5, 4},
+        {0, 1, 4, 5, 0, 6, 4, 1},
+        {0, 5, 2, 3, 0, 4, 7, 5},
+        {0, -1, -2, 0, 3, 2, 0, -1},
+        {0, 4, 2, 5, 7, 5, 4, 0},
+        {0, 3, 5, 7, 0, 5, 3, 2},
+        {0, -1, 0, 4, 6, 4, 2, 0},
+        {0, 2, 6, 5, 3, 2, 0, -1},
+        {0, 7, 6, 4, 2, 4, 5, 0},
+        {0, -2, 2, 5, 0, 3, 2, -1},
+        {0, 5, 7, 9, 7, 5, 3, 0},
+        {0, 4, 1, 5, 0, 6, 3, 2},
+        {0, 0, 5, 2, 7, 5, 2, 0},
+        {0, 3, 5, 3, 0, 4, 2, 0},
+        {0, -2, 4, 0, 5, 3, 0, -1},
+        {0, 6, 2, 5, 0, 7, 4, 2},
+        {0, 0, 3, 7, 0, 5, 3, 0},
+        {0, -1, 4, 2, 0, 3, 5, 2},
+        {0, 5, 1, 4, 0, 6, 2, 5},
+        {0, 2, 7, 5, 4, 2, 0, -1},
+        {0, -2, 0, 5, 7, 4, 2, 0},
+        {0, 4, 6, 3, 0, 5, 2, 0},
+        {0, 7, 5, 2, 0, 4, 6, 5},
+        {0, 3, 0, -1, 0, 5, 4, 2},
+        {0, 2, 3, 2, 0, 5, 3, 0},
+        {0, -1, 4, 5, 0, 2, 6, 4},
+        {0, 6, 4, 1, 0, 5, 2, -1},
+        {0, 0, 7, 5, 3, 5, 2, 0},
+        {0, 4, 2, -1, 0, 6, 5, 3},
+        {0, -2, 5, 4, 2, 0, 3, -1},
+        {0, 3, 6, 5, 0, 4, 1, 0},
+        {0, 5, 2, -2, 0, 7, 5, 2},
+        {0, 1, 3, 6, 0, 4, 5, 1},
+        {0, 7, 4, 6, 5, 3, 2, 0},
+        {0, -1, 5, 2, 0, 4, 2, -2},
+        {0, 2, 0, 6, 4, 0, 5, 3},
+        {0, 5, 6, 3, 0, 7, 4, 2},
+        {0, -2, 1, 4, 0, 3, 6, 5},
+        {0, 4, 0, 2, 5, 7, 5, 0},
+        {0, 3, -1, 2, 0, 5, 7, 4},
+        {0, 6, 2, 0, 5, 3, 1, 0},
+        {0, -1, 0, 5, 2, 6, 4, 0},
+        {0, 7, 5, 0, 3, 5, 6, 2},
+        {0, 2, 4, -1, 0, 5, 3, 2},
+        {0, 5, 1, 6, 0, 4, 2, -1},
+        {0, -2, 3, 6, 5, 2, 0, -1},
+        {0, 4, 7, 5, 2, 0, 3, 5},
+        {0, 0, 2, -1, 4, 6, 5, 0},
+        {0, 6, 3, 1, 0, 5, 7, 4},
+        {0, 2, 5, 3, -1, 0, 4, 2},
+        {0, 7, 3, 5, 0, 6, 2, 4},
+        {0, -1, 6, 4, 1, 0, 5, 3},
+        {0, 4, 2, 7, 5, 1, 3, 0}
     };
 
-    int32_t pi = mRng.rangeInt(0, 23);
+    int32_t pi = mRng.rangeInt(0, 79);
     if (mPattern.style == StyleType::GlassNoir || mPattern.style == StyleType::SubOrbit ||
         mPattern.style == StyleType::DeepMagnet || mPattern.style == StyleType::VoidStep ||
         mPattern.style == StyleType::MarbleBass) {
@@ -1938,6 +2501,12 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     if (mPattern.style == StyleType::StrangeHarbor) pi = mRng.chance(0.50f) ? 16 : 22;
     if (mPattern.style == StyleType::NeonLatch || mPattern.style == StyleType::EchoCrown) pi = mRng.chance(0.35f) ? 21 : pi;
     if (mPattern.style == StyleType::ConcretePulse || mPattern.style == StyleType::TinyGrid) pi = mRng.chance(0.28f) ? 20 : pi;
+    if (mPattern.style == StyleType::CopperChord) pi = mRng.chance(0.55f) ? 40 : 45;
+    if (mPattern.style == StyleType::GhostMeter) pi = mRng.chance(0.50f) ? 41 : 47;
+    if (mPattern.style == StyleType::ObsidianBloom || mPattern.style == StyleType::NightLatch) pi = mRng.chance(0.52f) ? 42 : 46;
+    if (mPattern.style == StyleType::VoltageMoth || mPattern.style == StyleType::MercuryThread) pi = mRng.chance(0.50f) ? 43 : 48;
+    if (mPattern.style == StyleType::QuartzTide) pi = mRng.chance(0.54f) ? 44 : 49;
+    if (mPattern.style == StyleType::StaticCathedral) pi = mRng.chance(0.50f) ? 50 : 51;
     mComposition.progressionId = pi;
     for (int32_t i = 0; i < kMaxProgressionSlots; ++i) mComposition.chordRoot[i] = prog[pi][i];
     if (mComposition.progressionLength == 4) {
@@ -1957,7 +2526,32 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
         PhraseType::Hook, PhraseType::Mirror, PhraseType::Suspension, PhraseType::Statement,
         PhraseType::Orbit, PhraseType::Answer, PhraseType::Cascade, PhraseType::Statement
     };
-    if (mRng.chance(0.35f)) {
+    static constexpr PhraseType formD[16] = {
+        PhraseType::Statement, PhraseType::Repeat, PhraseType::Answer, PhraseType::Crystallize,
+        PhraseType::Hook, PhraseType::Afterimage, PhraseType::Mirror, PhraseType::Variation,
+        PhraseType::Eclipse, PhraseType::Orbit, PhraseType::Answer, PhraseType::Cascade,
+        PhraseType::Hook, PhraseType::Surge, PhraseType::Afterimage, PhraseType::Statement
+    };
+    static constexpr PhraseType formE[16] = {
+        PhraseType::Statement, PhraseType::Orbit, PhraseType::Answer, PhraseType::Mirror,
+        PhraseType::Hook, PhraseType::Crystallize, PhraseType::Variation, PhraseType::Afterimage,
+        PhraseType::Statement, PhraseType::Eclipse, PhraseType::Answer, PhraseType::Cascade,
+        PhraseType::Hook, PhraseType::Variation, PhraseType::Surge, PhraseType::Statement
+    };
+    static constexpr PhraseType formF[16] = {
+        PhraseType::Suspension, PhraseType::Statement, PhraseType::Repeat, PhraseType::Answer,
+        PhraseType::Orbit, PhraseType::Mirror, PhraseType::Hook, PhraseType::Afterimage,
+        PhraseType::Crystallize, PhraseType::Statement, PhraseType::Variation, PhraseType::Answer,
+        PhraseType::Eclipse, PhraseType::Cascade, PhraseType::Surge, PhraseType::Statement
+    };
+    if (mRng.chance(0.18f + 0.26f * mComposition.longMemory + 0.10f * p.drama)) {
+        mComposition.formLength = 16;
+        const PhraseType* picked = mRng.chance(0.50f) ? formE : formF;
+        for (int32_t i = 0; i < 16; ++i) mComposition.form[i] = picked[i];
+    } else if (mRng.chance(0.24f + 0.20f * mComposition.longMemory)) {
+        mComposition.formLength = 16;
+        for (int32_t i = 0; i < 16; ++i) mComposition.form[i] = formD[i];
+    } else if (mRng.chance(0.38f)) {
         mComposition.formLength = 12;
         for (int32_t i = 0; i < 12; ++i) mComposition.form[i] = formC[i];
     } else if (mRng.chance(0.50f)) {
@@ -1968,36 +2562,43 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
         for (int32_t i = 0; i < 8; ++i) mComposition.form[i] = formB[i];
     }
 
-    int32_t motifTemplate = mRng.rangeInt(0, 63);
+    int32_t motifTemplate = mRng.rangeInt(0, 255);
     if (mPattern.style == StyleType::SoftVoltage || mPattern.style == StyleType::VelvetDrift ||
         mPattern.style == StyleType::PulseGarden || mPattern.style == StyleType::IonGarden) {
-        motifTemplate = mRng.rangeInt(8, 62);
+        motifTemplate = mRng.rangeInt(8, 254);
     }
     if (mPattern.style == StyleType::DeepMagnet || mPattern.style == StyleType::VoidStep ||
         mPattern.style == StyleType::MarbleBass) {
-        motifTemplate = mRng.chance(0.50f) ? 7 : mRng.rangeInt(11, 63);
+        motifTemplate = mRng.chance(0.50f) ? 7 : mRng.rangeInt(11, 255);
     }
     if (mPattern.style == StyleType::ChromeBloom || mPattern.style == StyleType::PrismCruise ||
         mPattern.style == StyleType::SolarFold || mPattern.style == StyleType::EchoCrown) {
-        motifTemplate = mRng.chance(0.50f) ? mRng.rangeInt(9, 63) : mRng.rangeInt(6, 48);
+        motifTemplate = mRng.chance(0.50f) ? mRng.rangeInt(9, 255) : mRng.rangeInt(6, 236);
     }
-    if (mPattern.style == StyleType::WarmCurrent) motifTemplate = mRng.chance(0.50f) ? 6 : mRng.rangeInt(8, 56);
-    if (mPattern.style == StyleType::BitFog) motifTemplate = mRng.rangeInt(2, 52);
-    if (mPattern.style == StyleType::MagentaWell || mPattern.style == StyleType::LatticeSun) motifTemplate = mRng.rangeInt(18, 63);
-    if (mPattern.style == StyleType::CarbonRain) motifTemplate = mRng.rangeInt(2, 52);
-    if (mPattern.style == StyleType::StrangeHarbor) motifTemplate = mRng.rangeInt(8, 62);
+    if (mPattern.style == StyleType::WarmCurrent) motifTemplate = mRng.chance(0.50f) ? 6 : mRng.rangeInt(8, 246);
+    if (mPattern.style == StyleType::BitFog) motifTemplate = mRng.rangeInt(2, 244);
+    if (mPattern.style == StyleType::MagentaWell || mPattern.style == StyleType::LatticeSun) motifTemplate = mRng.rangeInt(18, 255);
+    if (mPattern.style == StyleType::CarbonRain) motifTemplate = mRng.rangeInt(2, 244);
+    if (mPattern.style == StyleType::StrangeHarbor) motifTemplate = mRng.rangeInt(8, 254);
+    if (mPattern.style == StyleType::CopperChord || mPattern.style == StyleType::QuartzTide) motifTemplate = mRng.rangeInt(24, 255);
+    if (mPattern.style == StyleType::VoltageMoth || mPattern.style == StyleType::MercuryThread) motifTemplate = mRng.rangeInt(40, 255);
+    if (mPattern.style == StyleType::ObsidianBloom || mPattern.style == StyleType::NightLatch || mPattern.style == StyleType::StaticCathedral) motifTemplate = mRng.rangeInt(8, 240);
+    if (mPattern.style == StyleType::GhostMeter) motifTemplate = mRng.rangeInt(12, 248);
     mComposition.motifTemplateId = motifTemplate;
     mComposition.hookOffset = (mRng.chance(0.50f) ? 0 : (mRng.chance(0.50f) ? 2 : -1));
     mComposition.answerOffset = (mRng.chance(0.50f) ? 0 : (mRng.chance(0.50f) ? 1 : -1));
     const bool lowRegisterStyle = (mPattern.style == StyleType::GlassNoir || mPattern.style == StyleType::SubOrbit ||
                                    mPattern.style == StyleType::DeepMagnet || mPattern.style == StyleType::VoidStep ||
                                    mPattern.style == StyleType::MarbleBass || mPattern.style == StyleType::CarbonRain ||
-                                   mPattern.style == StyleType::StrangeHarbor);
+                                   mPattern.style == StyleType::StrangeHarbor || mPattern.style == StyleType::ObsidianBloom ||
+                                   mPattern.style == StyleType::NightLatch || mPattern.style == StyleType::StaticCathedral);
     const bool highRegisterStyle = (mPattern.style == StyleType::PrismCruise || mPattern.style == StyleType::ChromeBloom ||
                                     mPattern.style == StyleType::SoftVoltage || mPattern.style == StyleType::SolarFold ||
                                     mPattern.style == StyleType::WarmCurrent || mPattern.style == StyleType::IonGarden ||
                                     mPattern.style == StyleType::EchoCrown || mPattern.style == StyleType::MagentaWell ||
-                                    mPattern.style == StyleType::LatticeSun);
+                                    mPattern.style == StyleType::LatticeSun || mPattern.style == StyleType::VoltageMoth ||
+                                    mPattern.style == StyleType::QuartzTide || mPattern.style == StyleType::MercuryThread ||
+                                    mPattern.style == StyleType::CopperChord);
     mComposition.octaveBias = lowRegisterStyle ? 2 : (highRegisterStyle ? 3 : 2);
     mComposition.motifGain = clamp(1.12f + p.melody * 1.02f + mRng.bipolar() * 0.09f, 0.82f, 2.12f);
     mComposition.bassGain = clamp(0.90f + p.bass * 0.72f + mRng.bipolar() * 0.08f, 0.64f, 1.56f);
@@ -2262,7 +2863,14 @@ uint32_t MusicEngine::patternHash() const {
     for (int32_t i = 0; i < kMotifSteps; i += 2) {
         add(mPattern.bassMotif[i]);
         add(mPattern.leadMotif[i]);
+        add(static_cast<int32_t>(mPattern.leadGate[i] * 11.0f));
     }
+    for (int32_t i = 0; i < kChordSteps; ++i) add(mPattern.chordMotif[i]);
+    add(static_cast<int32_t>(mComposition.motifHash & 0xffffu));
+    add(static_cast<int32_t>((mComposition.motifHash >> 16u) & 0xffffu));
+    add(static_cast<int32_t>(mComposition.paletteHash & 0xffffu));
+    add(static_cast<int32_t>(mComposition.progressionId));
+    add(static_cast<int32_t>(mComposition.formLength));
     return h ? h : 1u;
 }
 
@@ -2273,8 +2881,54 @@ bool MusicEngine::isHashRecent(uint32_t hash) const {
     return false;
 }
 
+uint32_t MusicEngine::motifSignatureHash() const {
+    uint32_t h = 2166136261u ^ 0x4d4f5449u;
+    auto add = [&h](int32_t v) {
+        h ^= static_cast<uint32_t>(v + 0x9e3779b9u);
+        h *= 16777619u;
+    };
+    add(static_cast<int32_t>(mPattern.style));
+    add(mPattern.scaleMode);
+    add(mComposition.motifTemplateId);
+    add(mComposition.progressionId);
+    add(mComposition.themeShapeId);
+    add(mComposition.counterShape);
+    add(mComposition.formLength);
+    for (int32_t i = 0; i < kPhraseSteps; ++i) {
+        add(mComposition.motifA[i]);
+        add(mComposition.motifB[i]);
+        add(mComposition.motifC[i]);
+        add(mComposition.motifD[i]);
+        add(mComposition.motifE[i]);
+        add(static_cast<int32_t>(std::lround(mComposition.gateA[i] * 15.0f)));
+        add(static_cast<int32_t>(std::lround(mComposition.gateB[i] * 15.0f)));
+        add(mComposition.bassRel[i]);
+        add(static_cast<int32_t>(std::lround(mComposition.bassGate[i] * 15.0f)));
+    }
+    for (int32_t i = 0; i < kMaxProgressionSlots; ++i) add(mComposition.chordRoot[i]);
+    for (int32_t i = 0; i < kThemeSlots; ++i) {
+        add(mComposition.themeOffset[i]);
+        add(mComposition.themeContour[i]);
+    }
+    return h ? h : 1u;
+}
+
+bool MusicEngine::isMotifHashRecent(uint32_t hash) const {
+    for (uint32_t h : mRecentMotifHash) {
+        if (h == hash && h != 0u) return true;
+    }
+    return false;
+}
+
+int32_t MusicEngine::outroGravitySteps() const {
+    const int32_t totalPhrases = std::max(2, mComposition.pieceSteps / kPhraseSteps);
+    if (totalPhrases <= 6) return kPhraseSteps;
+    if (totalPhrases <= 16) return kPhraseSteps * 2;
+    return kPhraseSteps * 3;
+}
+
 int32_t MusicEngine::currentChordRoot(int32_t step) const {
-    if (mComposition.conclusiveOutro && !mInfinitePieceLength && step >= mComposition.pieceSteps - kPhraseSteps * 3) {
+    if (mComposition.conclusiveOutro && !mInfinitePieceLength && step >= mComposition.pieceSteps - outroGravitySteps()) {
         return 0;
     }
     const int32_t progression = std::max(1, std::min(kMaxProgressionSlots, mComposition.progressionLength));
@@ -2286,10 +2940,18 @@ int32_t MusicEngine::currentChordRoot(int32_t step) const {
 MusicEngine::SectionType MusicEngine::currentSectionType(int32_t step) const {
     const int32_t phrase = std::max(0, step) / kPhraseSteps;
     const int32_t totalPhrases = std::max(2, mComposition.pieceSteps / kPhraseSteps);
-    const int32_t edgePhrases = std::max(2, std::min(8, totalPhrases / 18));
+    const int32_t edgePhrases = (totalPhrases <= 6) ? 1 : std::max(2, std::min(8, totalPhrases / 18));
 
     if (phrase < edgePhrases) return SectionType::Intro;
-    if (phrase >= totalPhrases - edgePhrases) return SectionType::Outro;
+    if (mExportSinglePieceMode && mExportStopSamples > 0) {
+        const int64_t nowSamples = mCurrentPieceSamples.load(std::memory_order_relaxed);
+        const int64_t remainingSamples = mExportStopSamples - nowSamples;
+        const int64_t outroWindow = std::max<int64_t>(static_cast<int64_t>(mSampleRate) / 2,
+                std::min<int64_t>(static_cast<int64_t>(mSampleRate) * 2, mExportStopSamples / 20));
+        if (remainingSamples <= outroWindow) return SectionType::Outro;
+    } else if (phrase >= totalPhrases - edgePhrases) {
+        return SectionType::Outro;
+    }
 
     const int32_t sectionLen = std::max(4, mComposition.sectionPhraseLength);
     const int32_t section = phrase / sectionLen;
@@ -2366,8 +3028,8 @@ MusicEngine::PhraseType MusicEngine::currentPhraseType(int32_t step) const {
             return PhraseType::Cascade;
         case SectionType::Outro:
             if (local == 0) return PhraseType::Statement;
-            if (local == 1) return PhraseType::Orbit;
-            return PhraseType::Suspension;
+            if (local == 1) return PhraseType::Afterimage;
+            return mComposition.conclusiveOutro ? PhraseType::Crystallize : PhraseType::Eclipse;
         case SectionType::Theme:
         default:
             return mComposition.form[phrase % len];
@@ -2427,6 +3089,21 @@ int32_t MusicEngine::grammarDegree(PhraseType phrase,
             gateScale = 1.24f;
             trans = 1 + ((phrasePos / 4) & 1);
             break;
+        case PhraseType::Crystallize:
+            motif = &mComposition.motifD; gates = &mComposition.gateD; durs = &mComposition.durD;
+            gateScale = 0.70f + 0.055f * static_cast<float>(phrasePos);
+            trans = (phrasePos >= 8) ? 1 : 0;
+            break;
+        case PhraseType::Eclipse:
+            motif = &mComposition.motifE; gates = &mComposition.gateE; durs = &mComposition.durE;
+            gateScale = (phrasePos < 4 || phrasePos > 12) ? 0.54f : 0.86f;
+            trans = -1;
+            break;
+        case PhraseType::Afterimage:
+            motif = &mComposition.motifB; gates = &mComposition.gateB; durs = &mComposition.durB;
+            gateScale = 0.72f;
+            trans = (phrasePos >= 8) ? -2 : 2;
+            break;
         case PhraseType::Surge:
         default:
             motif = &mComposition.motifC; gates = &mComposition.gateC; durs = &mComposition.durC;
@@ -2441,7 +3118,7 @@ int32_t MusicEngine::grammarDegree(PhraseType phrase,
 
     int32_t degree = chordRoot + (*motif)[phrasePos] + trans;
     if (mComposition.conclusiveOutro && !mInfinitePieceLength &&
-        mStyleAgeSteps >= mComposition.pieceSteps - kPhraseSteps * 3 &&
+        mStyleAgeSteps >= mComposition.pieceSteps - outroGravitySteps() &&
         (phrasePos == 0 || phrasePos == 8 || phrasePos == 14 || phrasePos == 15)) {
         degree = chordRoot;
         gate = std::max(gate, phrasePos == 15 ? 0.92f : 0.72f);
@@ -2487,6 +3164,13 @@ int32_t MusicEngine::themeIndexForStep(int32_t step) const {
         const int32_t slow = (phrase / std::max(3, sectionLen / 2)) % count;
         if (((phrase + mComposition.counterShape) & 7) == 3) idx = slow;
     }
+    if (mComposition.longMemory > 0.78f && phrase > sectionLen * 6) {
+        // Distant recall: not a loop, but a return of identity at phrase offsets
+        // that are deliberately not aligned with the regular form cycle.
+        const int32_t distant = std::max(5, mComposition.recallCycle + mComposition.dialogueCycle + 1);
+        if (((phrase + mComposition.themeShapeId) % distant) == 2) idx = (count > 2) ? 2 : 0;
+        if (((phrase * 3 + mComposition.counterShape) % (distant + 7)) == 4) idx = 0;
+    }
     return clampInt32(idx, 0, kThemeSlots - 1);
 }
 
@@ -2522,7 +3206,7 @@ int32_t MusicEngine::applyThemeTransform(int32_t degree, int32_t step, int32_t p
 }
 
 int32_t MusicEngine::counterpointDegree(int32_t step, int32_t phrasePos, int32_t chordRoot) const {
-    static constexpr int32_t shapes[14][8] = {
+    static constexpr int32_t shapes[48][8] = {
         {7, 5, 4, 2, 0, 2, 4, 5},
         {0, 2, 4, 5, 7, 5, 4, 2},
         {4, 2, 0, -1, 0, 2, 5, 4},
@@ -2536,10 +3220,44 @@ int32_t MusicEngine::counterpointDegree(int32_t step, int32_t phrasePos, int32_t
         {0, 5, 2, 4, 7, 4, 2, 0},
         {3, 0, -1, 2, 5, 3, 2, 0},
         {0, 2, 0, 4, 2, 5, 4, 0},
-        {7, 5, 2, 0, 3, 2, -1, 0}
+        {7, 5, 2, 0, 3, 2, -1, 0},
+        {0, 4, 2, 5, 3, 7, 4, 0},
+        {5, 3, 0, 2, 4, 2, -1, 0},
+        {0, -2, 0, 3, 5, 2, 4, 0},
+        {7, 4, 2, 5, 0, 3, 2, 0},
+        {0, 5, 7, 4, 2, 4, 3, 0},
+        {3, 5, 2, 0, -1, 2, 4, 0},
+        {0, 3, 5, 3, 0, -2, 0, 2},
+        {7, 9, 7, 5, 4, 2, 0, -1},
+        {0, -1, 2, 5, 7, 4, 2, 0},
+        {5, 2, 4, 0, 3, -1, 2, 0},
+        {0, 4, 6, 4, 2, 0, -1, 0},
+        {7, 5, 3, 0, 2, 4, 2, 0},
+        {0, -2, 3, 5, 4, 2, 0, 2},
+        {5, 7, 9, 7, 4, 2, 0, -1},
+        {0, 3, 0, 5, 2, 4, -1, 0},
+        {4, 2, -1, 0, 5, 3, 2, 0},
+        {0, 5, 4, 7, 5, 2, 4, 0},
+        {7, 4, 0, -2, 0, 3, 5, 0},
+        {0, 2, 5, 7, 4, 2, -1, 0},
+        {5, 3, 1, 0, 4, 6, 4, 2},
+        {0, -1, 3, 6, 5, 2, 0, -2},
+        {7, 5, 2, 4, 6, 4, 1, 0},
+        {0, 4, 1, -1, 2, 5, 3, 0},
+        {5, 7, 4, 0, -1, 2, 5, 0},
+        {0, 3, 6, 4, 2, 5, 1, 0},
+        {7, 2, 4, 5, 3, 0, -1, 0},
+        {0, -2, 2, 5, 7, 5, 3, 0},
+        {4, 6, 3, 0, 2, 5, 2, -1},
+        {0, 5, 1, 4, 7, 4, 2, 0},
+        {7, 3, 0, 2, -1, 0, 4, 0},
+        {0, 4, 6, 2, 5, 3, 1, 0},
+        {5, 2, -2, 0, 3, 6, 4, 0},
+        {0, 7, 5, 3, 6, 2, 4, 0},
+        {4, 1, 3, 5, 2, -1, 0, 0}
     };
     const int32_t themeIdx = themeIndexForStep(step);
-    const int32_t shape = clampInt32(mComposition.counterShape, 0, 13);
+    const int32_t shape = clampInt32(mComposition.counterShape, 0, 47);
     const int32_t idx = ((phrasePos / 2) + (step / kPhraseSteps) + themeIdx) & 7;
     int32_t rel = shapes[shape][idx] - (mComposition.themeOffset[themeIdx] / 2);
     if (phrasePos == 14 || phrasePos == 15) rel = 0;
@@ -2592,7 +3310,20 @@ void MusicEngine::switchToPendingStyle() {
     mSilentSteps = 0;
     mAgcRms = 0.010f;
     mAgcGain = 1.0f;
+    mSidechain = 1.0f;
+    mNovelty = 0.0f;
+    mTextureLp = 0.0f;
+    mTextureHp = 0.0f;
+    mTexturePhaseA = 0.0f;
+    mTexturePhaseB = 0.0f;
+    mTextureNoise = mRng.nextU32();
+    mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
+    if (!mDelayL.empty()) std::fill(mDelayL.begin(), mDelayL.end(), 0.0f);
+    if (!mDelayR.empty()) std::fill(mDelayR.begin(), mDelayR.end(), 0.0f);
+    mDelayWrite = 0;
     generateSeededSong(mPendingSongSeed);
+    for (auto& slot : mMemory) slot = mPattern;
+    mMemoryWrite = 0;
 }
 
 void MusicEngine::updateTransition() {
@@ -2732,7 +3463,7 @@ void MusicEngine::onStep() {
     const SectionType section = currentSectionType(pieceStep);
     const PhraseType phrase = currentPhraseType(pieceStep);
 
-    if (!mInfinitePieceLength) {
+    if (!mInfinitePieceLength && !mExportSinglePieceMode) {
         const int32_t remainingSteps = mComposition.pieceSteps - pieceStep;
         if (!mComposition.conclusiveOutro && remainingSteps <= mComposition.outroFadeSteps) {
             beginTransition();
@@ -2799,6 +3530,24 @@ void MusicEngine::onStep() {
         case PhraseType::Variation:
             phraseLeadScale = 1.08f;
             phraseBassScale = 1.04f;
+            break;
+        case PhraseType::Crystallize:
+            phraseDrumScale = 0.88f;
+            phraseBassScale = 0.96f;
+            phraseLeadScale = 1.16f;
+            phraseChordScale = 1.10f;
+            break;
+        case PhraseType::Eclipse:
+            phraseDrumScale = 0.62f;
+            phraseBassScale = 0.78f;
+            phraseLeadScale = 0.68f;
+            phraseChordScale = 1.24f;
+            break;
+        case PhraseType::Afterimage:
+            phraseDrumScale = 0.78f;
+            phraseBassScale = 0.86f;
+            phraseLeadScale = 0.82f;
+            phraseChordScale = 1.18f;
             break;
         default:
             break;
@@ -3198,6 +3947,41 @@ void MusicEngine::onStep() {
                      (0.010f + 0.038f * p.brightness) * phraseLeadScale * mComposition.useBell,
                      stepDurationSeconds() * (0.42f + 0.72f * bd), mRng.bipolar() * 0.82f,
                      clamp01(mComposition.bellTone + 0.05f * mRng.bipolar()));
+        eventHappened = true;
+    }
+
+    // v18.1: theme braid.  A low-mid answer and a high afterimage can appear
+    // around strong phrase joints, giving the lead line a conversational frame
+    // without adding heavy DSP or extra instrument classes.
+    if (phrase != PhraseType::Suspension && (p16 == 4 || p16 == 12) &&
+        mComposition.useCounter > 0.02f && mComposition.useLead > 0.02f &&
+        mRng.chance(clamp01((0.055f + 0.18f * mComposition.callResponse + 0.10f * p.melody) * phraseLeadScale))) {
+        const int32_t braid = counterpointDegree(pieceStep, p16, chordRoot);
+        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(braid, std::max(1, mComposition.octaveBias - 1))));
+        scheduleLead(static_cast<int32_t>(stepSamples * (0.28f + 0.10f * mRng.uni())), f,
+                     (0.014f + 0.042f * mPattern.melody) * accent * phraseLeadScale * mComposition.useCounter,
+                     stepDurationSeconds() * (0.78f + 0.72f * mComposition.longMemory),
+                     mRng.bipolar() * 0.58f, clamp01(mComposition.counterTone + 0.03f * mRng.bipolar()));
+        if (mComposition.useSheen > 0.02f && mRng.chance(0.36f + 0.24f * p.brightness)) {
+            const float fHi = midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot + ((p16 == 12) ? 7 : 4), mComposition.octaveBias + 2)));
+            scheduleLead(static_cast<int32_t>(stepSamples * 0.62f), fHi,
+                         (0.006f + 0.020f * p.brightness) * phraseLeadScale * mComposition.useSheen,
+                         stepDurationSeconds() * 0.86f, mRng.bipolar() * 0.92f,
+                         clamp01(mComposition.sheenTone + 0.04f));
+        }
+        eventHappened = true;
+    }
+
+    // v18.1: bass glides sometimes answer the melody instead of merely anchoring it.
+    if (mComposition.useBass > 0.02f && (p16 == 2 || p16 == 14) &&
+        (section == SectionType::Variation || section == SectionType::Mirror || section == SectionType::Afterimage || phrase == PhraseType::Answer) &&
+        mRng.chance(clamp01((0.055f + 0.16f * p.bass + 0.10f * mComposition.counterpoint) * phraseBassScale))) {
+        const int32_t bdeg = chordRoot + ((p16 == 14) ? -1 : (mComposition.themeOffset[themeIndexForStep(pieceStep)] >= 0 ? 4 : 2));
+        const float bf = midiToHz(static_cast<float>(scaleDegreeToMidi(bdeg, -1)));
+        scheduleBass(static_cast<int32_t>(stepSamples * 0.38f), bf,
+                     (0.050f + 0.060f * p.bass) * phraseBassScale * mComposition.useBass,
+                     stepDurationSeconds() * 1.25f, mRng.bipolar() * 0.06f,
+                     clamp01(mComposition.bassTone + 0.06f * mRng.bipolar()));
         eventHappened = true;
     }
 
@@ -3715,12 +4499,12 @@ float MusicEngine::renderLead(LeadVoice& v) {
 }
 
 float MusicEngine::renderTexture() {
-    const StyleProfile p = profile(mPattern.style);
     const float sr = static_cast<float>(mSampleRate);
     const float tone = clamp01(mComposition.textureTone);
-    const float amount = (0.010f + mPattern.texture * (0.022f + 0.052f * p.texture)) * mComposition.useTexture;
+    const float profileTexture = mPattern.profileTexture;
+    const float amount = (0.010f + mPattern.texture * (0.022f + 0.052f * profileTexture)) * mComposition.useTexture;
     if (amount <= 0.0001f) return 0.0f;
-    mTexturePhaseA += (0.030f + 0.070f * p.texture + 0.030f * tone) / sr;
+    mTexturePhaseA += (0.030f + 0.070f * profileTexture + 0.030f * tone) / sr;
     mTexturePhaseB += (0.045f + 0.062f * mPattern.roughness + 0.050f * tone) / sr;
     if (mTexturePhaseA >= 1.0f) mTexturePhaseA -= 1.0f;
     if (mTexturePhaseB >= 1.0f) mTexturePhaseB -= 1.0f;
@@ -3734,11 +4518,10 @@ float MusicEngine::renderTexture() {
 
 void MusicEngine::applyDelayAndMaster(float& left, float& right) {
     if (!mDelayL.empty() && !mDelayR.empty()) {
-        const StyleProfile p = profile(mPattern.style);
         const int32_t size = static_cast<int32_t>(mDelayL.size());
         const float bpm = std::max(40.0f, mBpm);
         const float beatSeconds = 60.0f / bpm;
-        const float desired = beatSeconds * (p.ambient ? 0.75f : (p.breakbeat ? 0.375f : 0.50f));
+        const float desired = beatSeconds * (mPattern.profileAmbient ? 0.75f : (mPattern.profileBreakbeat ? 0.375f : 0.50f));
         const int32_t targetDelay = clamp(static_cast<float>(desired * static_cast<float>(mSampleRate)), 1200.0f, static_cast<float>(size - 1));
         mDelaySamples += static_cast<int32_t>((targetDelay - mDelaySamples) * 0.00002f);
         mDelaySamples = std::max(1, std::min(size - 1, mDelaySamples));
@@ -3746,7 +4529,7 @@ void MusicEngine::applyDelayAndMaster(float& left, float& right) {
         const float dl = mDelayL[read];
         const float dr = mDelayR[read];
         const float send = mPattern.delay * (0.22f + 0.55f * mPattern.space);
-        const float feedback = clamp(0.18f + 0.42f * mPattern.space + 0.10f * p.texture, 0.10f, 0.66f);
+        const float feedback = clamp(0.18f + 0.42f * mPattern.space + 0.10f * mPattern.profileTexture, 0.10f, 0.66f);
         mDelayL[mDelayWrite] = std::tanh((left * send + dr * feedback) * 0.92f);
         mDelayR[mDelayWrite] = std::tanh((right * send + dl * feedback) * 0.92f);
         mDelayWrite = (mDelayWrite + 1) % size;

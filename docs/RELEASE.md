@@ -13,12 +13,12 @@ fastlane/metadata/android/en-US/changelogs/<versionCode>.txt
 fdroid/metadata/vip.thatiam.technomatic2105.yml
 ```
 
-For v16:
+For v0.20.5:
 
 ```text
-versionName: 0.16.0
-versionCode: 16
-tag: v0.16.0
+versionName: 0.20.5
+versionCode: 29
+tag: v0.20.5
 ```
 
 ## 2. Build locally
@@ -70,6 +70,12 @@ switch app keeps audio running
 notification shows Technomatic 2105 icon/text
 notification Next works
 notification Stop works
+Advanced screen opens
+Seed copies on tap
+Load Seed starts the requested generated sound
+Export to OGG starts export and changes to Cancel Export
+Cancel Export cancels without force quitting
+completed export appears at Music/Technomatic2105/
 headphones route audio correctly
 volume remains steady between generated pieces
 ```
@@ -77,13 +83,13 @@ volume remains steady between generated pieces
 ## 4. Tag release
 
 ```sh
-git tag v0.16.0
-git push origin v0.16.0
+git tag v0.20.5
+git push origin v0.20.5
 ```
 
 ## 5. GitHub release
 
-Create a GitHub release from tag `v0.16.0`.
+Create a GitHub release from tag `v0.20.5`.
 
 Attach:
 

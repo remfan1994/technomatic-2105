@@ -1,0 +1,7 @@
+Technomatic 2105 v0.20.0
+
+- Make OGG export cancellable and failure-visible.
+- Change Export to OGG into Cancel Export while a job is running.
+- Cancel export when playback is stopped, restarted, changed, or a seed is loaded.
+- Add native PCM export cancellation and encoder stall detection.
+- Keep public OGG publishing at Music/Technomatic2105.

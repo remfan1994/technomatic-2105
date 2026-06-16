@@ -1,0 +1,6 @@
+Technomatic 2105 v0.20.3
+
+- Fixes OGG export duration on short tracks.
+- Validates rendered PCM length before OGG encoding.
+- Keeps export independent from live auto-advance while preserving explicit cancel behavior.
+- Tightens short-track outro timing.

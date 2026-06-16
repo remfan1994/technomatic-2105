@@ -1,12 +1,15 @@
 #include <jni.h>
 #include <cstdint>
+#include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 
 #include "AudioEngine.h"
 
 namespace {
 std::mutex gLock;
+std::atomic<bool> gExportCancel{false};
 std::unique_ptr<rb::AudioEngine> gEngine;
 
 rb::AudioEngine* engine() {
@@ -64,6 +67,55 @@ extern "C" JNIEXPORT void JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_setGenreBlendMode(JNIEnv*, jclass, jint mode) {
     std::lock_guard<std::mutex> guard(gLock);
     engine()->setGenreBlendMode(static_cast<int32_t>(mode));
+}
+
+
+extern "C" JNIEXPORT void JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenreStateAndForceNew(JNIEnv*, jclass, jint mask, jint mode) {
+    std::lock_guard<std::mutex> guard(gLock);
+    engine()->setGenreStateAndForceNew(static_cast<int32_t>(mask), static_cast<int32_t>(mode));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_currentSongData(JNIEnv* env, jclass) {
+    std::lock_guard<std::mutex> guard(gLock);
+    const std::string data = engine()->currentSongData();
+    return env->NewStringUTF(data.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_loadSongData(JNIEnv* env, jclass, jstring data) {
+    if (!data) return JNI_FALSE;
+    const char* chars = env->GetStringUTFChars(data, nullptr);
+    if (!chars) return JNI_FALSE;
+    std::string value(chars);
+    env->ReleaseStringUTFChars(data, chars);
+    std::lock_guard<std::mutex> guard(gLock);
+    return engine()->loadSongData(value) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_exportPcm16ToFile(JNIEnv* env, jclass, jstring data, jint seconds, jstring path) {
+    if (!data || !path) return JNI_FALSE;
+    const char* dataChars = env->GetStringUTFChars(data, nullptr);
+    if (!dataChars) return JNI_FALSE;
+    const char* pathChars = env->GetStringUTFChars(path, nullptr);
+    if (!pathChars) {
+        env->ReleaseStringUTFChars(data, dataChars);
+        return JNI_FALSE;
+    }
+    std::string dataValue(dataChars);
+    std::string pathValue(pathChars);
+    env->ReleaseStringUTFChars(data, dataChars);
+    env->ReleaseStringUTFChars(path, pathChars);
+    gExportCancel.store(false, std::memory_order_relaxed);
+    const bool ok = rb::MusicEngine::exportPcm16File(dataValue, static_cast<int32_t>(seconds), pathValue, &gExportCancel);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_cancelExportRender(JNIEnv*, jclass) {
+    gExportCancel.store(true, std::memory_order_relaxed);
 }
 
 extern "C" JNIEXPORT jint JNICALL

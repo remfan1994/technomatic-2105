@@ -15,6 +15,11 @@ public final class NativeAudio {
     public static native void setPieceLengthSeconds(int seconds);
     public static native void setGenreMask(int mask);
     public static native void setGenreBlendMode(int mode);
+    public static native void setGenreStateAndForceNew(int mask, int mode);
+    public static native String currentSongData();
+    public static native boolean loadSongData(String data);
+    public static native boolean exportPcm16ToFile(String data, int seconds, String path);
+    public static native void cancelExportRender();
     public static native int currentGenreMask();
     public static native int currentGenreBlendMode();
     public static native int currentGenreMode();

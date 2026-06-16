@@ -52,6 +52,17 @@ bool AudioEngine::start() {
     const uint32_t seed = static_cast<uint32_t>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count());
     mMusic.reset(seed);
+    if (mLoadSongDataRequested.load(std::memory_order_acquire)) {
+        std::string data;
+        {
+            std::lock_guard<std::mutex> dataGuard(mSongDataLock);
+            data = mPendingSongData;
+        }
+        if (!data.empty()) {
+            mMusic.loadSongData(data);
+            mLoadSongDataRequested.store(false, std::memory_order_release);
+        }
+    }
 
     result = mStream->requestStart();
     if (result != oboe::Result::OK) {
@@ -93,6 +104,34 @@ void AudioEngine::setGenreBlendMode(int32_t mode) {
     mode = std::max(0, std::min(1, mode));
     mGenreBlendMode.store(mode, std::memory_order_release);
     mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenreStateAndForceNew(int32_t mask, int32_t mode) {
+    mask = std::max(0, std::min(8191, mask));
+    mode = std::max(0, std::min(1, mode));
+    mGenreMask.store(mask, std::memory_order_release);
+    mGenreBlendMode.store(mode, std::memory_order_release);
+    mGenreMaskChangeRequested.store(true, std::memory_order_release);
+    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
+    mForceNewRequested.store(true, std::memory_order_release);
+}
+
+std::string AudioEngine::currentSongData() const {
+    return mMusic.currentSongData();
+}
+
+bool AudioEngine::loadSongData(const std::string& data) {
+    if (data.empty()) return false;
+    {
+        std::lock_guard<std::mutex> guard(mSongDataLock);
+        mPendingSongData = data;
+    }
+    mLoadSongDataRequested.store(true, std::memory_order_release);
+    return true;
+}
+
+bool AudioEngine::exportPcm16ToFile(const std::string& data, int32_t seconds, const std::string& path) {
+    return MusicEngine::exportPcm16File(data, seconds, path);
 }
 
 int32_t AudioEngine::currentGenreMask() const {
@@ -153,6 +192,17 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
 
     if (mGenreMaskChangeRequested.exchange(false, std::memory_order_acq_rel)) {
         mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
+    }
+
+    if (mLoadSongDataRequested.exchange(false, std::memory_order_acq_rel)) {
+        std::string data;
+        {
+            std::lock_guard<std::mutex> guard(mSongDataLock);
+            data = mPendingSongData;
+        }
+        if (!data.empty()) {
+            mMusic.loadSongData(data);
+        }
     }
 
     if (mForceNewRequested.exchange(false, std::memory_order_acq_rel)) {

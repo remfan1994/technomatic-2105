@@ -1,0 +1,7 @@
+Technomatic 2105 v0.20.1
+
+- Final stabilization pass.
+- Clears residual audio state when switching generated sounds to prevent genre bleed.
+- Uses a native clean-regenerate path for genre changes instead of resetting the whole audio stream.
+- Preserves symbolic anti-repetition history across manual Next/genre changes.
+- Keeps OGG export cancelable and OGG-only.

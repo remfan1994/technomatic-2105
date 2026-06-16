@@ -1,5 +1,110 @@
 # Changelog
 
+## 0.20.5
+
+- Corrected OGG export semantics: export no longer restarts or alters live playback.
+- Export now snapshots the current sound data and renders it offline as an independent job.
+- Added candidate-index song data so snapshot export can regenerate the chosen composition more reliably instead of reselecting a different candidate.
+- Stop/Next/Restart/genre/duration changes no longer affect an active export; only Cancel Export cancels it.
+- Bumped versionCode to 29 and versionName to 0.20.5.
+
+## 0.20.4
+
+- Reworked OGG export as a fixed offline render of the current seed and duration.
+- Reverted OGG packet timestamp handling to the on-device-working encoder behavior.
+- Export no longer follows live playback into later generated sounds.
+- Export status now shows render, encode, and publish phases.
+- Export continues through Next/Restart/genre/duration UI changes unless Cancel Export or Stop is used.
+- Bumped versionCode to 28 and versionName to 0.20.4.
+
+## 0.20.3
+
+- Fixed short-track OGG export cutoff behavior on 30-second exports.
+- Export now captures a fixed duration before starting and validates the raw PCM length before OGG encoding.
+- Restored a more conservative MediaCodec drain loop based on the earlier working exporter while keeping cancellation support.
+- Offline export no longer cancels merely because live playback auto-advances; explicit transport actions still cancel export.
+- Tightened short-track outro windows so a 30-second export does not spend too much of the piece in ending behavior.
+- Bumped versionCode to 27 and versionName to 0.20.3.
+
+## 0.20.2
+
+- Fixed OGG export including several seconds of the next generated sound.
+- Export rendering now disables live auto-advance and applies a file-end fade, so one export contains one generated sound only.
+- Reduced MediaCodec dequeue waits to avoid very late export-complete popups on short tracks.
+- Cancels an active export if the live source sound changes before export completes.
+- Removed Share Last OGG and the share action from export-complete dialogs.
+- Bumped versionCode to 26 and versionName to 0.20.2.
+
+## 0.20.1
+
+- Stability pass for the wrap-up build.
+- Reset delay buffers, DC filter memory, texture state, voice state, and per-song recall memory when a generated sound changes.
+- Changed genre-change restart to a native clean-regenerate path instead of tearing down the audio stream.
+- Preserved recent symbolic anti-repetition hashes across manual Next and genre changes so sessions avoid repeated melodic/beat identities.
+- Rechecked OGG-only export cancellation/publish path without adding WAV fallback.
+- Bumped versionCode to 25 and versionName to 0.20.1.
+
+## 0.20.0
+
+- Reworked OGG export as a managed export job.
+- Export button becomes Cancel Export while exporting.
+- Stop, Restart, Previous, Next, Load Seed, and genre changes request export cancellation.
+- Added native PCM-render cancellation for export jobs.
+- Added OGG encoder cancellation checks and a no-progress stall timeout.
+- Public export still targets Music/Technomatic2105 through MediaStore.
+- Bumped versionCode to 24 and versionName to 0.20.0.
+
+## 0.19.0
+
+- Expanded symbolic melody templates from 128 to 256 transformation variants.
+- Expanded progression space to 80 paths and counter-line space to 48 shapes.
+- Added per-song drum DNA overlays for more beat diversity without heavier audio DSP.
+- Added recent motif-signature avoidance so consecutive generated sounds are less likely to reuse the same melodic grammar.
+- Increased candidate composition search from 32 to 48 symbolic candidates.
+- Cached per-style texture/delay traits to reduce per-sample profile recomputation.
+- Added short seed/load-seed explanations to the Advanced screen.
+- Bumped versionCode to 23 and versionName to 0.19.0.
+
+## 0.18.2
+
+- Fixed OGG export publishing. Exported files now publish through MediaStore into Music/Technomatic2105 instead of app-specific external storage.
+- Advanced screen now shows the last export path and offers Share Last OGG after a successful export.
+- Export now shows a result dialog with a clear success path or failure reason instead of relying on a silent toast.
+- Bumped versionCode to 22 and versionName to 0.18.2.
+
+## 0.18.1
+
+- Engine-focused release built on the v0.18.0 UI.
+- Expanded internal style families from 24 to 32 with new abstract engine states: Copper Chord, Ghost Meter, Obsidian Bloom, Voltage Moth, Quartz Tide, Static Cathedral, Mercury Thread, and Night Latch.
+- Increased symbolic candidate search from 24 to 32 candidates.
+- Expanded motif template space to 128 templates with additional contour transforms.
+- Expanded harmonic progression pool from 40 to 52 paths.
+- Expanded counter-line shapes from 24 to 32.
+- Added two larger phrase-form structures for more long-form development.
+- Added theme-braid and bass-answer behaviors for more layer conversation.
+- Bumped versionCode to 21 and versionName to 0.18.1.
+
+## 0.18.0
+
+- Reworked main screen around Start/Stop, Genre, Elapsed, Previous, Restart, Next, and Advanced.
+- Removed saved-name/list UI again in favor of seed-based Advanced controls.
+- Added Advanced seed copy/load flow.
+- Added experimental OGG export from the beginning of the current sound.
+- Added one-line genre descriptions.
+- Added stronger phrase devices, expanded candidate search, motif variants, progressions, and counter-lines.
+
+
+## 0.17.0
+
+- Restored lightweight saved sounds with user naming, loading, renaming, deleting, and hidden generator data.
+- Added sound lists with add-to-list, play-list, delete, open, move up/down, and remove item controls.
+- Added service-side list playback so notification Next advances list items while the app is backgrounded.
+- Reworked main, library, list, and genre screens to scroll in landscape and use wider layouts on wider screens.
+- Moved -- No Genre -- to the top of the genre list as a special style-family option.
+- Added a native genre-state hard reset path to reduce first-track genre carryover after selector changes.
+- Deepened the music engine with more symbolic candidate search, motif variants, harmonic paths, counter-line shapes, and long-memory theme behavior.
+- Bumped versionCode to 19 and versionName to 0.17.0.
+
 ## 0.16.2
 
 - Fixed main-screen genre/duration touchbox text clipping.
