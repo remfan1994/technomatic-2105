@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
     private static final int DEFAULT_TRACK_SECONDS = 180;
     private static final int MIN_TRACK_SECONDS = 8;
     private static final int MAX_TRACK_SECONDS = 999999;
-    private static final int HISTORY_LIMIT = 50;
+    private static final int HISTORY_LIMIT = 500;
 
     private static final String PREFS = "technomatic_2105";
     private static final String KEY_TRACK_SECONDS = "track_seconds";
@@ -106,18 +106,25 @@ public final class MainActivity extends Activity {
     };
 
     private final Handler statusHandler = new Handler(Looper.getMainLooper());
-    private final ArrayList<String> history = new ArrayList<>();
+    private final ArrayList<String> trackHistory = new ArrayList<>();
+    private int historyCursor = -1;
+    private boolean historyDirty = true;
+
 
     private Button startStopButton;
     private Button previousButton;
+    private Button nextButton;
     private Button genreButton;
     private Button elapsedButton;
+    private LinearLayout historyListContainer;
+    private Button clearHistoryButton;
     private int currentScreen = SCREEN_MAIN;
     private boolean suppressGenreCallbacks = false;
     private volatile boolean exportRunning = false;
     private volatile boolean exportCancelRequested = false;
     private Thread exportThread = null;
     private String lastObservedSongData = "";
+    private String pendingLoadSongData = "";
     private String lastExportPath = "";
     private String exportSourceSongData = "";
     private volatile String exportStatusText = "";
@@ -157,6 +164,14 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (currentScreen == SCREEN_GENRE) showGenreSelectorScreen();
+        else if (currentScreen == SCREEN_ADVANCED) showAdvancedScreen();
+        else showMainScreen();
+    }
+
+    @Override
     public void onBackPressed() {
         if (currentScreen == SCREEN_GENRE || currentScreen == SCREEN_ADVANCED) {
             showMainScreen();
@@ -180,62 +195,108 @@ public final class MainActivity extends Activity {
 
     private void showMainScreen() {
         currentScreen = SCREEN_MAIN;
-        LinearLayout controls = baseColumn();
         int w = contentWidthDp();
         boolean wide = isLandscape();
 
-        startStopButton = button(NativeAudio.isPlaying() ? "Stop" : "Start", 30.0f);
-        startStopButton.setOnClickListener(view -> togglePlayback());
-        controls.addView(startStopButton, params(w, wide ? 68 : 84, 0));
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        root.setPadding(dp(12), dp(12), dp(12), dp(10));
+        root.setBackgroundColor(Color.BLACK);
 
-        genreButton = navButton(currentGenreText(), 15.0f);
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+
+        startStopButton = button(NativeAudio.isPlaying() ? "Stop" : "Start", wide ? 24.0f : 28.0f);
+        startStopButton.setOnClickListener(view -> togglePlayback());
+        controls.addView(startStopButton, params(w, wide ? 56 : 72, 0));
+
+        genreButton = navButton(currentGenreText(), 14.5f);
         genreButton.setOnClickListener(view -> showGenreSelectorScreen());
-        elapsedButton = navButton(currentElapsedText(), 15.0f);
+        elapsedButton = navButton(currentElapsedText(), 14.5f);
         elapsedButton.setOnClickListener(view -> showDurationChooser());
 
-        if (wide) {
-            LinearLayout infoRow = new LinearLayout(this);
-            infoRow.setOrientation(LinearLayout.HORIZONTAL);
-            infoRow.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams infoLpA = new LinearLayout.LayoutParams(dp((w - 8) / 2), dp(60));
-            LinearLayout.LayoutParams infoLpB = new LinearLayout.LayoutParams(dp((w - 8) / 2), dp(60));
-            infoLpB.leftMargin = dp(8);
-            infoRow.addView(genreButton, infoLpA);
-            infoRow.addView(elapsedButton, infoLpB);
-            controls.addView(infoRow, params(w, 60, 8));
-        } else {
-            controls.addView(genreButton, params(w, 52, 8));
-            controls.addView(elapsedButton, params(w, 52, 6));
-        }
+        controls.addView(genreButton, params(w, wide ? 44 : 48, 7));
+        controls.addView(elapsedButton, params(w, wide ? 44 : 48, 5));
 
         LinearLayout transportRow = new LinearLayout(this);
         transportRow.setOrientation(LinearLayout.HORIZONTAL);
         transportRow.setGravity(Gravity.CENTER);
-        previousButton = button("Previous", 14.0f);
+        previousButton = button("Previous", 13.5f);
         previousButton.setOnClickListener(view -> previousSound());
-        Button restart = button("Restart", 14.0f);
+        Button restart = button("Restart", 13.5f);
         restart.setOnClickListener(view -> restartCurrentSound());
-        Button next = button("Next", 14.0f);
-        next.setOnClickListener(view -> nextSound());
+        nextButton = button("Next", 13.5f);
+        nextButton.setOnClickListener(view -> nextSound());
         int cell = (w - 16) / 3;
-        transportRow.addView(previousButton, new LinearLayout.LayoutParams(dp(cell), dp(50)));
-        LinearLayout.LayoutParams mid = new LinearLayout.LayoutParams(dp(cell), dp(50));
+        transportRow.addView(previousButton, new LinearLayout.LayoutParams(dp(cell), dp(wide ? 42 : 46)));
+        LinearLayout.LayoutParams mid = new LinearLayout.LayoutParams(dp(cell), dp(wide ? 42 : 46));
         mid.leftMargin = dp(8);
         transportRow.addView(restart, mid);
-        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(dp(cell), dp(50));
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(dp(cell), dp(wide ? 42 : 46));
         right.leftMargin = dp(8);
-        transportRow.addView(next, right);
-        controls.addView(transportRow, params(w, 50, 10));
+        transportRow.addView(nextButton, right);
+        controls.addView(transportRow, params(w, wide ? 42 : 46, 8));
 
         TextView notice = status("If you're not already vegetarian, you need to see Bloodguiltcurse.net");
-        notice.setTextSize(12.0f);
-        controls.addView(notice, params(w, -2, 14));
+        notice.setTextSize(wide ? 11.0f : 12.0f);
+        controls.addView(notice, params(w, -2, 8));
 
-        Button advanced = button("Advanced", 14.0f);
+        Button advanced = button("Advanced", 13.5f);
         advanced.setOnClickListener(view -> showAdvancedScreen());
-        controls.addView(advanced, params(w, 46, 12));
+        controls.addView(advanced, params(w, wide ? 40 : 44, 8));
 
-        setScrollRoot(controls);
+        root.addView(controls, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView historyTitle = label("Track Listing");
+        historyTitle.setTextSize(12.5f);
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(dp(w), LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleLp.gravity = Gravity.CENTER_HORIZONTAL;
+        titleLp.topMargin = dp(8);
+        root.addView(historyTitle, titleLp);
+
+        TextView historyHint = status("(long press to copy seed number)");
+        historyHint.setTextSize(11.0f);
+        LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(dp(w), LinearLayout.LayoutParams.WRAP_CONTENT);
+        hintLp.gravity = Gravity.CENTER_HORIZONTAL;
+        hintLp.topMargin = dp(2);
+        root.addView(historyHint, hintLp);
+
+        TextView historyHeader = status("Genre Duration");
+        historyHeader.setGravity(Gravity.LEFT);
+        historyHeader.setTextSize(11.5f);
+        LinearLayout.LayoutParams headerLp = new LinearLayout.LayoutParams(dp(w), LinearLayout.LayoutParams.WRAP_CONTENT);
+        headerLp.gravity = Gravity.CENTER_HORIZONTAL;
+        headerLp.topMargin = dp(2);
+        root.addView(historyHeader, headerLp);
+
+        ScrollView historyScroll = new ScrollView(this);
+        historyScroll.setFillViewport(false);
+        historyListContainer = new LinearLayout(this);
+        historyListContainer.setOrientation(LinearLayout.VERTICAL);
+        historyListContainer.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        historyScroll.addView(historyListContainer, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams historyLp = new LinearLayout.LayoutParams(dp(w), 0, 1.0f);
+        historyLp.gravity = Gravity.CENTER_HORIZONTAL;
+        historyLp.topMargin = dp(4);
+        root.addView(historyScroll, historyLp);
+
+        clearHistoryButton = button("Clear History", 13.0f);
+        clearHistoryButton.setOnClickListener(view -> clearTrackHistory());
+        LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(dp(w), dp(40));
+        clearLp.gravity = Gravity.CENTER_HORIZONTAL;
+        clearLp.topMargin = dp(6);
+        root.addView(clearHistoryButton, clearLp);
+
+        setContentView(root, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        historyDirty = true;
         updateMainStatus();
     }
 
@@ -365,15 +426,6 @@ public final class MainActivity extends Activity {
         controls.addView(back, params(w, 46, 0));
         controls.addView(label("ADVANCED"), params(w, -2, 10));
 
-        String seedText = currentSeedText();
-        Button seedButton = navButton("Seed: " + seedText + "\nTap to copy", 15.0f);
-        seedButton.setOnClickListener(view -> copySeedToClipboard(seedText));
-        controls.addView(seedButton, params(w, 64, 12));
-
-        TextView seedExplain = status("Seed: the number that regenerates the current sound.");
-        seedExplain.setTextSize(11.5f);
-        controls.addView(seedExplain, params(w, -2, 6));
-
         EditText seedInput = editField("", InputType.TYPE_CLASS_NUMBER);
         seedInput.setHint("enter seed");
         controls.addView(label("Load seed"), params(w, -2, 12));
@@ -386,16 +438,30 @@ public final class MainActivity extends Activity {
         load.setOnClickListener(view -> loadSeed(textOf(seedInput)));
         controls.addView(load, params(w, 46, 8));
 
+        String seedText = currentSeedText();
+        Button seedButton = navButton("Current seed: " + seedText + "\nTap to copy", 15.0f);
+        seedButton.setOnClickListener(view -> copySeedToClipboard(seedText));
+        controls.addView(seedButton, params(w, 64, 14));
+
+        TextView seedExplain = status("Seed: the number that regenerates the current sound.");
+        seedExplain.setTextSize(11.5f);
+        controls.addView(seedExplain, params(w, -2, 6));
+
+        EditText exportName = editField("", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        exportName.setHint("filename, e.g. track1");
+        controls.addView(label("OGG filename"), params(w, -2, 14));
+        controls.addView(exportName, params(w, 50, 2));
+
         Button export = button(exportRunning ? "Cancel Export" : "Export to OGG", 15.0f);
         export.setOnClickListener(view -> {
             if (exportRunning) requestExportCancel("Export cancellation requested.");
-            else exportCurrentToOgg();
+            else exportCurrentToOgg(textOf(exportName));
         });
-        controls.addView(export, params(w, 48, 14));
+        controls.addView(export, params(w, 48, 10));
 
         TextView note = status(exportRunning
                 ? exportStatusForUi()
-                : "Export snapshots the current sound and saves it to Music/Technomatic2105 without restarting playback.");
+                : "Export snapshots the current sound and saves it as Music/<name>.ogg without restarting playback.");
         note.setTextSize(11.5f);
         controls.addView(note, params(w, -2, 8));
 
@@ -470,7 +536,12 @@ public final class MainActivity extends Activity {
     }
 
     private void nextSound() {
-        rememberCurrentForHistory();
+        observeSongDataChange();
+        if (historyCursor >= 0 && historyCursor < trackHistory.size() - 1) {
+            loadHistoryAt(historyCursor + 1);
+            return;
+        }
+        pendingLoadSongData = "";
         startAudioService(serviceIntent(NativeAudio.isPlaying() ? AudioService.ACTION_NEXT : AudioService.ACTION_START));
         updateMainStatusDelayed();
     }
@@ -482,20 +553,28 @@ public final class MainActivity extends Activity {
     }
 
     private void previousSound() {
-        if (history.isEmpty()) {
+        observeSongDataChange();
+        if (historyCursor <= 0 || trackHistory.isEmpty()) {
             Toast.makeText(this, "No previous sound yet.", Toast.LENGTH_SHORT).show();
             updateMainStatus();
             return;
         }
-        String current = NativeAudio.currentSongData();
-        String previous = history.remove(history.size() - 1);
-        if (current.length() > 0 && !current.equals(previous)) lastObservedSongData = previous;
-        playSongData(previous, false);
+        loadHistoryAt(historyCursor - 1);
     }
 
-    private void playSongData(String data, boolean pushCurrentToHistory) {
+    private void loadHistoryAt(int index) {
+        if (index < 0 || index >= trackHistory.size()) return;
+        historyCursor = index;
+        historyDirty = true;
+        String data = trackHistory.get(index);
+        lastObservedSongData = data;
+        playSongData(data, false);
+    }
+
+    private void playSongData(String data, boolean addToHistory) {
         if (data == null || data.length() == 0) return;
-        if (pushCurrentToHistory) rememberCurrentForHistory();
+        if (addToHistory) addTrackToHistory(data, true);
+        pendingLoadSongData = data;
         Intent intent = serviceIntent(AudioService.ACTION_LOAD_SOUND);
         intent.putExtra(AudioService.EXTRA_SONG_DATA, data);
         startAudioService(intent);
@@ -535,7 +614,8 @@ public final class MainActivity extends Activity {
         NativeAudio.setGenreBlendMode(blendMode);
 
         if (newMask != oldMask || blendMode != oldBlend) {
-            rememberCurrentForHistory();
+            pendingLoadSongData = "";
+            observeSongDataChange();
             if (NativeAudio.isPlaying()) {
                 Intent intent = serviceIntent(AudioService.ACTION_START);
                 intent.putExtra(AudioService.EXTRA_FORCE_RESTART, true);
@@ -559,7 +639,32 @@ public final class MainActivity extends Activity {
         return seconds;
     }
 
-    private void exportCurrentToOgg() {
+
+    private String exportDisplayName(String requestedName) {
+        String base = requestedName == null ? "" : requestedName.trim();
+        if (base.toLowerCase(Locale.US).endsWith(".ogg")) base = base.substring(0, base.length() - 4).trim();
+        StringBuilder cleaned = new StringBuilder();
+        for (int i = 0; i < base.length(); ++i) {
+            char c = base.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                    c == '-' || c == '_' || c == ' ' || c == '.') {
+                cleaned.append(c);
+            } else {
+                cleaned.append('_');
+            }
+        }
+        base = cleaned.toString().trim();
+        while (base.contains("  ")) base = base.replace("  ", " ");
+        while (base.startsWith(".")) base = base.substring(1).trim();
+        if (base.length() == 0) {
+            String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            base = "technomatic_2105_" + stamp;
+        }
+        if (base.length() > 80) base = base.substring(0, 80).trim();
+        return base + ".ogg";
+    }
+
+    private void exportCurrentToOgg(String requestedName) {
         if (exportRunning) {
             requestExportCancel("Export cancellation requested.");
             return;
@@ -598,8 +703,7 @@ public final class MainActivity extends Activity {
             Uri publicUri = null;
             final OggExporter.CancellationToken token = () -> exportCancelRequested || Thread.currentThread().isInterrupted();
             try {
-                String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-                String displayName = "technomatic_2105_" + stamp + ".ogg";
+                String displayName = exportDisplayName(requestedName);
                 raw = File.createTempFile("technomatic_2105_export_", ".pcm", getCacheDir());
                 tempOgg = File.createTempFile("technomatic_2105_export_", ".ogg", getCacheDir());
                 updateExportStatus("Rendering captured sound offline...");
@@ -620,7 +724,7 @@ public final class MainActivity extends Activity {
                 if (!tempOgg.exists() || tempOgg.length() <= 0L) {
                     throw new java.io.IOException("Encoder produced an empty OGG file.");
                 }
-                updateExportStatus("Publishing to Music/Technomatic2105...");
+                updateExportStatus("Publishing to Music...");
                 ExportResult result = publishOggToMusic(tempOgg, displayName, token);
                 publicPath = result.displayPath;
                 publicUri = result.uri;
@@ -657,7 +761,7 @@ public final class MainActivity extends Activity {
 
     private ExportResult publishOggToMusic(File encodedOgg, String displayName, OggExporter.CancellationToken token) throws java.io.IOException {
         checkExportCancelled(token);
-        final String relativeDir = Environment.DIRECTORY_MUSIC + "/Technomatic2105";
+        final String relativeDir = Environment.DIRECTORY_MUSIC;
         ContentResolver resolver = getContentResolver();
         ContentValues values = new ContentValues();
         values.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
@@ -782,33 +886,138 @@ public final class MainActivity extends Activity {
         Toast.makeText(this, "Seed loaded.", Toast.LENGTH_SHORT).show();
     }
 
-    private void rememberCurrentForHistory() {
-        String data = NativeAudio.currentSongData();
+    private void addTrackToHistory(String data, boolean trimForward) {
         if (data == null || data.length() == 0) return;
-        if (!history.isEmpty() && data.equals(history.get(history.size() - 1))) return;
-        history.add(data);
-        while (history.size() > HISTORY_LIMIT) history.remove(0);
-        lastObservedSongData = data;
-    }
-
-    private void observeSongDataChange() {
-        if (!NativeAudio.isPlaying() && lastObservedSongData.length() == 0) return;
-        String data = NativeAudio.currentSongData();
-        if (data == null || data.length() == 0) return;
-        if (lastObservedSongData.length() == 0) {
+        if (historyCursor >= 0 && historyCursor < trackHistory.size() && data.equals(trackHistory.get(historyCursor))) {
             lastObservedSongData = data;
             return;
         }
-        if (!data.equals(lastObservedSongData)) {
-            // Export is an offline render of the source generator data captured when Export starts.
-            // Live playback may legitimately advance before encoding/publishing finishes, especially
-            // for short tracks with early outro transitions, so do not cancel export here.
-            if (history.isEmpty() || !lastObservedSongData.equals(history.get(history.size() - 1))) {
-                history.add(lastObservedSongData);
-                while (history.size() > HISTORY_LIMIT) history.remove(0);
-            }
-            lastObservedSongData = data;
+        if (trimForward && historyCursor >= 0 && historyCursor < trackHistory.size() - 1) {
+            while (trackHistory.size() > historyCursor + 1) trackHistory.remove(trackHistory.size() - 1);
         }
+        trackHistory.add(data);
+        while (trackHistory.size() > HISTORY_LIMIT) {
+            trackHistory.remove(0);
+            --historyCursor;
+        }
+        historyCursor = trackHistory.size() - 1;
+        if (historyCursor < 0) historyCursor = 0;
+        lastObservedSongData = data;
+        historyDirty = true;
+    }
+
+    private void observeSongDataChange() {
+        if (!NativeAudio.isPlaying() && trackHistory.isEmpty()) return;
+        String data = NativeAudio.currentSongData();
+        if (data == null || data.length() == 0) return;
+        if (pendingLoadSongData.length() > 0) {
+            if (!data.equals(pendingLoadSongData)) return;
+            pendingLoadSongData = "";
+        }
+        if (historyCursor >= 0 && historyCursor < trackHistory.size() && data.equals(trackHistory.get(historyCursor))) {
+            lastObservedSongData = data;
+            return;
+        }
+        if (lastObservedSongData.length() == 0 && trackHistory.isEmpty()) {
+            addTrackToHistory(data, false);
+            return;
+        }
+        if (!data.equals(lastObservedSongData)) {
+            addTrackToHistory(data, true);
+        }
+    }
+
+    private void clearTrackHistory() {
+        trackHistory.clear();
+        historyCursor = -1;
+        lastObservedSongData = "";
+        String data = NativeAudio.currentSongData();
+        if (NativeAudio.isPlaying() && data != null && data.length() > 0) addTrackToHistory(data, false);
+        historyDirty = true;
+        rebuildHistoryList();
+        updateMainStatus();
+        Toast.makeText(this, "History cleared.", Toast.LENGTH_SHORT).show();
+    }
+
+    private void rebuildHistoryList() {
+        if (historyListContainer == null || !historyDirty) return;
+        historyListContainer.removeAllViews();
+        int w = contentWidthDp();
+        if (trackHistory.isEmpty()) {
+            TextView empty = status("No tracks yet.");
+            empty.setTextSize(12.0f);
+            historyListContainer.addView(empty, params(w, -2, 8));
+        } else {
+            for (int i = trackHistory.size() - 1; i >= 0; --i) {
+                final int index = i;
+                final String data = trackHistory.get(i);
+                Button row = button(historyRowText(data), 12.5f);
+                row.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+                row.setPadding(dp(10), 0, dp(8), 0);
+                row.setSingleLine(true);
+                row.setMaxLines(1);
+                row.setTextColor(index == historyCursor ? Color.WHITE : 0xffbbbbbb);
+                row.setOnClickListener(view -> loadHistoryAt(index));
+                row.setOnLongClickListener(view -> {
+                    copySeedToClipboard(String.valueOf(seedFromSongData(data) & 0xffffffffL));
+                    return true;
+                });
+                historyListContainer.addView(row, params(w, 38, 2));
+            }
+        }
+        if (clearHistoryButton != null) clearHistoryButton.setEnabled(!trackHistory.isEmpty());
+        historyDirty = false;
+    }
+
+    private String historyRowText(String data) {
+        return historyGenreText(data) + " " + formatDuration(durationFromSongData(data));
+    }
+
+    private String historyGenreText(String data) {
+        int mask = signedFieldFromSongData(data, "gmask", 0);
+        int blend = signedFieldFromSongData(data, "gblend", GENRE_BLEND_POOL);
+        if (blend == GENRE_BLEND_HYBRID && bitCount(mask) > 1) return "Hybrid";
+
+        int mode = signedFieldFromSongData(data, "gmode", 0);
+        if (mode > 0) return cleanGenreLabel(genreModeLabel(mode));
+
+        if (bitCount(mask) == 1) {
+            for (int m = 1; m <= 13; ++m) {
+                if ((mask & (1 << (m - 1))) != 0) return cleanGenreLabel(genreModeLabel(m));
+            }
+        }
+        if (bitCount(mask) > 1) return blend == GENRE_BLEND_HYBRID ? "Hybrid" : "Pool";
+        return "Random";
+    }
+
+    private String cleanGenreLabel(String label) {
+        if (label == null || label.length() == 0) return "Random";
+        String cleaned = label.replace("--", "").trim();
+        return cleaned.length() == 0 ? "Random" : cleaned;
+    }
+
+    private int signedFieldFromSongData(String data, String key, int fallback) {
+        if (data == null || key == null || key.length() == 0) return fallback;
+        String needle = key + "=";
+        int pos = data.indexOf(needle);
+        if (pos < 0) return fallback;
+        int i = pos + needle.length();
+        int sign = 1;
+        if (i < data.length() && data.charAt(i) == '-') {
+            sign = -1;
+            ++i;
+        }
+        int value = 0;
+        boolean any = false;
+        while (i < data.length()) {
+            char c = data.charAt(i);
+            if (c < '0' || c > '9') break;
+            any = true;
+            value = value * 10 + (c - '0');
+            if (value > 100000000) return fallback;
+            ++i;
+        }
+        return any ? value * sign : fallback;
     }
 
     private Intent serviceIntent(String action) {
@@ -840,7 +1049,9 @@ public final class MainActivity extends Activity {
         if (startStopButton != null) startStopButton.setText(NativeAudio.isPlaying() ? "Stop" : "Start");
         if (genreButton != null) genreButton.setText(currentGenreText());
         if (elapsedButton != null) elapsedButton.setText(currentElapsedText());
-        if (previousButton != null) previousButton.setEnabled(!history.isEmpty());
+        if (previousButton != null) previousButton.setEnabled(historyCursor > 0);
+        if (nextButton != null) nextButton.setEnabled(true);
+        rebuildHistoryList();
     }
 
     private String currentGenreText() {
@@ -910,6 +1121,25 @@ public final class MainActivity extends Activity {
             ++i;
         }
         return any ? value : 0L;
+    }
+
+    private int durationFromSongData(String data) {
+        if (data == null) return DEFAULT_TRACK_SECONDS;
+        String needle = "seconds=";
+        int pos = data.indexOf(needle);
+        if (pos < 0) return DEFAULT_TRACK_SECONDS;
+        int i = pos + needle.length();
+        int value = 0;
+        boolean any = false;
+        while (i < data.length()) {
+            char c = data.charAt(i);
+            if (c < '0' || c > '9') break;
+            any = true;
+            value = value * 10 + (int) (c - '0');
+            if (value > MAX_TRACK_SECONDS) return MAX_TRACK_SECONDS;
+            ++i;
+        }
+        return any ? clamp(value, MIN_TRACK_SECONDS, MAX_TRACK_SECONDS) : DEFAULT_TRACK_SECONDS;
     }
 
     private String selectedGenreSummary() {

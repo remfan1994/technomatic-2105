@@ -454,6 +454,7 @@ void MusicEngine::updateCurrentSongData() {
     appendField(out, "edited", mCurrentSongEdited ? 1 : 0);
     appendField(out, "gmask", currentGenreMask());
     appendField(out, "gblend", currentGenreBlendMode());
+    appendField(out, "gmode", currentGenreMode());
     appendField(out, "cand", clampInt32(mCurrentCandidateIndex, 0, 47));
 
     appendField(out, "style", clampInt32(static_cast<int32_t>(mPattern.style), 0, static_cast<int32_t>(StyleType::Count) - 1));

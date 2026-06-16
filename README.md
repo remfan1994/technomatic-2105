@@ -2,7 +2,7 @@
 
 Technomatic 2105 is an Android procedural electronic music app. It generates synthetic electronic tracks on-device without samples, network access, accounts, ads, analytics, trackers, or external audio assets.
 
-v0.20.5 keeps the phone interface focused on immediate listening. The saved-name/list UI and editor are removed. The main player is reorganized around Start/Stop, a compact Genre line, a compact Elapsed line, Previous/Restart/Next, the vegetarian notice, and an Advanced seed/export screen. Genre selection uses original Technomatic style-family names with one-line descriptions, Random/Pool/Hybrid selection, and No Genre as a special raw-engine option. v0.20.5 fixes OGG export to snapshot the current seed/duration and render exactly that sound without following live track changes.
+v0.21.0 keeps the phone interface focused on immediate listening. The saved-name/list UI and editor are removed. The main player is reorganized around Start/Stop, a compact Genre line, a compact Elapsed line, Previous/Restart/Next, the vegetarian notice, and an Advanced seed/export screen. Genre selection uses original Technomatic style-family names with one-line descriptions, Random/Pool/Hybrid selection, and No Genre as a special raw-engine option. v0.21.0 fixes OGG export to snapshot the current seed/duration and render exactly that sound without following live track changes.
 
 ## Current screens
 
@@ -13,6 +13,8 @@ Main Player:
   Elapsed: <elapsed> / <duration>
   Previous / Restart / Next
   Advanced
+  Track History
+  Clear History
 ```
 
 Tap the Duration line to choose:
@@ -71,20 +73,21 @@ track-seconds text field
 apply buttons
 ```
 
-The phone app is aimed at simple listening: choose a style family or leave Random on, press START, and press NEXT when you want a new generated composition.
+The phone app is aimed at simple listening: choose a style family or leave Random on, press START, and press NEXT when you want another composition. The main-screen history lists generated tracks as `Seed <number> - <duration>`; tap a row to reload it, long-press a row to copy its seed, and use Clear History to reset the session list.
 
 Advanced screen:
 
 ```text
-Seed: tap to copy
 Load seed
+Current seed: tap to copy
+OGG filename
 Export to OGG
 ```
 
 Export to OGG snapshots the current generated sound and renders it offline without restarting or altering live playback. It requires Android 10/API 29 or later because the app uses the platform Ogg/Opus path. Successful exports are published to:
 
 ```text
-Music/Technomatic2105/<filename>.ogg
+Music/<filename>.ogg
 ```
 
 The Advanced screen shows the last export path after a successful export.
@@ -112,7 +115,7 @@ The selector does not retrieve old compositions. Pool mode selects the eligible 
 
 The sound engine is fully synthetic/electronic. It uses no samples and does not try to imitate acoustic instruments.
 
-v0.20.5 keeps the v11-v19 engine improvements and adds a final stability pass:
+v0.21.0 keeps the v11-v19 engine improvements and adds a final stability pass:
 
 ```text
 candidate composition scoring before playback
@@ -233,12 +236,12 @@ Suggested repository setup:
 ```sh
 git init
 git add .
-git commit -m "Technomatic 2105 0.20.5"
+git commit -m "Technomatic 2105 0.21.0"
 git branch -M main
 git remote add origin git@github.com:r94/technomatic-2105.git
 git push -u origin main
-git tag v0.20.5
-git push origin v0.20.5
+git tag v0.21.0
+git push origin v0.21.0
 ```
 
 Change `r94/technomatic-2105` if you use a different GitHub path.
@@ -255,7 +258,7 @@ fastlane/metadata/android/en-US/full_description.txt
 fastlane/metadata/android/en-US/changelogs/26.txt
 ```
 
-Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.20.5` tag, and verify that F-Droid can build the release from source.
+Before submitting to F-Droid, replace repository URL placeholders if your GitHub path is not `r94/technomatic-2105`, push the `v0.21.0` tag, and verify that F-Droid can build the release from source.
 
 ## Preview renderer
 

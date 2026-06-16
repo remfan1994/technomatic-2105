@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.21.2
+
+- Changed Track History to Track Listing.
+- Removed visible seed numbers from track rows.
+- Kept long-press seed copy behavior.
+- Added simple Genre Duration guide text.
+- Changed history rows to full genre name plus duration.
+- Reordered track listing newest-first.
+- Stored actual selected genre mode in generated sound data for more accurate random-track labels.
+- Bumped versionCode to 32 and versionName to 0.21.2.
+
+## 0.21.0 - v21
+
+- Added main-screen track history with tap-to-load and long-press seed copy.
+- Changed Next to move forward through history before generating a new seed.
+- Added Clear History.
+- Added user-specified OGG filename field and public Music/<name>.ogg export target.
+- Reordered Advanced so Load Seed is above Current Seed.
+- Bumped versionCode to 30 and versionName to 0.21.0.
+
 ## 0.20.5
 
 - Corrected OGG export semantics: export no longer restarts or alters live playback.
@@ -51,7 +71,7 @@
 - Stop, Restart, Previous, Next, Load Seed, and genre changes request export cancellation.
 - Added native PCM-render cancellation for export jobs.
 - Added OGG encoder cancellation checks and a no-progress stall timeout.
-- Public export still targets Music/Technomatic2105 through MediaStore.
+- Public export still targets Music through MediaStore.
 - Bumped versionCode to 24 and versionName to 0.20.0.
 
 ## 0.19.0
@@ -67,7 +87,7 @@
 
 ## 0.18.2
 
-- Fixed OGG export publishing. Exported files now publish through MediaStore into Music/Technomatic2105 instead of app-specific external storage.
+- Fixed OGG export publishing. Exported files now publish through MediaStore into Music instead of app-specific external storage.
 - Advanced screen now shows the last export path and offers Share Last OGG after a successful export.
 - Export now shows a result dialog with a clear success path or failure reason instead of relying on a silent toast.
 - Bumped versionCode to 22 and versionName to 0.18.2.

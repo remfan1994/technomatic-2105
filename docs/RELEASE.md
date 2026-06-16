@@ -13,12 +13,12 @@ fastlane/metadata/android/en-US/changelogs/<versionCode>.txt
 fdroid/metadata/vip.thatiam.technomatic2105.yml
 ```
 
-For v0.20.5:
+For v0.21.0:
 
 ```text
-versionName: 0.20.5
-versionCode: 29
-tag: v0.20.5
+versionName: 0.21.0
+versionCode: 30
+tag: v0.21.0
 ```
 
 ## 2. Build locally
@@ -75,7 +75,7 @@ Seed copies on tap
 Load Seed starts the requested generated sound
 Export to OGG starts export and changes to Cancel Export
 Cancel Export cancels without force quitting
-completed export appears at Music/Technomatic2105/
+completed export appears at Music/
 headphones route audio correctly
 volume remains steady between generated pieces
 ```
@@ -83,13 +83,13 @@ volume remains steady between generated pieces
 ## 4. Tag release
 
 ```sh
-git tag v0.20.5
-git push origin v0.20.5
+git tag v0.21.0
+git push origin v0.21.0
 ```
 
 ## 5. GitHub release
 
-Create a GitHub release from tag `v0.20.5`.
+Create a GitHub release from tag `v0.21.0`.
 
 Attach:
 

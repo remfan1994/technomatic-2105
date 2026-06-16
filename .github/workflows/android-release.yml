@@ -49,19 +49,19 @@ jobs:
       - name: Decode signing keystore
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/radio-breaker-release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/technomatic-2105-release.jks"
 
       - name: Build signed release APK
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
           gradle --no-daemon assembleRelease \
-            -PRADIO_BREAKER_RELEASE_STORE_FILE="$RUNNER_TEMP/radio-breaker-release.jks" \
-            -PRADIO_BREAKER_RELEASE_STORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD" \
-            -PRADIO_BREAKER_RELEASE_KEY_ALIAS="$ANDROID_KEY_ALIAS" \
-            -PRADIO_BREAKER_RELEASE_KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
+            -PTECHNOMATIC_2105_RELEASE_STORE_FILE="$RUNNER_TEMP/technomatic-2105-release.jks" \
+            -PTECHNOMATIC_2105_RELEASE_STORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD" \
+            -PTECHNOMATIC_2105_RELEASE_KEY_ALIAS="$ANDROID_KEY_ALIAS" \
+            -PTECHNOMATIC_2105_RELEASE_KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
 
       - name: Upload release APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: radio-breaker-release-apks
+          name: technomatic-2105-release-apks
           path: app/build/outputs/apk/release/*.apk

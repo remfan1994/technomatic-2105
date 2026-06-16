@@ -28,7 +28,7 @@ Before opening an fdroiddata merge request:
 
 ```text
 1. publish the source repository
-2. push tag v0.20.5
+2. push tag v0.21.0
 3. update metadata repo URLs if needed
 4. run fdroid lint/build locally if possible
 5. submit the app metadata to fdroiddata

@@ -1,0 +1,1 @@
+Added a main-screen track history with tap-to-load, long-press seed copy, and Clear History. Next now walks forward through history before creating a new generated sound. Advanced now supports custom OGG filenames and exports to public Music/<name>.ogg.
