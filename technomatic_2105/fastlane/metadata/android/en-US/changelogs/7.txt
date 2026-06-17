@@ -1,0 +1,8 @@
+Rename and engine-diversity release.
+
+* Renamed the app to Cyber DJ.
+* Changed application id to vip.thatiam.cyberdj for first public publishing.
+* Expanded internal composition families to 12 abstract electronic style identities.
+* Added per-track instrument palette selection so generated songs use different subsets of synthetic voices.
+* Added broader bass, lead, pad, drum, percussion, and texture timbres without samples.
+* Made some breakdowns, holds, hooks, and climaxes more dramatic while preserving intra-song grammar.

@@ -1,0 +1,1 @@
+Reworks OGG export stability: restores encoder timestamp behavior from the earlier working exporter, keeps public Music/Technomatic2105 output, rejects stalled encodes, and preserves fixed-duration single-piece export.

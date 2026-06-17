@@ -1,0 +1,8 @@
+Add Infinite duration mode.
+Change Custom duration to Minutes and Seconds only with clamped overflow.
+Add Pool and Hybrid style-family selection in Genre Selector.
+Make Current Genre and Duration controls visibly tappable.
+Improve Random/genre checkbox behavior and visible fallback messages.
+Fix first-track style carryover after changing genre.
+Add conclusive outros for some pieces and planned fade-outs for others.
+Deepen the composition engine with more candidate scoring, motif variants, progressions, counter-lines, and theme-memory behavior.

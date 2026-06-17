@@ -1,0 +1,6 @@
+* Removed automatic phonetic song names.
+* Added user-named saved generated pieces.
+* Added generator-data editor for seed and duration.
+* Replaced the old human-template arrangement device with original arrangement devices.
+* Added more internal style families, instrument lanes, melodies, motifs, and synthetic timbres.
+* Replaced launcher icon artwork with a no-bolt design.

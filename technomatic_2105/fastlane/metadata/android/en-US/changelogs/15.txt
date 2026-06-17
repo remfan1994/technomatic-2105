@@ -1,0 +1,8 @@
+Make genre and duration controls explicit tappable buttons.
+Show the actual currently playing style family on the main player.
+Add No Genre to the style-family selector.
+Make tapping a dimmed style disable Random and select that style.
+Fall back to Random if the last selected style is unchecked.
+Force a clean new generated piece when changing genre while playing.
+Use hours/minutes/seconds for custom duration.
+Deepen the engine with a larger motif-shape library, expanded progressions, more counter-line shapes, and stronger composition scoring.

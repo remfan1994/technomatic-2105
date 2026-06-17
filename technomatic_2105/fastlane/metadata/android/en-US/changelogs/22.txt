@@ -1,0 +1,6 @@
+Technomatic 2105 v0.18.2
+
+- Fix OGG export publishing to public Music/Technomatic2105 via MediaStore.
+- Show the exported location after success.
+- Add Share Last OGG after a successful export.
+- Show clear export failure reasons instead of silently disappearing output.

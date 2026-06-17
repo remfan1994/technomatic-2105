@@ -1,0 +1,5 @@
+* Removed the phone-side generator editor, saved-sound naming/loading, and track counter.
+* Set the default generated track length to 180 seconds while keeping manual seconds entry.
+* Added native genre biasing and candidate composition scoring before playback.
+* Strengthened melody, motif, call-and-response, counter-line, and long-memory behavior.
+* Explicitly allows Android playback capture for external recording tools.

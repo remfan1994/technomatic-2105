@@ -1,0 +1,9 @@
+Technomatic 2105 v0.18.0
+
+- Reworked main UI for faster one-screen use.
+- Removed named save/load/list UI.
+- Added Previous, Restart, and internal seed history.
+- Added Advanced seed copy/load screen.
+- Added experimental OGG export.
+- Added genre descriptions.
+- Continued music engine expansion.

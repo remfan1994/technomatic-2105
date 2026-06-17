@@ -1,0 +1,5 @@
+* Deepened generated music with theme-level composition above motif generation.
+* Added long-term theme recall, call-and-response, and counter-line behavior.
+* Expanded internal abstract style families from 20 to 24.
+* Added new synthetic lanes: pluck, bell, pulse, grain, comet, and rotor.
+* Widened layer behavior while retaining no samples, no network, no ads, and no analytics.

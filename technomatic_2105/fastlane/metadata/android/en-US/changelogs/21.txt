@@ -1,0 +1,6 @@
+Technomatic 2105 v0.18.1
+
+- Engine-focused release.
+- Added eight internal style-family states.
+- Expanded candidate composition search, motif templates, harmonic progressions, counter-lines, and phrase-form structures.
+- Added theme-braid and bass-answer musical behaviors.

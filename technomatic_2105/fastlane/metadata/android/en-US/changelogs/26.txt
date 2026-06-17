@@ -1,0 +1,6 @@
+Technomatic 2105 v0.20.2
+
+- Fixes OGG export so the next generated sound cannot enter the exported file.
+- Speeds up encoder loop timing for short-track export tests.
+- Cancels export if the live source sound changes before completion.
+- Removes Share Last OGG UI.
