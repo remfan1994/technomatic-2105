@@ -1,0 +1,9 @@
+Technomatic 2105 v0.23.0
+
+- Makes No Channel and Continuous Radio the default.
+- Replaces stored bass and lead note sequences with generated musical grammars.
+- Adds generated question/answer bass behavior, derived motif families, and bounded long-form evolution.
+- Reframes styles as optional Channels mixed 50 percent with the unrestricted generator.
+- Adds Continuous Radio and Hold Sound controls.
+- Moves finite duration selection to OGG export only.
+- Reduces automatic transition CPU spikes and updates history/export behavior.

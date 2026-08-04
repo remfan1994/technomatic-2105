@@ -1,0 +1,6 @@
+- Removes Continuous Radio and Hold Sound as separate playback modes.
+- Makes one indefinitely evolving sound the only live playback model.
+- Removes automatic seed replacement and all live duration boundaries.
+- Keeps manual Next, seed loading, history loading, and Channel changes as explicit ways to change sounds.
+- Keeps finite duration only for offline OGG export.
+- Pins the project build to Gradle 8.9 for Android Gradle Plugin 8.7.3 compatibility.

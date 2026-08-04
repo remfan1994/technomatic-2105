@@ -1,0 +1,5 @@
+- Removes the recurring fixed pad-stab tension lattice shared by unrelated sounds.
+- Generates seed-specific tension timing, pitch relationships, duration, and recurrence.
+- Adds Vacuum, Convergence, Hinge, Shadow, Afterimage, and rare Pad Breath devices.
+- Replaces repeated slow pad strikes with short asymmetric electronic chord gestures.
+- Prevents sustained pad stacking while preserving the full 48-candidate composition search.

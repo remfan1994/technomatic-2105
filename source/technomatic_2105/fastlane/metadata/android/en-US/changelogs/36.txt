@@ -1,0 +1,8 @@
+Deeper generated composition and musical memory.
+
+- Gradual bounded evolution across all pitched layers
+- Recognizable hooks with freer exploratory passages
+- Generated lead, bass, counter, arp, pulse, and ornament grammar
+- Hold Sound keeps identity while development continues
+- Dominant Hybrid Channels restored
+- No Channel + Continuous Radio remain the default

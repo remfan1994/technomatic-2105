@@ -1,0 +1,5 @@
+Technomatic 2105 v0.23.1
+
+- Restores the full 48-candidate composition search for every generated sound, including Continuous Radio transitions.
+- Keeps v23 generated bass and lead grammars, No Channel default, Channels, and Hold Sound.
+- Retains metadata-allocation cleanup without reducing musical candidate selection.

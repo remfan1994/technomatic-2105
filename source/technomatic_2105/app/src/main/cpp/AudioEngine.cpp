@@ -1,0 +1,241 @@
+#include "AudioEngine.h"
+
+#include <android/log.h>
+#include <algorithm>
+#include <chrono>
+
+namespace rb {
+namespace {
+constexpr const char* kTag = "Technomatic2105";
+}
+
+AudioEngine::~AudioEngine() {
+    stop();
+}
+
+bool AudioEngine::start() {
+    std::lock_guard<std::mutex> guard(mLock);
+    if (mPlaying && mStream) return true;
+
+    oboe::AudioStreamBuilder builder;
+    builder.setDirection(oboe::Direction::Output)
+            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
+            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setFormat(oboe::AudioFormat::Float)
+            ->setChannelCount(oboe::ChannelCount::Stereo)
+            ->setUsage(oboe::Usage::Media)
+            ->setContentType(oboe::ContentType::Music)
+            ->setDataCallback(this)
+            ->setErrorCallback(this);
+
+    oboe::Result result = builder.openStream(mStream);
+    if (result != oboe::Result::OK || !mStream) {
+        __android_log_print(ANDROID_LOG_WARN, kTag,
+                            "exclusive stream failed: %s; retrying shared",
+                            oboe::convertToText(result));
+        builder.setSharingMode(oboe::SharingMode::Shared);
+        result = builder.openStream(mStream);
+        if (result != oboe::Result::OK || !mStream) {
+            __android_log_print(ANDROID_LOG_ERROR, kTag,
+                                "openStream failed: %s",
+                                oboe::convertToText(result));
+            return false;
+        }
+    }
+
+    const int32_t sampleRate = mStream->getSampleRate() > 0 ? mStream->getSampleRate() : 48000;
+    mMusic.prepare(static_cast<double>(sampleRate));
+    mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
+    mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
+    mMusic.setGenrePrimary(mGenrePrimary.load(std::memory_order_acquire));
+
+    const uint32_t seed = static_cast<uint32_t>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    mMusic.reset(seed);
+    if (mLoadSongDataRequested.load(std::memory_order_acquire)) {
+        std::string data;
+        {
+            std::lock_guard<std::mutex> dataGuard(mSongDataLock);
+            data = mPendingSongData;
+        }
+        if (!data.empty()) {
+            mMusic.loadSongData(data);
+            mLoadSongDataRequested.store(false, std::memory_order_release);
+        }
+    }
+
+    result = mStream->requestStart();
+    if (result != oboe::Result::OK) {
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "requestStart failed: %s",
+                            oboe::convertToText(result));
+        mStream->close();
+        mStream.reset();
+        return false;
+    }
+
+    mPlaying = true;
+    return true;
+}
+
+void AudioEngine::next() {
+    mNextRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::forceNew() {
+    mForceNewRequested.store(true, std::memory_order_release);
+}
+
+
+void AudioEngine::setGenreMask(int32_t mask) {
+    mask = std::max(0, std::min(4095, mask));
+    mGenreMask.store(mask, std::memory_order_release);
+    mGenreMaskChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenreBlendMode(int32_t mode) {
+    mode = std::max(0, std::min(1, mode));
+    mGenreBlendMode.store(mode, std::memory_order_release);
+    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenrePrimary(int32_t primary) {
+    primary = std::max(0, std::min(12, primary));
+    mGenrePrimary.store(primary, std::memory_order_release);
+    mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
+}
+
+void AudioEngine::setGenreStateAndForceNew(int32_t mask, int32_t mode, int32_t primary) {
+    mask = std::max(0, std::min(4095, mask));
+    mode = std::max(0, std::min(1, mode));
+    primary = std::max(0, std::min(12, primary));
+    mGenreMask.store(mask, std::memory_order_release);
+    mGenreBlendMode.store(mode, std::memory_order_release);
+    mGenrePrimary.store(primary, std::memory_order_release);
+    mGenreMaskChangeRequested.store(true, std::memory_order_release);
+    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
+    mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
+    mForceNewRequested.store(true, std::memory_order_release);
+}
+
+std::string AudioEngine::currentSongData() const {
+    return mMusic.currentSongData();
+}
+
+std::string AudioEngine::historyData() const {
+    return mMusic.historyData();
+}
+
+void AudioEngine::clearHistory() {
+    mMusic.clearHistory();
+}
+
+bool AudioEngine::loadSongData(const std::string& data) {
+    if (data.empty()) return false;
+    {
+        std::lock_guard<std::mutex> guard(mSongDataLock);
+        mPendingSongData = data;
+    }
+    mLoadSongDataRequested.store(true, std::memory_order_release);
+    return true;
+}
+
+bool AudioEngine::exportPcm16ToFile(const std::string& data, int32_t seconds, const std::string& path) {
+    return MusicEngine::exportPcm16File(data, seconds, path);
+}
+
+int32_t AudioEngine::currentGenreMask() const {
+    return std::max(0, std::min(4095, mGenreMask.load(std::memory_order_acquire)));
+}
+
+int32_t AudioEngine::currentGenreBlendMode() const {
+    return std::max(0, std::min(1, mGenreBlendMode.load(std::memory_order_acquire)));
+}
+
+int32_t AudioEngine::currentGenrePrimary() const {
+    return std::max(0, std::min(12, mGenrePrimary.load(std::memory_order_acquire)));
+}
+
+int32_t AudioEngine::currentGenreMode() const {
+    return mMusic.currentGenreMode();
+}
+
+double AudioEngine::currentElapsedSeconds() const {
+    return mMusic.currentElapsedSeconds();
+}
+
+
+void AudioEngine::stop() {
+    std::shared_ptr<oboe::AudioStream> stream;
+    {
+        std::lock_guard<std::mutex> guard(mLock);
+        stream = mStream;
+        mStream.reset();
+        mPlaying = false;
+    }
+
+    if (stream) {
+        stream->requestStop();
+        stream->close();
+    }
+}
+
+bool AudioEngine::isPlaying() const {
+    std::lock_guard<std::mutex> guard(mLock);
+    return mPlaying;
+}
+
+oboe::DataCallbackResult AudioEngine::onAudioReady(
+        oboe::AudioStream* stream,
+        void* audioData,
+        int32_t numFrames) {
+    if (!audioData || numFrames <= 0) {
+        return oboe::DataCallbackResult::Continue;
+    }
+
+    if (mGenreBlendModeChangeRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
+    }
+
+    if (mGenreMaskChangeRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
+    }
+
+    if (mGenrePrimaryChangeRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.setGenrePrimary(mGenrePrimary.load(std::memory_order_acquire));
+    }
+
+    if (mLoadSongDataRequested.exchange(false, std::memory_order_acq_rel)) {
+        std::string data;
+        {
+            std::lock_guard<std::mutex> guard(mSongDataLock);
+            data = mPendingSongData;
+        }
+        if (!data.empty()) {
+            mMusic.loadSongData(data);
+        }
+    }
+
+    if (mForceNewRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.forceNewPiece();
+    }
+
+    if (mNextRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.next();
+    }
+
+    const int32_t channelCount = stream ? stream->getChannelCount() : 2;
+    mMusic.render(static_cast<float*>(audioData), numFrames, channelCount);
+    return oboe::DataCallbackResult::Continue;
+}
+
+void AudioEngine::onErrorAfterClose(oboe::AudioStream* /*stream*/, oboe::Result error) {
+    __android_log_print(ANDROID_LOG_ERROR, kTag,
+                        "audio stream closed after error: %s",
+                        oboe::convertToText(error));
+    std::lock_guard<std::mutex> guard(mLock);
+    mStream.reset();
+    mPlaying = false;
+}
+
+} // namespace rb

@@ -1,0 +1,22 @@
+Technomatic 2105 generates synthetic electronic music directly on your Android device.
+
+The default is No Channel and one indefinitely evolving sound. No Channel leaves the generator unrestricted. The current seed remains fixed until the listener explicitly presses Next, loads another seed or history entry, or changes the Channel. There is no automatic sound replacement or live duration boundary.
+
+Named Channels provide optional predictable character without loading stored music. Each Channel mixes approximately 50 percent Channel character with 50 percent unrestricted generation: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, and Cold Arcade. Hybrid Channels can combine several, with the first selected Channel remaining dominant.
+
+All pitched layers are generated from symbolic musical grammar rather than selected as finished note sequences. Each sound receives newly generated harmony, lead, hook, verse, bass statement and answer, counter-line, arpeggio, pulse, and ornament material. Composition memory preserves recognizable returns while bounded development gradually changes the sound.
+
+Tension is generated per sound rather than imposed through one universal pad rhythm. The engine uses seed-specific omission, convergence, hinge, shadow, afterimage, and rare short pad-breath devices.
+
+The main player includes Start/Stop, Channel selection, elapsed time, Previous/Restart/Next, a latest-20 track listing, seed loading, and offline OGG export. Export duration is separate from indefinite live playback.
+
+Privacy and freedom properties:
+
+* no Internet permission
+* no accounts
+* no advertising SDKs
+* no analytics
+* no trackers
+* no external sound assets
+* no sample packs
+* all sound synthesized locally

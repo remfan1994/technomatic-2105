@@ -1,0 +1,77 @@
+Categories:
+  - Multimedia
+License: Apache-2.0
+AuthorName: Technomatic 2105 contributors
+WebSite: https://github.com/r94/technomatic-2105
+SourceCode: https://github.com/r94/technomatic-2105
+IssueTracker: https://github.com/r94/technomatic-2105/issues
+Changelog: https://github.com/r94/technomatic-2105/releases
+
+AutoName: Technomatic 2105
+Summary: Procedural electronic music generator for Android
+Description: |-
+    Technomatic 2105 generates synthetic electronic music directly on Android without samples or network access.
+
+    The default is No Channel and one indefinitely evolving sound. No Channel leaves the generator unrestricted. The current seed remains fixed until the listener explicitly changes it; there is no automatic replacement or live duration boundary.
+
+    Optional Channels contribute predictable character while retaining 50 percent unrestricted generation: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, and Cold Arcade. Hybrid Channels keep the first selected channel dominant and add weaker secondary influences.
+
+    All pitched layers are generated from musical grammar rather than stored finished note sequences. Each sound receives generated harmony, lead, hook, verse, bass statement/answer, counter-line, arpeggio, pulse, ornament, recall, and bounded long-form evolution.
+
+    Privacy and freedom properties:
+
+    * no Internet permission
+    * no accounts
+    * no advertising SDKs
+    * no analytics
+    * no trackers
+    * no external sound assets
+    * no sample packs
+
+RepoType: git
+Repo: https://github.com/r94/technomatic-2105.git
+
+Builds:
+  - versionName: 0.26.0
+    versionCode: 38
+    commit: v0.26.0
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.26.0"
+
+  - versionName: 0.25.0
+    versionCode: 37
+    commit: v0.25.0
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.25.0"
+
+  - versionName: 0.24.0
+    versionCode: 36
+    commit: v0.24.0
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.24.0"
+
+  - versionName: 0.23.1
+    versionCode: 35
+    commit: v0.23.1
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.23.1"
+
+  - versionName: 0.22.0
+    versionCode: 33
+    commit: v0.22.0
+    subdir: .
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 0.26.0
+CurrentVersionCode: 38
