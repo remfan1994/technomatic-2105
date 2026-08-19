@@ -2334,6 +2334,96 @@ void MusicEngine::generateTensionGrammar(const StyleProfile& p) {
     }
 }
 
+void MusicEngine::generateTimbreGrammar(const StyleProfile& p) {
+    // Derive timbre from the already-generated identity so extending the sound
+    // bank does not consume the composition RNG or reduce the 48-candidate search.
+    mComposition.timbreGrammarSeed = mComposition.leadGrammarSeed ^
+        (mComposition.bassGrammarSeed << 11u | mComposition.bassGrammarSeed >> 21u) ^
+        (mComposition.arcSeed << 23u | mComposition.arcSeed >> 9u) ^
+        (mComposition.paletteHash * 0x85ebca6bu) ^ 0x7f4a7c15u;
+    Rng rng(mComposition.timbreGrammarSeed);
+
+    mComposition.bassModel = rng.rangeInt(0, 11);
+    mComposition.leadModel = rng.rangeInt(0, 15);
+    mComposition.padModel = rng.rangeInt(0, 9);
+    mComposition.drumKit = rng.rangeInt(0, 7);
+
+    // Channel/style character biases the instrument window without collapsing
+    // it to a stored preset. Every seed still receives a distinct grammar.
+    if (p.ambient) {
+        mComposition.padModel = (mComposition.padModel + 2) % 10;
+        mComposition.leadModel = (mComposition.leadModel + 2) % 16;
+    }
+    if (p.rough > 0.68f) {
+        mComposition.bassModel = (mComposition.bassModel + 5) % 12;
+        mComposition.drumKit = (mComposition.drumKit + 3) % 8;
+    }
+    if (p.brightness > 0.68f) {
+        mComposition.leadModel = (mComposition.leadModel + 7) % 16;
+        mComposition.padModel = (mComposition.padModel + 4) % 10;
+    }
+
+    mComposition.bassAttack = clamp(0.12f + 0.72f * rng.uni(), 0.08f, 0.92f);
+    mComposition.bassRelease = clamp(0.48f + 0.40f * rng.uni(), 0.44f, 0.94f);
+    mComposition.bassGlide = clamp(0.06f + 0.68f * rng.uni(), 0.04f, 0.82f);
+    mComposition.bassPulseWidth = clamp(0.16f + 0.54f * rng.uni(), 0.12f, 0.76f);
+    mComposition.bassMotion = clamp(0.12f + 0.72f * rng.uni(), 0.08f, 0.90f);
+
+    mComposition.leadAttack = clamp(0.10f + 0.78f * rng.uni(), 0.06f, 0.94f);
+    mComposition.leadRelease = clamp(0.42f + 0.50f * rng.uni(), 0.38f, 0.96f);
+    mComposition.leadGlide = clamp(0.04f + 0.66f * rng.uni(), 0.02f, 0.80f);
+    mComposition.leadVibratoDepth = clamp(0.02f + 0.72f * rng.uni(), 0.0f, 0.82f);
+    mComposition.leadVibratoRate = clamp(0.08f + 0.84f * rng.uni(), 0.04f, 0.96f);
+    mComposition.leadModRatio = clamp(0.06f + 0.88f * rng.uni(), 0.02f, 0.98f);
+    mComposition.leadAir = clamp(0.02f + 0.62f * rng.uni(), 0.0f, 0.72f);
+
+    mComposition.padAttack = clamp(0.20f + 0.72f * rng.uni(), 0.16f, 0.96f);
+    mComposition.padRelease = clamp(0.58f + 0.36f * rng.uni(), 0.54f, 0.98f);
+    mComposition.padDetune = clamp(0.04f + 0.70f * rng.uni(), 0.02f, 0.82f);
+    mComposition.padMotion = clamp(0.06f + 0.76f * rng.uni(), 0.04f, 0.88f);
+    mComposition.padWidth = clamp(0.22f + 0.70f * rng.uni(), 0.18f, 0.96f);
+    mComposition.padVoiceCount = rng.chance(0.18f + 0.24f * p.chord) ? 4 :
+                                 (rng.chance(0.26f + 0.18f * p.space) ? 2 : 3);
+
+    // Generate a scale-degree voicing rather than reusing 0,2,4,6 in every sound.
+    // Ascending constraints keep it harmonic while allowing broad variation.
+    mComposition.padIntervals[0] = 0;
+    int32_t cursor = 0;
+    for (int32_t i = 1; i < 4; ++i) {
+        const int32_t step = rng.rangeInt(1, (i == 3) ? 4 : 3);
+        cursor = clampInt32(cursor + step, i, 11);
+        mComposition.padIntervals[i] = cursor;
+    }
+    if (rng.chance(0.35f)) {
+        mComposition.padIntervals[1] = clampInt32(mComposition.padIntervals[1] + 1, 1, 4);
+    }
+    for (int32_t i = 1; i < 4; ++i) {
+        if (mComposition.padIntervals[i] <= mComposition.padIntervals[i - 1]) {
+            mComposition.padIntervals[i] = mComposition.padIntervals[i - 1] + 1;
+        }
+    }
+
+    mComposition.drumBody = clamp(0.14f + 0.78f * rng.uni(), 0.10f, 0.96f);
+    mComposition.drumMetal = clamp(0.06f + 0.82f * rng.uni(), 0.02f, 0.94f);
+    mComposition.drumNoise = clamp(0.10f + 0.78f * rng.uni(), 0.06f, 0.94f);
+
+    // Make timbre part of the palette identity so session anti-repetition can
+    // distinguish the same note grammar performed by different instruments.
+    auto mix = [&](uint32_t v) {
+        mComposition.paletteHash ^= v + 0x9e3779b9u +
+            (mComposition.paletteHash << 6u) + (mComposition.paletteHash >> 2u);
+        mComposition.paletteHash *= 0x85ebca6bu;
+    };
+    mix(mComposition.timbreGrammarSeed);
+    mix(static_cast<uint32_t>(mComposition.bassModel));
+    mix(static_cast<uint32_t>(mComposition.leadModel));
+    mix(static_cast<uint32_t>(mComposition.padModel));
+    mix(static_cast<uint32_t>(mComposition.drumKit));
+    for (int32_t interval : mComposition.padIntervals) {
+        mix(static_cast<uint32_t>(interval + 16));
+    }
+}
+
 void MusicEngine::chooseInstrumentPalette(const StyleProfile& p) {
     auto toneBucket = [&](int32_t bucket, int32_t count) {
         const float w = 1.0f / static_cast<float>(std::max(1, count));
@@ -2795,6 +2885,7 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     generateBassGrammar(p);
     generateSecondaryLayerGrammars(p);
     generateTensionGrammar(p);
+    generateTimbreGrammar(p);
 
     uint32_t mh = 0x811c9dc5u;
     auto mixMotif = [&](uint32_t v) {
@@ -2823,6 +2914,7 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     mixMotif(mComposition.leadGrammarSeed); mixMotif(mComposition.bassGrammarSeed); mixMotif(mComposition.counterGrammarSeed);
     mixMotif(mComposition.arpGrammarSeed); mixMotif(mComposition.pulseGrammarSeed);
     mixMotif(mComposition.ornamentGrammarSeed); mixMotif(mComposition.evolutionSeed);
+    mixMotif(mComposition.timbreGrammarSeed);
     mixMotif(static_cast<uint32_t>(mComposition.leadContour));
     mixMotif(static_cast<uint32_t>(mComposition.leadApexStep));
     mixMotif(static_cast<uint32_t>(mComposition.leadApexDegree + 32));
@@ -4952,6 +5044,10 @@ void MusicEngine::triggerDrum(DrumType type, float amp, float pan, float dur, fl
     chosen->dur = dur;
     chosen->amp = amp;
     chosen->aux = aux;
+    chosen->kit = mComposition.drumKit;
+    chosen->body = mComposition.drumBody;
+    chosen->metal = mComposition.drumMetal;
+    chosen->noiseMix = mComposition.drumNoise;
     chosen->noiseState = mRng.nextU32();
     panGains(pan, chosen->panL, chosen->panR);
     if (type == DrumType::Kick) mSidechain = std::min(mSidechain, 0.46f);
@@ -4972,6 +5068,13 @@ void MusicEngine::triggerBass(float freq, float amp, float dur, float pan, float
     chosen->cutoff = 0.025f + 0.080f * clamp01(color);
     chosen->drive = 1.2f + 3.2f * clamp01(color);
     chosen->color = color;
+    chosen->model = (mComposition.bassModel +
+                     static_cast<int32_t>(clamp01(color) * 3.99f)) % 12;
+    chosen->attackShape = mComposition.bassAttack;
+    chosen->releasePoint = mComposition.bassRelease;
+    chosen->glide = mComposition.bassGlide;
+    chosen->pulseWidth = mComposition.bassPulseWidth;
+    chosen->motion = mComposition.bassMotion;
     panGains(pan, chosen->panL, chosen->panR);
 }
 
@@ -4985,16 +5088,24 @@ void MusicEngine::triggerPad(int32_t degree, float amp, float dur, float pan, fl
     chosen->active = true;
     chosen->dur = dur;
     chosen->amp = amp;
-    chosen->count = mRng.chance(0.30f) ? 4 : 3;
+    chosen->count = clampInt32(mComposition.padVoiceCount, 2, 4);
     chosen->cutoff = 0.014f + 0.060f * color + 0.030f * mPattern.texture;
     chosen->color = color;
+    chosen->model = (mComposition.padModel +
+                     static_cast<int32_t>(clamp01(color) * 2.99f)) % 10;
+    chosen->attackShape = mComposition.padAttack;
+    chosen->releasePoint = mComposition.padRelease;
+    chosen->detune = mComposition.padDetune;
+    chosen->motion = mComposition.padMotion;
+    chosen->width = mComposition.padWidth;
     panGains(pan, chosen->panL, chosen->panR);
 
-    const int32_t intervals[] = {0, 2, 4, 6};
     for (int32_t i = 0; i < chosen->count; ++i) {
         const int32_t octave = (i >= 3) ? 2 : 1;
-        const float hz = midiToHz(static_cast<float>(scaleDegreeToMidi(degree + intervals[i], octave)));
-        chosen->freq[i] = hz * (0.997f + 0.006f * mRng.uni());
+        const int32_t interval = mComposition.padIntervals[i];
+        const float hz = midiToHz(static_cast<float>(scaleDegreeToMidi(degree + interval, octave)));
+        const float detune = (mRng.bipolar() * 0.0035f) * (0.18f + chosen->detune);
+        chosen->freq[i] = hz * (1.0f + detune);
         chosen->phase[i] = mRng.uni();
     }
 }
@@ -5013,6 +5124,15 @@ void MusicEngine::triggerLead(float freq, float amp, float dur, float pan, float
     chosen->targetFreq = freq;
     chosen->cutoff = 0.035f + 0.16f * color + 0.08f * mPattern.melody;
     chosen->color = color;
+    chosen->model = (mComposition.leadModel +
+                     static_cast<int32_t>(clamp01(color) * 5.99f)) % 16;
+    chosen->attackShape = mComposition.leadAttack;
+    chosen->releasePoint = mComposition.leadRelease;
+    chosen->glide = mComposition.leadGlide;
+    chosen->vibratoDepth = mComposition.leadVibratoDepth;
+    chosen->vibratoRate = mComposition.leadVibratoRate;
+    chosen->modRatio = mComposition.leadModRatio;
+    chosen->air = mComposition.leadAir;
     chosen->noiseState = mRng.nextU32();
     panGains(pan, chosen->panL, chosen->panR);
 }
@@ -5026,89 +5146,137 @@ float MusicEngine::renderDrum(DrumVoice& v) {
         return 0.0f;
     }
 
+    const int32_t kit = (v.kit % 8 + 8) % 8;
+    const float bodyColor = clamp01(v.body);
+    const float metalColor = clamp01(v.metal);
+    const float noiseColor = clamp01(v.noiseMix);
+    static constexpr float pitchBias[8] = {-7.0f, 0.0f, 8.0f, -3.0f, 12.0f, 4.0f, -10.0f, 6.0f};
+    static constexpr float decayBias[8] = {0.4f, -0.5f, 1.2f, 0.0f, 1.8f, -1.0f, 0.8f, -0.2f};
+    static constexpr float metalRatio[8] = {1.37f, 1.61f, 1.91f, 2.17f, 2.43f, 2.71f, 3.07f, 3.41f};
+
     float out = 0.0f;
     switch (v.type) {
         case DrumType::Kick: {
-            const float env = std::exp(-7.2f * t);
-            const float pitch = 38.0f + 116.0f * std::exp(-12.0f * t) + 18.0f * v.aux;
+            const float env = std::exp(-(5.8f + 3.5f * (1.0f - bodyColor) + decayBias[kit]) * t);
+            const float base = 31.0f + 24.0f * bodyColor + pitchBias[kit];
+            const float sweep = 82.0f + 92.0f * bodyColor + 14.0f * static_cast<float>(kit & 3);
+            const float pitch = base + sweep * std::exp(-(9.0f + 5.0f * noiseColor) * t) + 14.0f * v.aux;
             v.phase += kTwoPi * pitch / sr;
+            v.phase2 += kTwoPi * pitch * (0.48f + 0.015f * static_cast<float>(kit)) / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
-            const float body = std::sin(v.phase) * env;
-            const float click = noise(v.noiseState) * std::exp(-70.0f * t) * (0.10f + 0.14f * v.aux);
-            out = std::tanh((body + click) * (1.8f + 1.4f * v.aux));
+            if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
+            const float sine = std::sin(v.phase);
+            const float sub = std::sin(v.phase2);
+            const float shaped = (kit == 2 || kit == 5)
+                    ? std::tanh(sine * (1.5f + 2.0f * bodyColor))
+                    : sine;
+            const float click = noise(v.noiseState) * std::exp(-(55.0f + 35.0f * metalColor) * t) *
+                                (0.04f + 0.18f * noiseColor + 0.10f * v.aux);
+            out = std::tanh((0.62f * shaped + 0.38f * sub + click) *
+                            (1.45f + 1.25f * bodyColor)) * env;
             break;
         }
         case DrumType::Snare: {
-            const float env = std::exp(-10.0f * t);
+            const float env = std::exp(-(8.0f + 6.0f * (1.0f - bodyColor) + 0.45f * decayBias[kit]) * t);
             const float n = noise(v.noiseState);
-            v.hp = 0.92f * (v.hp + n - v.lp);
+            const float hpAmount = 0.84f + 0.10f * metalColor;
+            v.hp = hpAmount * (v.hp + n - v.lp);
             v.lp = n;
-            v.phase += kTwoPi * (160.0f + 80.0f * v.aux) / sr;
+            const float toneHz = 132.0f + 126.0f * bodyColor + 7.0f * pitchBias[kit] + 72.0f * v.aux;
+            v.phase += kTwoPi * toneHz / sr;
+            v.phase2 += kTwoPi * toneHz * metalRatio[kit] / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
-            out = (0.72f * v.hp + 0.24f * std::sin(v.phase)) * env;
+            if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
+            const float ring = 0.72f * std::sin(v.phase) + 0.28f * std::sin(v.phase2);
+            const float noisy = v.hp * (0.42f + 0.48f * noiseColor);
+            out = std::tanh((noisy + ring * (0.12f + 0.28f * bodyColor)) *
+                            (1.05f + 0.55f * metalColor)) * env;
             break;
         }
         case DrumType::Clap: {
             const float n = noise(v.noiseState);
-            const float e1 = std::exp(-18.0f * t);
-            const float burst = (std::exp(-180.0f * std::fabs(t - 0.10f)) +
-                                 std::exp(-180.0f * std::fabs(t - 0.22f)) +
-                                 std::exp(-120.0f * std::fabs(t - 0.36f))) * 0.35f;
-            out = n * (e1 * 0.35f + burst);
+            const float e1 = std::exp(-(14.0f + 9.0f * (1.0f - noiseColor)) * t);
+            const float s1 = 0.075f + 0.008f * static_cast<float>(kit & 3);
+            const float s2 = 0.18f + 0.012f * static_cast<float>((kit + 1) & 3);
+            const float s3 = 0.31f + 0.015f * static_cast<float>((kit + 2) & 3);
+            const float burst = (std::exp(-190.0f * std::fabs(t - s1)) +
+                                 std::exp(-155.0f * std::fabs(t - s2)) +
+                                 std::exp(-115.0f * std::fabs(t - s3))) *
+                                (0.18f + 0.24f * metalColor);
+            v.lp += (n - v.lp) * (0.10f + 0.18f * bodyColor);
+            out = (n - 0.35f * v.lp) * (e1 * (0.22f + 0.30f * noiseColor) + burst);
             break;
         }
         case DrumType::HatClosed:
         case DrumType::HatOpen: {
-            const float env = std::exp(-(v.type == DrumType::HatOpen ? 5.5f : 28.0f) * t);
-            float n = noise(v.noiseState);
-            v.hp = 0.86f * (v.hp + n - v.lp);
+            const bool open = v.type == DrumType::HatOpen;
+            const float env = std::exp(-(open ? (4.0f + 3.0f * (1.0f - bodyColor))
+                                             : (22.0f + 14.0f * (1.0f - bodyColor))) * t);
+            const float n = noise(v.noiseState);
+            v.hp = (0.82f + 0.13f * metalColor) * (v.hp + n - v.lp);
             v.lp = n;
-            const float metallic = std::sin(v.phase) * 0.18f + std::sin(v.phase2) * 0.11f;
-            v.phase += kTwoPi * (6400.0f + 1600.0f * v.aux) / sr;
-            v.phase2 += kTwoPi * (9100.0f + 1200.0f * v.aux) / sr;
+            const float f1 = 5100.0f + 2200.0f * metalColor + 180.0f * static_cast<float>(kit);
+            const float f2 = f1 * metalRatio[kit];
+            v.phase += kTwoPi * f1 / sr;
+            v.phase2 += kTwoPi * f2 / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
             if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
-            out = (v.hp + metallic) * env;
+            const float metallic = 0.18f * std::sin(v.phase) + 0.12f * std::sin(v.phase2) +
+                                   0.07f * std::sin(v.phase + v.phase2);
+            out = (v.hp * (0.46f + 0.52f * noiseColor) + metallic * (0.45f + 0.50f * metalColor)) * env;
             break;
         }
         case DrumType::Rim: {
-            const float env = std::exp(-24.0f * t);
-            v.phase += kTwoPi * (580.0f + 260.0f * v.aux) / sr;
+            const float env = std::exp(-(20.0f + 9.0f * (1.0f - bodyColor)) * t);
+            const float f = 410.0f + 260.0f * bodyColor + 34.0f * static_cast<float>(kit);
+            v.phase += kTwoPi * f / sr;
+            v.phase2 += kTwoPi * f * metalRatio[kit] / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
-            out = std::sin(v.phase) * env + noise(v.noiseState) * env * 0.18f;
+            if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
+            out = (0.66f * std::sin(v.phase) + 0.25f * std::sin(v.phase2) +
+                   noise(v.noiseState) * (0.08f + 0.16f * noiseColor)) * env;
             break;
         }
         case DrumType::Tom: {
-            const float env = std::exp(-7.0f * t);
-            const float pitch = 105.0f + 150.0f * v.aux + 120.0f * std::exp(-9.0f * t);
+            const float env = std::exp(-(5.5f + 3.0f * (1.0f - bodyColor)) * t);
+            const float base = 72.0f + 120.0f * bodyColor + 14.0f * static_cast<float>(kit) + 130.0f * v.aux;
+            const float pitch = base + (70.0f + 90.0f * metalColor) * std::exp(-8.0f * t);
             v.phase += kTwoPi * pitch / sr;
+            v.phase2 += kTwoPi * pitch * (0.50f + 0.02f * static_cast<float>(kit & 3)) / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
-            out = std::sin(v.phase) * env;
+            if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
+            out = std::tanh((0.72f * std::sin(v.phase) + 0.30f * std::sin(v.phase2)) *
+                            (1.0f + 0.85f * bodyColor)) * env;
             break;
         }
         case DrumType::Zap: {
-            const float env = std::exp(-18.0f * t);
-            const float pitch = 220.0f + 4600.0f * std::exp(-20.0f * t) * (0.35f + v.aux);
+            const float env = std::exp(-(14.0f + 8.0f * (1.0f - metalColor)) * t);
+            const float pitch = 150.0f + (2800.0f + 2400.0f * metalColor) *
+                                std::exp(-(15.0f + 7.0f * bodyColor) * t) * (0.32f + v.aux);
             v.phase += kTwoPi * pitch / sr;
+            v.phase2 += kTwoPi * pitch * metalRatio[kit] / sr;
             if (v.phase > kTwoPi) v.phase -= kTwoPi;
-            out = std::sin(v.phase + 2.0f * std::sin(v.phase2)) * env;
-            v.phase2 += kTwoPi * (pitch * 1.91f) / sr;
             if (v.phase2 > kTwoPi) v.phase2 -= kTwoPi;
+            out = std::sin(v.phase + (0.6f + 2.1f * metalColor) * std::sin(v.phase2)) * env;
             break;
         }
         case DrumType::Noise:
         case DrumType::Perc:
         default: {
-            const float env = std::exp(-13.0f * t);
-            float n = noise(v.noiseState);
-            v.lp += (n - v.lp) * (0.04f + 0.20f * v.aux);
-            out = (n - v.lp * 0.4f) * env;
+            const float env = std::exp(-(9.0f + 8.0f * (1.0f - bodyColor)) * t);
+            const float n = noise(v.noiseState);
+            const float coeff = 0.025f + 0.25f * clamp01(v.aux + 0.45f * bodyColor);
+            v.lp += (n - v.lp) * coeff;
+            v.phase += kTwoPi * (180.0f + 850.0f * metalColor + 52.0f * static_cast<float>(kit)) / sr;
+            if (v.phase > kTwoPi) v.phase -= kTwoPi;
+            const float tonal = std::sin(v.phase) * (0.08f + 0.24f * metalColor);
+            out = ((n - v.lp * (0.25f + 0.35f * noiseColor)) * (0.48f + 0.46f * noiseColor) + tonal) * env;
             break;
         }
     }
 
     v.age += dt;
-    return out * v.amp;
+    return std::tanh(out * (1.0f + 0.24f * bodyColor)) * v.amp;
 }
 
 float MusicEngine::renderBass(BassVoice& v) {
@@ -5120,13 +5288,19 @@ float MusicEngine::renderBass(BassVoice& v) {
         return 0.0f;
     }
 
-    const float model = clamp01(v.color);
-    const float attack = clamp(t * (16.0f + 22.0f * (1.0f - model)), 0.0f, 1.0f);
-    const float release = 1.0f - clamp((t - (0.58f + 0.12f * (1.0f - model))) / (0.42f - 0.10f * (1.0f - model)), 0.0f, 1.0f);
+    const float color = clamp01(v.color);
+    const float attackRate = 10.0f + 56.0f * (1.0f - clamp01(v.attackShape));
+    const float attack = clamp(t * attackRate, 0.0f, 1.0f);
+    const float releaseStart = clamp(v.releasePoint, 0.42f, 0.94f);
+    const float release = 1.0f - clamp((t - releaseStart) /
+                                      std::max(0.04f, 1.0f - releaseStart), 0.0f, 1.0f);
     const float env = attack * release;
-    v.freq += (v.targetFreq - v.freq) * (0.0025f + 0.018f * model);
-    v.phase += v.freq / sr;
-    v.phase2 += v.freq * (0.498f + 0.010f * model) / sr;
+    v.freq += (v.targetFreq - v.freq) * (0.0008f + 0.026f * clamp01(v.glide));
+
+    const float motion = std::sin(kTwoPi * v.phase2 * (1.0f + 0.75f * v.motion));
+    const float freq = v.freq * (1.0f + motion * (0.0004f + 0.0032f * v.motion));
+    v.phase += freq / sr;
+    v.phase2 += freq * (0.492f + 0.020f * color) / sr;
     if (v.phase >= 1.0f) v.phase -= 1.0f;
     if (v.phase2 >= 1.0f) v.phase2 -= 1.0f;
 
@@ -5134,25 +5308,57 @@ float MusicEngine::renderBass(BassVoice& v) {
     const float sub = std::sin(kTwoPi * v.phase2);
     const float saw = 2.0f * v.phase - 1.0f;
     const float tri = 1.0f - 4.0f * std::fabs(v.phase - 0.5f);
+    const float pulse = (v.phase < clamp(v.pulseWidth, 0.10f, 0.84f)) ? 1.0f : -1.0f;
+    const float mod = std::sin(kTwoPi * v.phase2 * (1.5f + 2.8f * v.motion));
     float raw = 0.0f;
-    if (model < 0.17f) {
-        raw = 0.54f * sine + 0.50f * sub;
-    } else if (model < 0.34f) {
-        raw = 0.44f * std::tanh(sine * 3.2f) + 0.36f * sub + 0.22f * tri;
-    } else if (model < 0.50f) {
-        raw = 0.38f * sine + 0.28f * sub + 0.50f * saw;
-    } else if (model < 0.67f) {
-        const float fm = std::sin(kTwoPi * v.phase + (1.6f + 3.6f * model) * std::sin(kTwoPi * (v.phase2 * 2.01f)));
-        raw = 0.48f * fm + 0.34f * sub + 0.24f * saw;
-    } else if (model < 0.84f) {
-        const float pulse = (v.phase < (0.22f + 0.20f * model)) ? 1.0f : -1.0f;
-        raw = 0.48f * pulse + 0.28f * tri + 0.34f * sub;
-    } else {
-        raw = 0.42f * std::tanh(saw * 2.6f) + 0.46f * sub + 0.24f * sine;
+    switch ((v.model % 12 + 12) % 12) {
+        case 0: raw = 0.56f * sine + 0.48f * sub; break; // clean sub current
+        case 1: raw = 0.44f * std::tanh(sine * (2.2f + 2.0f * color)) +
+                      0.38f * sub + 0.24f * tri; break; // rubber saturation
+        case 2: raw = 0.34f * sine + 0.42f * sub + 0.44f * saw; break; // saw/sub alloy
+        case 3: raw = 0.55f * std::sin(kTwoPi * v.phase +
+                                      (0.8f + 3.8f * v.motion) * mod) +
+                      0.38f * sub; break; // two-operator low FM
+        case 4: raw = 0.46f * pulse + 0.30f * tri + 0.38f * sub; break; // asymmetric pulse
+        case 5: {
+            const float folded = std::sin(kTwoPi *
+                (v.phase + 0.22f * saw * (0.4f + v.motion)));
+            raw = 0.48f * folded + 0.38f * sub + 0.20f * sine;
+            break;
+        }
+        case 6: {
+            const float warped = v.phase + (0.08f + 0.22f * v.motion) *
+                                 std::sin(kTwoPi * v.phase);
+            raw = 0.58f * std::sin(kTwoPi * warped) + 0.42f * sub;
+            break;
+        }
+        case 7: raw = 0.42f * sine + 0.34f * sub + 0.26f * (sine * mod); break;
+        case 8: {
+            const float width = clamp(v.pulseWidth + 0.12f * motion, 0.10f, 0.88f);
+            const float movingPulse = v.phase < width ? 1.0f : -1.0f;
+            raw = 0.44f * movingPulse + 0.38f * sub + 0.22f * tri;
+            break;
+        }
+        case 9:
+            raw = 0.44f * sine + 0.27f * std::sin(kTwoPi * v.phase * 2.01f + 0.5f) +
+                  0.15f * std::sin(kTwoPi * v.phase * 3.02f + 1.1f) + 0.34f * sub;
+            break;
+        case 10:
+            raw = 0.54f * tri + 0.32f * std::sin(kTwoPi * v.phase * 1.503f) +
+                  0.34f * sub;
+            break;
+        default: {
+            const float stepped = v.phase < 0.20f ? -0.72f :
+                                  (v.phase < 0.46f ? -0.22f :
+                                  (v.phase < 0.73f ? 0.34f : 0.82f));
+            raw = 0.40f * stepped + 0.32f * tri + 0.40f * sub;
+            break;
+        }
     }
 
-    raw = std::tanh(raw * (v.drive + 0.80f * model));
-    const float cutoff = clamp(v.cutoff + env * (0.035f + 0.18f * model), 0.004f, 0.46f);
+    raw = std::tanh(raw * (v.drive + 0.55f * color));
+    const float cutoff = clamp(v.cutoff + env *
+        (0.025f + 0.19f * color + 0.08f * v.motion), 0.004f, 0.46f);
     v.lp += (raw - v.lp) * cutoff;
     v.age += dt;
     return v.lp * env * v.amp;
@@ -5167,34 +5373,79 @@ float MusicEngine::renderPad(PadVoice& v) {
         return 0.0f;
     }
 
-    const float model = clamp01(v.color);
-    const float attack = clamp(t * (v.dur > 2.0f ? (1.6f + 2.8f * model) : (5.0f + 8.0f * model)), 0.0f, 1.0f);
-    const float release = 1.0f - clamp((t - 0.70f) / 0.30f, 0.0f, 1.0f);
+    const float color = clamp01(v.color);
+    const float attackRate = v.dur > 2.0f
+            ? (0.9f + 4.0f * (1.0f - v.attackShape))
+            : (3.2f + 10.0f * (1.0f - v.attackShape));
+    const float attack = clamp(t * attackRate, 0.0f, 1.0f);
+    const float releaseStart = clamp(v.releasePoint, 0.54f, 0.98f);
+    const float release = 1.0f - clamp((t - releaseStart) /
+                                      std::max(0.02f, 1.0f - releaseStart), 0.0f, 1.0f);
     const float env = attack * release;
+    const float slowMotion = std::sin(kTwoPi *
+        (v.age / std::max(0.25f, v.dur)) * (0.25f + 1.2f * v.motion));
     float raw = 0.0f;
     for (int32_t i = 0; i < v.count; ++i) {
-        v.phase[i] += v.freq[i] / sr;
+        const float detuneMotion = 1.0f + slowMotion *
+            (0.00015f + 0.0012f * v.detune) * (static_cast<float>(i) - 1.5f);
+        v.phase[i] += v.freq[i] * detuneMotion / sr;
         if (v.phase[i] >= 1.0f) v.phase[i] -= 1.0f;
         const float ph = v.phase[i];
         const float sine = std::sin(kTwoPi * ph);
         const float tri = 1.0f - 4.0f * std::fabs(ph - 0.5f);
         const float saw = 2.0f * ph - 1.0f;
-        const float pulse = (ph < (0.38f + 0.16f * model)) ? 1.0f : -1.0f;
+        const float pulse = ph < clamp(0.24f + 0.45f * v.width +
+                                     0.06f * slowMotion, 0.12f, 0.88f) ? 1.0f : -1.0f;
         float osc = 0.0f;
-        if (model < 0.15f) osc = 0.84f * sine + 0.16f * tri;
-        else if (model < 0.30f) osc = 0.68f * tri + 0.22f * sine;
-        else if (model < 0.45f) osc = 0.56f * tri + 0.34f * saw;
-        else if (model < 0.60f) osc = std::sin(kTwoPi * ph + (0.8f + 2.8f * model) * std::sin(kTwoPi * ph * 2.0f));
-        else if (model < 0.75f) osc = 0.52f * pulse + 0.34f * tri;
-        else osc = 0.42f * saw + 0.38f * sine + 0.20f * std::sin(kTwoPi * ph * 1.503f);
+        switch ((v.model % 10 + 10) % 10) {
+            case 0: osc = 0.82f * sine + 0.18f * tri; break; // mist
+            case 1:
+                osc = 0.66f * tri + 0.22f * sine +
+                      0.12f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i);
+                break;
+            case 2: osc = 0.48f * tri + 0.34f * saw + 0.18f * sine; break;
+            case 3:
+                osc = std::sin(kTwoPi * ph + (0.7f + 2.6f * v.motion) *
+                               std::sin(kTwoPi * ph * 2.003f + 0.4f * i));
+                break;
+            case 4: osc = 0.46f * pulse + 0.34f * tri + 0.20f * sine; break;
+            case 5:
+                osc = 0.48f * sine +
+                      0.30f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i) +
+                      0.18f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                break;
+            case 6: {
+                const float partial2 = std::sin(kTwoPi * ph * 2.003f + 0.4f * i);
+                const float warped = ph + (0.04f + 0.16f * v.motion) * partial2;
+                osc = 0.68f * std::sin(kTwoPi * warped) + 0.25f * tri;
+                break;
+            }
+            case 7:
+                osc = 0.62f * sine + 0.26f * std::sin(kTwoPi * ph * 1.501f) +
+                      0.12f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                break;
+            case 8:
+                osc = 0.42f * tri +
+                      0.26f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i) +
+                      0.22f * std::sin(kTwoPi * ph * 4.017f);
+                break;
+            default: {
+                const float fold = std::sin(kTwoPi *
+                    (ph + 0.18f * saw * (0.3f + v.motion)));
+                osc = 0.56f * fold + 0.24f * sine +
+                      0.16f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                break;
+            }
+        }
         raw += osc;
     }
     raw /= static_cast<float>(std::max(1, v.count));
-    raw = std::tanh(raw * (1.05f + 0.95f * model));
-    v.lp += (raw - v.lp) * clamp(v.cutoff * (0.70f + 1.10f * model), 0.003f, 0.26f);
-    v.hp += (v.lp - v.hp) * (0.00020f + 0.00042f * (1.0f - model));
+    raw = std::tanh(raw * (1.02f + 0.78f * color + 0.25f * v.motion));
+    v.lp += (raw - v.lp) * clamp(v.cutoff *
+        (0.62f + 1.08f * color + 0.34f * env), 0.003f, 0.27f);
+    v.hp += (v.lp - v.hp) * (0.00016f + 0.00048f * (1.0f - color));
     v.age += dt;
-    return (v.lp - v.hp * (0.12f + 0.18f * model)) * env * v.amp;
+    return (v.lp - v.hp * (0.10f + 0.16f * color)) * env * v.amp;
 }
 
 float MusicEngine::renderLead(LeadVoice& v) {
@@ -5206,52 +5457,125 @@ float MusicEngine::renderLead(LeadVoice& v) {
         return 0.0f;
     }
 
-    const float model = clamp01(v.color);
-    const float attack = clamp(t * (10.0f + 20.0f * (1.0f - model)), 0.0f, 1.0f);
-    const float release = 1.0f - clamp((t - (0.50f + 0.10f * model)) / (0.50f - 0.10f * model), 0.0f, 1.0f);
+    const float color = clamp01(v.color);
+    const float attackRate = 7.0f + 52.0f * (1.0f - clamp01(v.attackShape));
+    const float attack = clamp(t * attackRate, 0.0f, 1.0f);
+    const float releaseStart = clamp(v.releasePoint, 0.36f, 0.96f);
+    const float release = 1.0f - clamp((t - releaseStart) /
+                                      std::max(0.03f, 1.0f - releaseStart), 0.0f, 1.0f);
     const float env = attack * release;
-    v.vibPhase += (3.2f + 4.0f * model) / sr;
+    v.vibPhase += (2.1f + 7.4f * v.vibratoRate) / sr;
     if (v.vibPhase > 1.0f) v.vibPhase -= 1.0f;
-    const float vib = 1.0f + std::sin(kTwoPi * v.vibPhase) * (0.0008f + 0.0050f * model);
-    v.freq += (v.targetFreq - v.freq) * (0.0015f + 0.012f * model);
+    const float vib = 1.0f + std::sin(kTwoPi * v.vibPhase) *
+                      (0.0002f + 0.0062f * v.vibratoDepth);
+    v.freq += (v.targetFreq - v.freq) * (0.0007f + 0.022f * v.glide);
     const float freq = v.freq * vib;
 
     v.phase += freq / sr;
-    v.modPhase += freq * (1.35f + 3.10f * model) / sr;
+    v.modPhase += freq * (0.62f + 5.20f * v.modRatio) / sr;
     if (v.phase >= 1.0f) v.phase -= 1.0f;
     if (v.modPhase >= 1.0f) v.modPhase -= 1.0f;
 
     const float sine = std::sin(kTwoPi * v.phase);
     const float tri = 1.0f - 4.0f * std::fabs(v.phase - 0.5f);
     const float saw = 2.0f * v.phase - 1.0f;
-    float raw = 0.0f;
-    if (model < 0.14f) {
-        const float pulse = (v.phase < 0.34f) ? 1.0f : -1.0f;
-        raw = 0.58f * pulse + 0.34f * saw;
-    } else if (model < 0.28f) {
-        raw = std::sin(kTwoPi * v.phase + (1.0f + 4.5f * model) * std::sin(kTwoPi * v.modPhase));
-    } else if (model < 0.42f) {
-        raw = 0.72f * sine + 0.24f * tri + 0.14f * std::sin(kTwoPi * v.modPhase * 0.503f);
-    } else if (model < 0.56f) {
-        raw = std::tanh((0.58f * saw + 0.30f * sine) * (1.6f + 2.2f * model));
-    } else if (model < 0.70f) {
-        const float stepped = (v.phase < 0.25f ? -0.65f : (v.phase < 0.50f ? -0.15f : (v.phase < 0.75f ? 0.35f : 0.80f)));
-        raw = 0.52f * stepped + 0.30f * tri + 0.20f * sine;
-    } else if (model < 0.84f) {
-        float n = noise(v.noiseState);
-        v.lp += (n - v.lp) * 0.055f;
-        raw = 0.68f * std::sin(kTwoPi * v.phase + 1.9f * std::sin(kTwoPi * v.modPhase)) + 0.24f * (n - v.lp);
-    } else if (model < 0.92f) {
-        const float vowel = std::sin(kTwoPi * v.phase) + 0.42f * std::sin(kTwoPi * v.phase * 2.01f + 0.7f) + 0.24f * std::sin(kTwoPi * v.phase * 3.02f + 1.4f);
-        raw = std::tanh(vowel * 0.82f);
-    } else {
-        const float bell = std::sin(kTwoPi * v.phase + 0.70f * std::sin(kTwoPi * v.modPhase * 1.618f)) +
-                           0.38f * std::sin(kTwoPi * v.phase * 2.414f + 0.30f) +
-                           0.18f * std::sin(kTwoPi * v.phase * 3.732f + 1.10f);
-        raw = std::tanh(bell * (0.62f + 0.28f * env));
+    const float mod = std::sin(kTwoPi * v.modPhase);
+    const float pulse = v.phase < (0.18f + 0.48f * color) ? 1.0f : -1.0f;
+    const int32_t modelIndex = (v.model % 16 + 16) % 16;
+    float airNoise = 0.0f;
+    if (modelIndex == 5 || modelIndex == 13 || v.air > 0.62f) {
+        const float n = noise(v.noiseState);
+        v.lp += (n - v.lp) * (0.025f + 0.060f * v.air);
+        airNoise = n - v.lp;
     }
 
-    v.lp += (raw - v.lp) * clamp(v.cutoff * (0.42f + 1.38f * env + 0.42f * model), 0.006f, 0.52f);
+    float raw = 0.0f;
+    switch (modelIndex) {
+        case 0: raw = 0.56f * pulse + 0.32f * saw + 0.14f * sine; break;
+        case 1: raw = std::sin(kTwoPi * v.phase +
+                              (0.8f + 4.4f * v.modRatio) * mod); break;
+        case 2:
+            raw = 0.70f * sine + 0.25f * tri +
+                  0.12f * std::sin(kTwoPi * v.modPhase * 0.503f);
+            break;
+        case 3:
+            raw = std::tanh((0.56f * saw + 0.32f * sine) *
+                            (1.5f + 2.8f * color));
+            break;
+        case 4: {
+            const float stepped = v.phase < 0.20f ? -0.72f :
+                                  (v.phase < 0.43f ? -0.20f :
+                                  (v.phase < 0.70f ? 0.30f : 0.82f));
+            raw = 0.50f * stepped + 0.30f * tri + 0.18f * sine;
+            break;
+        }
+        case 5:
+            raw = 0.66f * std::sin(kTwoPi * v.phase + 1.8f * mod) +
+                  0.24f * airNoise * v.air;
+            break;
+        case 6: {
+            const float vowel = sine + 0.44f * std::sin(kTwoPi * v.phase * 2.01f + 0.7f) +
+                                0.24f * std::sin(kTwoPi * v.phase * 3.02f + 1.4f);
+            raw = std::tanh(vowel * 0.82f);
+            break;
+        }
+        case 7: {
+            const float glass = sine +
+                                0.38f * std::sin(kTwoPi * v.phase * 2.414f + 0.30f) +
+                                0.18f * std::sin(kTwoPi * v.phase * 3.732f + 1.10f);
+            raw = std::tanh(glass * (0.60f + 0.30f * env));
+            break;
+        }
+        case 8: {
+            const float fold = std::sin(kTwoPi *
+                (v.phase + 0.24f * tri * (0.4f + v.modRatio)));
+            raw = 0.64f * fold + 0.24f * tri;
+            break;
+        }
+        case 9: {
+            const float warped = v.phase + (0.06f + 0.18f * v.modRatio) *
+                                 std::sin(kTwoPi * v.phase);
+            raw = 0.72f * std::sin(kTwoPi * warped) + 0.20f * saw;
+            break;
+        }
+        case 10: {
+            const float wrapped = std::fmod(v.phase *
+                (1.6f + 2.8f * v.modRatio), 1.0f);
+            raw = 0.48f * (2.0f * wrapped - 1.0f) + 0.38f * sine;
+            break;
+        }
+        case 11: {
+            const float p2 = std::fmod(v.phase * 1.503f, 1.0f) < 0.42f ? 1.0f : -1.0f;
+            raw = 0.42f * pulse + 0.34f * p2 + 0.22f * tri;
+            break;
+        }
+        case 12:
+            raw = 0.56f * sine +
+                  0.26f * std::sin(kTwoPi * v.phase * 2.997f + 0.4f) +
+                  0.14f * std::sin(kTwoPi * v.phase * 5.011f + 1.1f);
+            break;
+        case 13: {
+            const float chirp = std::sin(kTwoPi * v.phase +
+                                         (0.4f + 2.4f * env) * mod);
+            raw = 0.64f * chirp + 0.22f * tri + 0.12f * airNoise * v.air;
+            break;
+        }
+        case 14:
+            raw = 0.42f * sine + 0.28f * std::sin(kTwoPi * v.phase * 2.0f) +
+                  0.18f * std::sin(kTwoPi * v.phase * 4.0f) + 0.14f * pulse;
+            break;
+        default: {
+            const float stack = sine +
+                0.31f * std::sin(kTwoPi * v.phase * 1.997f + mod * 0.20f) +
+                0.16f * std::sin(kTwoPi * v.phase * 4.003f + 0.8f);
+            raw = std::tanh(stack * 0.78f);
+            break;
+        }
+    }
+
+    raw += airNoise * (0.02f + 0.12f * v.air) * env;
+    v.lp += (raw - v.lp) * clamp(v.cutoff *
+        (0.38f + 1.42f * env + 0.38f * color), 0.006f, 0.52f);
     v.age += dt;
     return v.lp * env * v.amp;
 }

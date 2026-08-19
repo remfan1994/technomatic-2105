@@ -2,7 +2,7 @@
 
 Technomatic 2105 is an Android procedural electronic music player. It synthesizes music locally on the phone without samples, network access, accounts, advertising, analytics, trackers, or external audio assets.
 
-Version 0.26.0 retains one live playback model: a generated sound continues indefinitely and develops within its own identity until the listener explicitly changes it. The former Continuous Radio and Hold Sound modes, their automatic seed replacement, and their live duration policy have been removed.
+Version 0.27.0 retains one live playback model: a generated sound continues indefinitely and develops within its own identity until the listener explicitly changes it. The former Continuous Radio and Hold Sound modes, their automatic seed replacement, and their live duration policy have been removed.
 
 ## Live playback model
 
@@ -86,6 +86,26 @@ Pad Breath (rare)
 
 Their timing, spacing, pitch relationship, duration, accent, and recurrence cycle are derived from the seed. Most pressure events use short asymmetric electronic gestures. Sustained pad breath is uncommon and cannot stack into a repeating pad wall.
 
+## Generated timbre grammar
+
+v27 broadens the electronic sound vocabulary without loading samples or increasing the number of simultaneous lanes indiscriminately. Each generated sound receives a stable timbre grammar derived from its composition identity.
+
+The grammar independently selects and shapes:
+
+```text
+12 bass synthesis models
+16 lead synthesis models
+10 pad synthesis models
+8 drum-kit families
+generated pad voicings
+bass attack, release, glide, pulse width, and motion
+lead attack, release, glide, vibrato, modulation, and air
+pad attack, release, detune, motion, width, and voice count
+drum body, metallic content, and noise balance
+```
+
+The chosen timbres remain part of the sound's identity while phrase development, performance variation, and layer activity continue evolving. The added diversity is primarily parameter and oscillator logic, not heavier effects or additional sample decoding.
+
 ## Music engine
 
 The engine separates three musical layers:
@@ -128,27 +148,46 @@ The audio path remains conservative for low-cost Android hardware: fixed-size vo
 ```text
 Load seed
 Current seed: tap to copy
-OGG duration
-OGG filename
-Export to OGG
+Export duration
+Export filename
+Export OGG
+Export FLAC
+Cancel Export
 ```
 
-Live playback is indefinite. OGG duration is a separate finite export setting and does not limit or restart live playback.
+Live playback is indefinite. Export duration is a separate finite setting and does not limit or restart live playback.
 
-Export snapshots the current generated sound and renders it offline in parallel with listening. Successful files are published to:
+Both formats snapshot the current generated sound and render it offline in parallel with listening:
+
+```text
+OGG:
+  compact, lossy Opus audio in an OGG container
+
+FLAC:
+  lossless 48 kHz stereo audio
+  larger files
+  deterministic built-in encoder with no external codec dependency
+```
+
+Successful files are published to:
 
 ```text
 Music/<filename>.ogg
+Music/<filename>.flac
 ```
 
-Android MediaStore metadata is supplied as:
+Metadata is supplied as:
 
 ```text
 Artist: Technomatic 2105
+Album Artist: Technomatic 2105
 Title: <filename> [<seed>]
 Album: MONTHNAME DD YYYY
 Genre: current Channel
+Comment: generated locally, including the seed
 ```
+
+FLAC stores these values inside the file as Vorbis comments as well as publishing the standard MediaStore fields.
 
 ## Android build
 
@@ -196,7 +235,7 @@ Do not commit signing keys or passwords.
 Suggested tag:
 
 ```text
-v0.26.0
+v0.27.0
 ```
 
 Draft F-Droid metadata is under:

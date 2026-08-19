@@ -61,6 +61,21 @@ public final class MainActivity extends Activity {
     private static final int SCREEN_CHANNEL = 1;
     private static final int SCREEN_ADVANCED = 2;
 
+    private enum ExportFormat {
+        OGG("OGG", ".ogg", "audio/ogg"),
+        FLAC("FLAC", ".flac", "audio/flac");
+
+        final String label;
+        final String extension;
+        final String mimeType;
+
+        ExportFormat(String label, String extension, String mimeType) {
+            this.label = label;
+            this.extension = extension;
+            this.mimeType = mimeType;
+        }
+    }
+
     private static final String[] CHANNEL_LABELS = new String[] {
             "No Channel",
             "Chrome Pulse",
@@ -113,8 +128,11 @@ public final class MainActivity extends Activity {
     private Thread exportThread;
     private String lastExportPath = "";
     private volatile String exportStatusText = "";
-    private Button exportButton;
+    private Button exportOggButton;
+    private Button exportFlacButton;
+    private Button cancelExportButton;
     private TextView exportStatusView;
+    private volatile ExportFormat activeExportFormat = ExportFormat.OGG;
 
     private final Runnable statusTicker = new Runnable() {
         @Override
@@ -479,25 +497,36 @@ public final class MainActivity extends Activity {
         controls.addView(seedExplanation, params(width, -2, 5));
 
         Button exportDuration = navButton(
-                "OGG duration: " + formatDuration(loadExportSeconds()) + "\nTap to change", 14.0f);
+                "Export duration: " + formatDuration(loadExportSeconds()) + "\nTap to change", 14.0f);
         exportDuration.setOnClickListener(view -> showExportDurationChooser());
         controls.addView(exportDuration, params(width, 60, 14));
 
         EditText exportName = editField("", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         exportName.setHint("filename, e.g. track1");
-        controls.addView(label("OGG filename"), params(width, -2, 12));
+        controls.addView(label("Export filename"), params(width, -2, 12));
         controls.addView(exportName, params(width, 50, 2));
 
-        exportButton = button(exportRunning ? "Cancel Export" : "Export to OGG", 15.0f);
-        exportButton.setOnClickListener(view -> {
-            if (exportRunning) requestExportCancel();
-            else exportCurrentToOgg(textOf(exportName));
-        });
-        controls.addView(exportButton, params(width, 48, 9));
+        LinearLayout exportRow = new LinearLayout(this);
+        exportRow.setOrientation(LinearLayout.HORIZONTAL);
+        exportOggButton = button("Export OGG", 14.5f);
+        exportFlacButton = button("Export FLAC", 14.5f);
+        LinearLayout.LayoutParams oggHalf = new LinearLayout.LayoutParams(0, dp(48), 1.0f);
+        oggHalf.setMarginEnd(dp(4));
+        exportRow.addView(exportOggButton, oggHalf);
+        LinearLayout.LayoutParams flacHalf = new LinearLayout.LayoutParams(0, dp(48), 1.0f);
+        flacHalf.setMarginStart(dp(4));
+        exportRow.addView(exportFlacButton, flacHalf);
+        exportOggButton.setOnClickListener(view -> startExport(textOf(exportName), ExportFormat.OGG));
+        exportFlacButton.setOnClickListener(view -> startExport(textOf(exportName), ExportFormat.FLAC));
+        controls.addView(exportRow, params(width, 48, 9));
+
+        cancelExportButton = button("Cancel Export", 15.0f);
+        cancelExportButton.setOnClickListener(view -> requestExportCancel());
+        controls.addView(cancelExportButton, params(width, 48, 7));
 
         exportStatusView = status(exportRunning
                 ? exportStatusForUi()
-                : "Export snapshots the current sound and renders it separately without restarting playback.");
+                : "OGG is compact and lossy. FLAC is lossless and larger. Both exports are offline snapshots and do not restart playback.");
         exportStatusView.setTextSize(11.5f);
         controls.addView(exportStatusView, params(width, -2, 7));
 
@@ -507,6 +536,7 @@ public final class MainActivity extends Activity {
             controls.addView(last, params(width, -2, 7));
         }
 
+        updateExportUi();
         setScrollRoot(controls);
     }
 
@@ -515,7 +545,7 @@ public final class MainActivity extends Activity {
                 "30 sec", "1 min", "3 min", "5 min", "10 min", "20 min", "1 hour", "Custom"
         };
         new AlertDialog.Builder(this)
-                .setTitle("OGG duration")
+                .setTitle("Export duration")
                 .setItems(labels, (dialog, which) -> {
                     switch (which) {
                         case 0: setExportDuration(30); break;
@@ -546,7 +576,7 @@ public final class MainActivity extends Activity {
         form.addView(seconds, params(240, 50, 2));
 
         new AlertDialog.Builder(this)
-                .setTitle("Custom OGG duration")
+                .setTitle("Custom export duration")
                 .setView(form)
                 .setPositiveButton("Set", (dialog, which) -> {
                     int m = clamp(parseInteger(textOf(minutes), 0), 0, 60);
@@ -835,7 +865,7 @@ public final class MainActivity extends Activity {
     }
 
 
-    private void exportCurrentToOgg(String requestedName) {
+    private void startExport(String requestedName, ExportFormat format) {
         if (exportRunning) return;
         String source = NativeAudio.currentSongData();
         if (source == null || source.isEmpty()) {
@@ -845,23 +875,25 @@ public final class MainActivity extends Activity {
 
         int seconds = loadExportSeconds();
         String data = songDataWithDuration(source, seconds);
+        activeExportFormat = format;
         exportRunning = true;
         exportCancelRequested = false;
         exportStatusText = "Rendering captured sound offline...";
         updateExportUi();
-        Toast.makeText(this, "Export started in the background.", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, format.label + " export started in the background.", Toast.LENGTH_SHORT).show();
 
         exportThread = new Thread(() -> {
             File raw = null;
-            File tempOgg = null;
+            File encoded = null;
             boolean ok = false;
             String message;
             String publicPath = "";
-            OggExporter.CancellationToken token = () -> exportCancelRequested || Thread.currentThread().isInterrupted();
+            ExportCancellationToken token =
+                    () -> exportCancelRequested || Thread.currentThread().isInterrupted();
             try {
-                String displayName = exportDisplayName(requestedName);
+                String displayName = exportDisplayName(requestedName, format);
                 raw = File.createTempFile("technomatic_2105_export_", ".pcm", getCacheDir());
-                tempOgg = File.createTempFile("technomatic_2105_export_", ".ogg", getCacheDir());
+                encoded = File.createTempFile("technomatic_2105_export_", format.extension, getCacheDir());
 
                 updateExportStatus("Rendering captured sound offline...");
                 checkExportCancelled(token);
@@ -871,25 +903,37 @@ public final class MainActivity extends Activity {
                 }
                 long expected = (long) seconds * 48000L * 2L * 2L;
                 if (raw.length() != expected) {
-                    throw new java.io.IOException("Native render length mismatch: expected " + expected + " bytes, got " + raw.length() + ".");
+                    throw new java.io.IOException("Native render length mismatch: expected " +
+                            expected + " bytes, got " + raw.length() + ".");
                 }
 
-                updateExportStatus("Encoding OGG...");
-                OggExporter.encodeRawPcm16ToOgg(raw, tempOgg, token);
+                updateExportStatus("Encoding " + format.label + "...");
+                if (format == ExportFormat.OGG) {
+                    OggExporter.encodeRawPcm16ToOgg(raw, encoded, token);
+                } else {
+                    FlacExporter.encodeRawPcm16ToFlac(
+                            raw, encoded, flacMetadata(displayName, data), token);
+                }
                 checkExportCancelled(token);
-                if (!tempOgg.exists() || tempOgg.length() <= 0L) throw new java.io.IOException("Encoder produced an empty OGG file.");
+                if (!encoded.exists() || encoded.length() <= 0L) {
+                    throw new java.io.IOException(
+                            "Encoder produced an empty " + format.label + " file.");
+                }
 
                 updateExportStatus("Publishing to Music...");
-                ExportResult result = publishOggToMusic(tempOgg, displayName, data, token);
+                ExportResult result = publishAudioToMusic(
+                        encoded, displayName, data, format, token);
                 publicPath = result.displayPath;
                 ok = true;
                 message = "Exported to " + publicPath;
             } catch (Exception ex) {
                 message = safeMessage(ex);
-                if (!message.toLowerCase(Locale.US).contains("cancel")) message = "Export failed: " + message;
+                if (!message.toLowerCase(Locale.US).contains("cancel")) {
+                    message = "Export failed: " + message;
+                }
             } finally {
                 if (raw != null && raw.exists()) raw.delete();
-                if (tempOgg != null && tempOgg.exists()) tempOgg.delete();
+                if (encoded != null && encoded.exists()) encoded.delete();
             }
 
             boolean finalOk = ok;
@@ -905,30 +949,40 @@ public final class MainActivity extends Activity {
                 showExportResultDialog(finalOk, finalMessage);
                 updateExportUi();
             });
-        }, "TechnomaticOggExport");
+        }, "Technomatic" + format.label + "Export");
         exportThread.start();
     }
 
-    private ExportResult publishOggToMusic(
-            File encodedOgg,
+    private FlacExporter.Metadata flacMetadata(String displayName, String songData) {
+        String baseName = removeKnownAudioExtension(displayName);
+        long seed = seedFromSongData(songData) & 0xffffffffL;
+        return new FlacExporter.Metadata(
+                baseName + " [" + seed + "]",
+                "Technomatic 2105",
+                "Technomatic 2105",
+                exportAlbumName(),
+                channelNameFromSongData(songData),
+                "Generated locally by Technomatic 2105; Seed: " + seed);
+    }
+
+    private ExportResult publishAudioToMusic(
+            File encodedAudio,
             String displayName,
             String songData,
-            OggExporter.CancellationToken token) throws java.io.IOException {
+            ExportFormat format,
+            ExportCancellationToken token) throws java.io.IOException {
         checkExportCancelled(token);
         ContentResolver resolver = getContentResolver();
         ContentValues values = new ContentValues();
-        String baseName = displayName.toLowerCase(Locale.US).endsWith(".ogg")
-                ? displayName.substring(0, displayName.length() - 4)
-                : displayName;
-        String title = baseName + " [" + (seedFromSongData(songData) & 0xffffffffL) + "]";
-        String album = new SimpleDateFormat("MMMM dd yyyy", Locale.US)
-                .format(new Date()).toUpperCase(Locale.US);
+        String baseName = removeKnownAudioExtension(displayName);
+        String title = baseName + " [" +
+                (seedFromSongData(songData) & 0xffffffffL) + "]";
 
         values.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
-        values.put(MediaStore.MediaColumns.MIME_TYPE, "audio/ogg");
+        values.put(MediaStore.MediaColumns.MIME_TYPE, format.mimeType);
         values.put(MediaStore.Audio.Media.TITLE, title);
         values.put("artist", "Technomatic 2105");
-        values.put("album", album);
+        values.put("album", exportAlbumName());
         values.put("genre", channelNameFromSongData(songData));
         values.put(MediaStore.Audio.Media.IS_MUSIC, 1);
         values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC);
@@ -938,9 +992,11 @@ public final class MainActivity extends Activity {
         if (uri == null) throw new java.io.IOException("Could not create MediaStore record.");
 
         try {
-            try (InputStream input = new FileInputStream(encodedOgg);
+            try (InputStream input = new FileInputStream(encodedAudio);
                  OutputStream output = resolver.openOutputStream(uri, "w")) {
-                if (output == null) throw new java.io.IOException("Could not open public Music output stream.");
+                if (output == null) {
+                    throw new java.io.IOException("Could not open public Music output stream.");
+                }
                 byte[] buffer = new byte[64 * 1024];
                 int read;
                 while ((read = input.read(buffer)) >= 0) {
@@ -961,6 +1017,11 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private String exportAlbumName() {
+        return new SimpleDateFormat("MMMM dd yyyy", Locale.US)
+                .format(new Date()).toUpperCase(Locale.US);
+    }
+
     private void requestExportCancel() {
         if (!exportRunning) return;
         exportCancelRequested = true;
@@ -977,22 +1038,29 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExportUi() {
-        if (exportButton != null) exportButton.setText(exportRunning ? "Cancel Export" : "Export to OGG");
+        if (exportOggButton != null) exportOggButton.setEnabled(!exportRunning);
+        if (exportFlacButton != null) exportFlacButton.setEnabled(!exportRunning);
+        if (cancelExportButton != null) {
+            cancelExportButton.setEnabled(exportRunning);
+            cancelExportButton.setVisibility(exportRunning ? View.VISIBLE : View.GONE);
+        }
         if (exportStatusView != null) {
             exportStatusView.setText(exportRunning
                     ? exportStatusForUi()
-                    : "Export snapshots the current sound and renders it separately without restarting playback.");
+                    : "OGG is compact and lossy. FLAC is lossless and larger. Both exports are offline snapshots and do not restart playback.");
         }
     }
 
     private String exportStatusForUi() {
-        String phase = exportStatusText == null || exportStatusText.isEmpty() ? "Exporting OGG..." : exportStatusText;
+        String phase = exportStatusText == null || exportStatusText.isEmpty()
+                ? "Exporting " + activeExportFormat.label + "..."
+                : exportStatusText;
         return phase + " Live playback is independent. Tap Cancel Export to stop this job.";
     }
 
-    private String exportDisplayName(String requestedName) {
+    private String exportDisplayName(String requestedName, ExportFormat format) {
         String base = requestedName == null ? "" : requestedName.trim();
-        if (base.toLowerCase(Locale.US).endsWith(".ogg")) base = base.substring(0, base.length() - 4).trim();
+        base = removeKnownAudioExtension(base);
         StringBuilder cleaned = new StringBuilder();
         for (int i = 0; i < base.length(); ++i) {
             char c = base.charAt(i);
@@ -1012,7 +1080,15 @@ public final class MainActivity extends Activity {
             result = "technomatic_2105_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
         }
         if (result.length() > 96) result = result.substring(0, 96);
-        return result + ".ogg";
+        return result + format.extension;
+    }
+
+    private String removeKnownAudioExtension(String name) {
+        String value = name == null ? "" : name.trim();
+        String lower = value.toLowerCase(Locale.US);
+        if (lower.endsWith(".flac")) return value.substring(0, value.length() - 5).trim();
+        if (lower.endsWith(".ogg")) return value.substring(0, value.length() - 4).trim();
+        return value;
     }
 
     private void showExportResultDialog(boolean ok, String message) {
@@ -1024,7 +1100,7 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
-    private static void checkExportCancelled(OggExporter.CancellationToken token) throws java.io.IOException {
+    private static void checkExportCancelled(ExportCancellationToken token) throws java.io.IOException {
         if (token != null && token.isCancellationRequested()) throw new java.io.IOException("Export cancelled.");
     }
 

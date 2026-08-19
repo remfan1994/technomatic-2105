@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.27.0 - v27
+
+- Added FLAC as a second offline export format alongside OGG.
+- Added a deterministic built-in 48 kHz stereo lossless FLAC writer with embedded title, artist, album artist, album date, genre, comment, and seed metadata.
+- Unified OGG and FLAC under one snapshot export job with shared duration, filename, progress, cancellation, MediaStore publishing, and live-playback independence.
+- Added separate Export OGG and Export FLAC controls in Advanced.
+- Added a generated per-sound timbre grammar while preserving the full 48-candidate composition search.
+- Expanded the electronic synthesis bank to 12 bass models, 16 lead models, 10 pad models, and 8 drum-kit families.
+- Added generated pad voicings plus seed-stable attack, release, glide, vibrato, modulation, width, motion, body, metallic, and noise characteristics.
+- Folded timbre identity into session anti-repetition so otherwise related note grammars can be distinguished by their performed sound.
+- Kept all sound local and synthetic: no samples, network audio, neural generation, FFT, or convolution.
+- Added v27 validation for model coverage, timbre uniqueness, pad-voicing diversity, exact reconstruction, evolution, channels, history, export length, FLAC integrity, and render safety.
+- Bumped versionCode to 39 and versionName to 0.27.0.
+
 ## 0.26.0 - v26
 
 - Removed the universal 2/6/10/14 fixed pad-stab lattice that produced the recurring low-mid "DOO" tension effect across unrelated sounds.

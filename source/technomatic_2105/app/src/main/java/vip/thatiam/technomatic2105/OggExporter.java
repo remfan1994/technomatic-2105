@@ -10,10 +10,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 final class OggExporter {
-    interface CancellationToken {
-        boolean isCancellationRequested();
-    }
-
     private static final int SAMPLE_RATE = 48000;
     private static final int CHANNELS = 2;
     private static final int BYTES_PER_FRAME = CHANNELS * 2;
@@ -24,7 +20,7 @@ final class OggExporter {
     private OggExporter() {
     }
 
-    static void encodeRawPcm16ToOgg(File rawPcm, File output, CancellationToken token) throws IOException {
+    static void encodeRawPcm16ToOgg(File rawPcm, File output, ExportCancellationToken token) throws IOException {
         if (rawPcm == null || output == null) throw new IOException("Missing export file.");
         if (!rawPcm.exists() || rawPcm.length() <= 0L) throw new IOException("Missing rendered PCM data.");
         if ((rawPcm.length() % BYTES_PER_FRAME) != 0L) throw new IOException("Rendered PCM data is not frame-aligned.");
@@ -137,7 +133,7 @@ final class OggExporter {
         }
     }
 
-    private static void checkCancelled(CancellationToken token) throws IOException {
+    private static void checkCancelled(ExportCancellationToken token) throws IOException {
         if (token != null && token.isCancellationRequested()) {
             throw new IOException("Export cancelled.");
         }

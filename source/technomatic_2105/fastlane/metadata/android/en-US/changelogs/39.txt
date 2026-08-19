@@ -1,0 +1,1 @@
+Added lossless FLAC export alongside OGG. Expanded the generated instrument grammar with 12 bass models, 16 lead models, 10 pad models, 8 drum-kit families, generated pad voicings, and broader articulation while preserving the 48-candidate composition search and low-cost realtime audio path.

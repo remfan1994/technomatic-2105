@@ -248,6 +248,10 @@ private:
         // Derived from the existing identity seeds so adding tension grammar does
         // not perturb candidate selection or the established lead/bass identity.
         uint32_t tensionGrammarSeed = 0x94d049bbu;
+        // Per-sound electronic instrument identity. This is derived from the
+        // composition grammar, so expanding the sound bank does not perturb
+        // the established melody, bass, harmony, or candidate search.
+        uint32_t timbreGrammarSeed = 0x7f4a7c15u;
         uint32_t evolutionSeed = 0xc6ef3720u;
         int32_t leadContour = 0;
         int32_t leadApexStep = 7;
@@ -342,6 +346,36 @@ private:
         // 3 rare pad breath, 4 harmonic beam.
         int32_t chordArticulation = 0;
         std::array<float, kPhraseSteps> chordGate{};
+
+        // A broad but bounded per-sound instrument grammar. Each generated
+        // sound chooses a related window from these banks rather than using
+        // one universal bass, lead, pad, and drum timbre.
+        int32_t bassModel = 0;
+        int32_t leadModel = 0;
+        int32_t padModel = 0;
+        int32_t drumKit = 0;
+        int32_t padVoiceCount = 3;
+        std::array<int32_t, 4> padIntervals{{0, 2, 4, 6}};
+        float bassAttack = 0.45f;
+        float bassRelease = 0.72f;
+        float bassGlide = 0.24f;
+        float bassPulseWidth = 0.34f;
+        float bassMotion = 0.35f;
+        float leadAttack = 0.42f;
+        float leadRelease = 0.70f;
+        float leadGlide = 0.20f;
+        float leadVibratoDepth = 0.24f;
+        float leadVibratoRate = 0.45f;
+        float leadModRatio = 0.40f;
+        float leadAir = 0.18f;
+        float padAttack = 0.60f;
+        float padRelease = 0.82f;
+        float padDetune = 0.28f;
+        float padMotion = 0.30f;
+        float padWidth = 0.52f;
+        float drumBody = 0.52f;
+        float drumMetal = 0.38f;
+        float drumNoise = 0.48f;
         int32_t hookOffset = 0;
         int32_t answerOffset = 0;
         int32_t themeCount = 3;
@@ -485,6 +519,10 @@ private:
         float lp = 0.0f;
         float hp = 0.0f;
         float aux = 0.0f;
+        int32_t kit = 0;
+        float body = 0.50f;
+        float metal = 0.35f;
+        float noiseMix = 0.50f;
         uint32_t noiseState = 1u;
     };
 
@@ -503,6 +541,12 @@ private:
         float cutoff = 0.05f;
         float drive = 1.0f;
         float color = 0.0f;
+        int32_t model = 0;
+        float attackShape = 0.45f;
+        float releasePoint = 0.72f;
+        float glide = 0.24f;
+        float pulseWidth = 0.34f;
+        float motion = 0.35f;
     };
 
     struct PadVoice {
@@ -519,6 +563,12 @@ private:
         float hp = 0.0f;
         float cutoff = 0.025f;
         float color = 0.0f;
+        int32_t model = 0;
+        float attackShape = 0.60f;
+        float releasePoint = 0.82f;
+        float detune = 0.28f;
+        float motion = 0.30f;
+        float width = 0.52f;
     };
 
     struct LeadVoice {
@@ -536,6 +586,14 @@ private:
         float lp = 0.0f;
         float cutoff = 0.08f;
         float color = 0.0f;
+        int32_t model = 0;
+        float attackShape = 0.42f;
+        float releasePoint = 0.70f;
+        float glide = 0.20f;
+        float vibratoDepth = 0.24f;
+        float vibratoRate = 0.45f;
+        float modRatio = 0.40f;
+        float air = 0.18f;
         uint32_t noiseState = 1u;
     };
 
@@ -646,6 +704,7 @@ private:
     void generateBassGrammar(const StyleProfile& p);
     void generateSecondaryLayerGrammars(const StyleProfile& p);
     void generateTensionGrammar(const StyleProfile& p);
+    void generateTimbreGrammar(const StyleProfile& p);
     void deriveRelatedMotifs();
     void writeCompositionToPattern();
     void mutateDrumsOnly();

@@ -3,9 +3,9 @@
 ## Version
 
 ```text
-versionName: 0.26.0
-versionCode: 38
-tag: v0.26.0
+versionName: 0.27.0
+versionCode: 39
+tag: v0.27.0
 ```
 
 ## Build
@@ -46,10 +46,13 @@ Channel screen Back returns to main
 track rows load on tap and copy seed on long press
 Clear History remains responsive
 Advanced seed copy/load works
-OGG duration is separate from live playback
+export duration is separate from live playback
 OGG export does not restart or follow live playback
-Cancel Export works
+FLAC export does not restart or follow live playback
+Cancel Export works for both formats
 finished OGG appears under Music/
+finished FLAC appears under Music/
+FLAC decodes losslessly and contains embedded metadata
 export MediaStore title contains filename and seed
 background notification Next and Stop work
 reported seed 3290437499 no longer produces the recurring pad-stab wall near 1:27
@@ -62,6 +65,6 @@ no clipping, prolonged silence, obvious slowdown, or spontaneous seed replacemen
 ## Tag
 
 ```sh
-git tag v0.26.0
-git push origin v0.26.0
+git tag v0.27.0
+git push origin v0.27.0
 ```

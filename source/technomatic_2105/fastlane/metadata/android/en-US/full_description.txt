@@ -8,7 +8,9 @@ All pitched layers are generated from symbolic musical grammar rather than selec
 
 Tension is generated per sound rather than imposed through one universal pad rhythm. The engine uses seed-specific omission, convergence, hinge, shadow, afterimage, and rare short pad-breath devices.
 
-The main player includes Start/Stop, Channel selection, elapsed time, Previous/Restart/Next, a latest-20 track listing, seed loading, and offline OGG export. Export duration is separate from indefinite live playback.
+A generated timbre grammar selects among broad electronic bass, lead, pad, drum, articulation, and pad-voicing families for each sound. The result remains seed-stable and musically related while giving different sounds a wider performed identity.
+
+The main player includes Start/Stop, Channel selection, elapsed time, Previous/Restart/Next, a latest-20 track listing, seed loading, and offline OGG or FLAC export. Export duration is separate from indefinite live playback.
 
 Privacy and freedom properties:
 

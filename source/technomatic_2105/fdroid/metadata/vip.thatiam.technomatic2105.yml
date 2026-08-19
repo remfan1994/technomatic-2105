@@ -16,7 +16,9 @@ Description: |-
 
     Optional Channels contribute predictable character while retaining 50 percent unrestricted generation: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, and Cold Arcade. Hybrid Channels keep the first selected channel dominant and add weaker secondary influences.
 
-    All pitched layers are generated from musical grammar rather than stored finished note sequences. Each sound receives generated harmony, lead, hook, verse, bass statement/answer, counter-line, arpeggio, pulse, ornament, recall, and bounded long-form evolution.
+    All pitched layers are generated from musical grammar rather than stored finished note sequences. Each sound receives generated harmony, lead, hook, verse, bass statement/answer, counter-line, arpeggio, pulse, ornament, recall, and bounded long-form evolution. A per-sound timbre grammar selects among broad bass, lead, pad, drum, articulation, and chord-voicing families while preserving each sound's identity.
+
+    Offline export supports compact OGG and lossless FLAC files under the public Music collection.
 
     Privacy and freedom properties:
 
@@ -32,6 +34,14 @@ RepoType: git
 Repo: https://github.com/r94/technomatic-2105.git
 
 Builds:
+  - versionName: 0.27.0
+    versionCode: 39
+    commit: v0.27.0
+    subdir: .
+    gradle:
+      - yes
+    prebuild: echo "F-Droid build for Technomatic 2105 0.27.0"
+
   - versionName: 0.26.0
     versionCode: 38
     commit: v0.26.0
@@ -73,5 +83,5 @@ Builds:
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 0.26.0
-CurrentVersionCode: 38
+CurrentVersion: 0.27.0
+CurrentVersionCode: 39

@@ -22,7 +22,7 @@ Before submitting:
 
 ```text
 1. publish the source repository
-2. push tag v0.26.0
+2. push tag v0.27.0
 3. confirm repository URLs in fdroid metadata
 4. run fdroid lint/build if available
 5. submit the metadata to fdroiddata
