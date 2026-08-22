@@ -13215,3 +13215,1091 @@ clipped samples: 0
 
 The archive retains the included Gradle 8.9 wrapper. A complete Android Gradle/NDK build was not run here because this environment lacks the Android SDK and cannot download the pinned Gradle distribution.
  
+remfan1994: I guess now we need export to FLAC also.  OGG isn't really good enough or whatever.  So it should be an option in the Advanced screen, Export to OGG or FLAC.  I guess.
+
+Besides that remember to focus on the music.  Work hard making sure that the music sounds right, go over everything and make sure its all legit.  
+
+Deepen and broaden the scope of the dimensions of the musical diversity.  Have many more varied and diverse types of sounds.  Everything that is pleasing to hear.  Remembering to take into account the limitations of our hardware, and that the goal is to produce appealing music to listen to on a regular basis, that is, it must be diverse, it must be varied, and it must all be musically valid (sounds appealing)
+
+chatgpt: I will build v27 from v26, adding selectable OGG/FLAC offline export while auditing the pipeline and deepening symbolic composition and synthetic diversity within the C8 budget.
+
+remfan1994: I have a question regarding seed numbers, and if it is possible that the seed number system is hampering the ability of the engine to be more genuinely random, or sound genuinely good, or both.  because to be able to call up a seed number is of little value compared to dexterity of music generation
+
+chatgpt: The export path already yields exact 48 kHz stereo PCM; FLAC will encode that snapshot independently of the device-dependent OGG/Opus path. I'm auditing voices and palette behavior structurally.
+
+FLAC now passes byte-exact reference round-trip validation with embedded metadata. I am integrating it into Advanced while broadening timbre grammar without simply increasing simultaneous voices.
+
+remfan1994: if FLAC is not free dont use FLAC.  add a metadata editor on another screen past advanced, where metadata can be pre-loaded for artist and album and all that.  however not the song name which shall fill the metadata from the chosen filename designated in the export input field
+
+chatgpt: # Technomatic 2105 v27
+
+[Download the v27 Android source archive](sandbox:/mnt/data/technomatic_2105_android_project_v27.zip)
+
+[Download the optional 180-second v27 preview WAV](sandbox:/mnt/data/technomatic_2105_v27_preview.wav)
+
+```text
+App: Technomatic 2105
+Package: vip.thatiam.technomatic2105
+Version name: 0.27.0
+Version code: 39
+
+Source archive:
+  642,207 bytes
+  104 project/source files
+
+SHA-256:
+  dcac3ca14a9ed1f65cc8c477b65c88f60761a332960e61bd71bcd751bc689991
+
+Preview SHA-256:
+  d6faed198755042caa49ac46081bd707e98398e4aadfdbc18229f879690efedc
+```
+
+## Seed-system answer
+
+The seed system did not need to be removed. A seed does not inherently reduce musical randomness or quality. It only identifies the initial state of a deterministic generator.
+
+What could impair the engine was the old random-number implementation and an overly direct mapping from one seed stream into many musical decisions. v27 addresses that:
+
+```text
+old:
+  visible 32-bit seed
+  -> xorshift32 decision stream
+
+v27:
+  visible 32-bit seed
+  -> 64-bit SplitMix64 decision stream
+  -> separate composition grammar
+  -> separate development grammar
+  -> separate tension grammar
+  -> separate timbre grammar
+  -> 48 independently derived composition candidates
+```
+
+Therefore:
+
+```text
+seed recall:
+  retained
+
+musical dexterity:
+  not restricted to a stored seed vocabulary
+
+candidate selection:
+  all 48 candidates retained
+
+reconstruction:
+  deterministic
+
+internal evolution:
+  substantially larger than the visible seed number
+```
+
+Removing the seed would only remove reconstruction and debugging. It would not automatically make the generated music better. The important factors are the grammar, memory, candidate scoring, synthesis vocabulary, and development system.
+
+## FLAC
+
+FLAC is free to use. Xiph states that the format is available without fees or royalties for both commercial and noncommercial use. v27 does not bundle libFLAC; it uses Android's platform FLAC encoder. Android's media-format documentation lists FLAC encoding support on the platform. ([Xiph][1])
+
+The Advanced screen now offers:
+
+```text
+Export format
+
+( ) OGG
+( ) FLAC
+```
+
+The selected format is remembered.
+
+```text
+OGG:
+  Opus-compressed
+  compact
+  lossy
+
+FLAC:
+  lossless
+  substantially larger
+```
+
+Both formats remain offline snapshot exports:
+
+```text
+capture current generated-sound identity
+render a separate instance from 0:00
+encode the selected finite duration
+leave live playback unchanged
+publish to Music/
+```
+
+Output examples:
+
+```text
+Music/track1.ogg
+Music/track1.flac
+```
+
+## Metadata Editor
+
+Advanced now leads to a separate Metadata Editor screen.
+
+Preloaded fields:
+
+```text
+Artist:
+  Technomatic 2105
+
+Album Artist:
+  Technomatic 2105
+
+Album:
+  AUGUST 15 2026
+  automatically uses the export date
+  or can be replaced with a custom album value
+
+Genre:
+  current Channel
+  or a custom value
+
+Comment:
+  Generated locally by Technomatic 2105
+```
+
+The song title is deliberately absent from the metadata editor.
+
+```text
+Export filename:
+  track1
+
+Embedded TITLE:
+  track1
+```
+
+The seed is not appended to the song title. It is preserved separately:
+
+```text
+TECHNOMATIC_SEED=<seed>
+
+TECHNOMATIC_CHANNEL=<frozen channel identity>
+```
+
+The files also receive:
+
+```text
+TITLE
+ARTIST
+ALBUMARTIST
+ALBUM
+GENRE
+COMMENT
+DATE
+ENCODER
+```
+
+OGG/Opus stores these as OpusTags-style comments, whose standard representation is a sequence of `NAME=value` fields. ([IETF Datatracker][2])
+
+The tags are physically embedded in the OGG or FLAC file before it is submitted to Android's media library. They are not merely temporary MediaStore labels.
+
+## Music-engine expansion
+
+v27 broadens the sound vocabulary without samples or external audio:
+
+```text
+16 bass synthesis models
+16 lead synthesis models
+16 chord/pad synthesis models
+
+8 kick models
+8 snare models
+8 hat models
+8 percussion models
+
+12 instrument constellations
+```
+
+A synthesis model now separates oscillator topology from tone color. This prevents a Channel's brightness or roughness bias from forcing every sound into the same basic instrument.
+
+Each generated identity also receives articulation laws for:
+
+```text
+attack
+release
+glide
+filter motion
+vibrato
+tremolo
+pad motion
+stereo spread
+drum body
+metal content
+air content
+```
+
+Optional musical layers can migrate gradually during indefinite playback. Core rhythm, bass, lead, hook, and tonal identity remain recognizable while supporting roles change over longer spans.
+
+The harmonic rhythm is also generated per sound rather than relying on a single chord grid. Chord timing considers:
+
+```text
+spacing
+syncopation
+bass dialogue
+cadential pressure
+tonal home
+```
+
+Preserved:
+
+```text
+full 48-candidate search
+generated lead grammar
+generated hook grammar
+generated verse grammar
+generated bass statement/verse/answer grammar
+counter-lines
+arpeggios
+pulse phrases
+ornaments
+long-form motif memory
+bounded evolution
+Hybrid Channel dominance
+No Channel unrestricted generation
+no samples
+no network
+```
+
+## Validation
+
+Native validation passed:
+
+```text
+256 / 256 unique lead identities
+256 / 256 unique hook identities
+256 / 256 unique verse identities
+
+256 / 256 unique bass identities
+256 / 256 unique bass verses
+256 / 256 unique bass answers
+
+256 / 256 unique counter-lines
+256 / 256 unique arpeggios
+256 / 256 unique pulse identities
+256 / 256 unique ornament identities
+
+207 / 256 unique harmonic identities
+256 / 256 unique timbre grammars
+
+model coverage:
+  bass 16 / 16
+  lead 16 / 16
+  pad 16 / 16
+  kick 8 / 8
+  snare 8 / 8
+  hat 8 / 8
+  percussion 8 / 8
+
+instrument constellations:
+  12 / 12
+
+seed-stream avalanche:
+  mean 15.98 changed bits
+  minimum 8 changed bits
+
+candidate search:
+  all 48 candidates evaluated
+
+seed reconstruction:
+  sample-exact
+
+finite PCM export:
+  exact requested duration
+
+30-second native render:
+  approximately 0.86 seconds on the validation host
+```
+
+Compiler/runtime checks:
+
+```text
+GCC with warnings treated as errors:
+  passed
+
+Clang with warnings treated as errors:
+  passed
+
+AddressSanitizer:
+  passed
+
+UndefinedBehaviorSanitizer:
+  passed
+
+metadata writer round trip:
+  tagged OGG decoded successfully
+  tagged FLAC decoded successfully
+  expected metadata tags verified
+
+ZIP integrity:
+  passed
+```
+
+Preview measurements:
+
+```text
+duration: 180 seconds
+sample rate: 48000 Hz
+channels: stereo
+peak: 0.570343
+RMS: 0.088126
+clipped samples: 0
+```
+
+The complete Android Gradle/NDK build was not run here because the environment lacks the Android SDK and cannot fetch the pinned Gradle distribution. The Android platform FLAC encoder and MediaStore publication path therefore still require the final Android 13 phone test.
+
+[1]: https://xiph.org/flac/license.html "https://xiph.org/flac/license.html"
+[2]: https://datatracker.ietf.org/doc/html/rfc7845 "https://datatracker.ietf.org/doc/html/rfc7845"
+
+
+Built Technomatic 2105 v27.
+
+[Download the v27 Android source archive](sandbox:/mnt/data/technomatic_2105_android_project_v27.zip)
+
+[Download the optional 180-second v27 preview WAV](sandbox:/mnt/data/technomatic_2105_v27_preview.wav)
+
+```text
+App: Technomatic 2105
+Package: vip.thatiam.technomatic2105
+Version name: 0.27.0
+Version code: 39
+
+Source archive:
+  621,446 bytes
+  99 files
+
+SHA-256:
+  e761fd6a4f58baa02603a1b98ef73d0d998753ea5826daffd303ca75a6e9495b
+
+Preview SHA-256:
+  d2d5caad1b0f0be3c9aaa98321048bccc799f13d83f17473469ef2f5a4b464a0
+```
+
+## OGG and FLAC export
+
+Advanced now contains:
+
+```text
+Export duration
+Export filename
+
+[Export OGG] [Export FLAC]
+
+[Cancel Export]
+```
+
+Both exporters use the same snapshot model:
+
+```text
+1. Capture the current seed, candidate, Channel state, and generator data.
+2. Render that sound independently from 0:00 for the selected duration.
+3. Encode the selected format.
+4. Publish it under the public Music directory.
+```
+
+Live playback is not restarted, changed, or followed by the exporter.
+
+Outputs:
+
+```text
+Music/<filename>.ogg
+Music/<filename>.flac
+```
+
+FLAC metadata is embedded directly in the file:
+
+```text
+Artist:
+  Technomatic 2105
+
+Album Artist:
+  Technomatic 2105
+
+Title:
+  <filename> [<seed>]
+
+Album:
+  MONTHNAME DD YYYY
+
+Genre:
+  current Channel
+
+Comment:
+  Generated locally by Technomatic 2105; Seed: <seed>
+```
+
+The FLAC path uses a built-in deterministic Java encoder rather than depending on the phone having a particular FLAC encoder implementation. Reference-decoder testing confirmed:
+
+```text
+FLAC integrity test:
+  passed
+
+decoded PCM versus source PCM:
+  byte-for-byte identical
+
+metadata:
+  passed
+
+cancellation and partial-file cleanup:
+  passed
+```
+
+The current encoder prioritizes lossless correctness and predictable operation over compression efficiency. FLAC files are therefore close to raw PCM size:
+
+```text
+30-second source PCM:
+  5,760,000 bytes
+
+30-second FLAC:
+  5,764,721 bytes
+```
+
+OGG remains the compact option. FLAC is the exact-lossless option.
+
+## Musical expansion
+
+v27 adds a generated timbre grammar to the existing composition grammar. The engine does not merely select more simultaneous layers. It gives each seed its own electronic instrument system.
+
+New synthesis space:
+
+```text
+12 bass synthesis models
+16 lead synthesis models
+10 pad synthesis models
+8 drum-kit families
+generated pad voicings
+```
+
+The generated identity also controls:
+
+```text
+Bass:
+  attack
+  release
+  glide
+  pulse width
+  internal motion
+
+Lead:
+  attack
+  release
+  glide
+  vibrato depth
+  vibrato rate
+  modulation ratio
+  air/noise content
+
+Pad:
+  attack
+  release
+  detuning
+  internal motion
+  stereo-width character
+  voice count
+  chord voicing
+
+Drums:
+  body
+  metallic content
+  noise balance
+  pitch and decay character
+```
+
+The bass bank now includes identities built from combinations such as:
+
+```text
+clean sub current
+rubber pulse
+saw/sub body
+FM pressure
+asymmetric pulse
+folded oscillator
+phase-distorted bass
+ringed bass
+moving pulse
+formant-like bass
+triangle/partial bass
+stepped voltage bass
+```
+
+The lead and pad banks likewise contain independently generated pulse, FM, glass, hollow, folded, phase-displaced, spectral, harmonic, noisy, and partial-based electronic voices.
+
+No samples, sample packs, external audio, network generation, neural model, FFT, or convolution were added.
+
+## Musical coherence
+
+The new sound models are frozen into the seed's identity. They do not randomly change into unrelated instruments from note to note.
+
+The model remains:
+
+```text
+Identity:
+  establishes the sound
+
+Development:
+  changes motifs, replies, layers, register, and harmonic pressure
+
+Performance:
+  changes timing, velocity, articulation, omission, and ornamentation
+```
+
+The full quality search remains intact:
+
+```text
+48 symbolic candidate compositions generated
+48 candidates scored
+highest-scoring candidate selected
+```
+
+No candidate-count reduction or quality shortcut was introduced.
+
+Timbre is now included in the session anti-repetition fingerprint. Two candidate sounds with related note grammar but substantially different electronic performance identities are distinguished appropriately.
+
+## Validation
+
+Native strict compilation:
+
+```text
+GCC:
+  passed with -Wall -Wextra -Werror
+
+Clang:
+  passed with -Wall -Wextra -Werror
+
+AddressSanitizer:
+  passed
+
+UndefinedBehaviorSanitizer:
+  passed
+```
+
+Across 256 tested seeds:
+
+```text
+unique timbre identities:
+  256 / 256
+
+bass model coverage:
+  12 / 12
+
+lead model coverage:
+  16 / 16
+
+pad model coverage:
+  10 / 10
+
+drum-kit coverage:
+  8 / 8
+
+distinct generated pad voicings:
+  44
+```
+
+The established music tests also passed:
+
+```text
+generated lead identity
+generated hook identity
+generated verse identity
+generated bass statement
+generated bass verse
+generated bass answer
+counter-line generation
+arpeggio generation
+pulse generation
+ornament generation
+harmonic diversity
+tension-grammar diversity
+sample-exact seed reconstruction
+bounded long-form development
+hook recognizability
+greater verse freedom
+Hybrid Channel dominance
+Channel isolation
+20-entry history cap
+exact export duration
+```
+
+A level sweep over 128 seeds, rendering eight seconds from each, measured:
+
+```text
+minimum RMS:
+  0.084138
+
+mean RMS:
+  0.095024
+
+maximum RMS:
+  0.132186
+
+maximum peak:
+  0.641663
+
+maximum absolute DC:
+  0.000372
+
+clipped or non-finite samples:
+  0
+```
+
+A continuous 20-minute native render measured:
+
+```text
+rendered duration:
+  1200 seconds
+
+host render time:
+  32.906 seconds
+
+host realtime factor:
+  36.47x
+
+RMS:
+  0.099511
+
+peak:
+  0.641663
+
+non-finite samples:
+  0
+
+final engine elapsed time:
+  1200 seconds
+```
+
+That is not a Stratus C8 benchmark, but it indicates that the broader sound system did not impose a large host-side computational penalty.
+
+The preview measured:
+
+```text
+duration:
+  180 seconds
+
+sample rate:
+  48 kHz stereo
+
+peak:
+  0.509003
+
+RMS:
+  0.104361
+
+5-second RMS range:
+  0.083773 to 0.131466
+
+clipped samples:
+  0
+
+silent 5-second windows:
+  0
+```
+
+The source ZIP passed integrity testing and retains executable permissions on `gradlew`. A complete Android SDK/NDK build and Stratus C8 installation test were not possible in this environment; the phone build remains the final integration test for Android MediaStore publication, the device OGG codec, and actual on-device realtime margin.
+
+
+remfan1994: The sounds are good, look, I noticed this, that seeds are 7 digits.  I ran a series of seed numbers typed the same 7 digits and selected different channels from the channel list each time.  I noticed it is the song in the seed + channel filter.  So I was thinking this: if the channels are activated, why change seed number and discontinue playing the track, why not just filter the current seed with the channel selector, maybe even without stopping and resuming playback (yet maybe with, because to hear the same intro in different channels can be an intuitivity-building experience)
+
+and also we should expand our track history slightly.  it should list seed numbers and durations.
+
+what do you think about this feature, export to ogg/flac and infinite duration by supplying start and end timeframe
+
+chatgpt: Yes. I checked the v27 path, and your observation exposes a better model for channels.
+
+At present, changing the channel while music is playing ultimately forces a new piece, and the native engine derives a new seed. So the current behavior is effectively:
+
+```text
+change channel
+-> discard current musical identity
+-> create new seed
+-> generate another sound under the channel
+```
+
+That is unnecessary. The seed already contains the main generated musical identity, while the channel supplies a predictable character bias.
+
+A more useful algebra is:
+
+```text
+core sound = seed + candidate
+
+channel rendition = core sound filtered through channel character
+```
+
+rather than:
+
+```text
+new sound = new seed + channel
+```
+
+## Recommended channel behavior
+
+When the user changes channels:
+
+```text
+keep:
+  seed
+  candidate
+  tonal center
+  harmony
+  lead motifs
+  bass grammar
+  rhythmic identity
+  composition memory
+
+change:
+  instrument voicing
+  drum character
+  density
+  brightness
+  roughness
+  space
+  articulation
+  layer emphasis
+  tempo character, within limits
+```
+
+The current seed would be reinterpreted rather than replaced.
+
+For example:
+
+```text
+Seed 3290437499
+No Channel
+
+Seed 3290437499
+Soft Voltage
+
+Seed 3290437499
+Heavy Orbit
+
+Seed 3290437499
+Soft Voltage + Heavy Orbit
+```
+
+These should be recognizable as renditions of the same generated musical idea.
+
+## Restart or change live?
+
+Both are mathematically possible, but I recommend restarting the same seed from 0:00 when the channel changes.
+
+That produces the intuitive comparison you described:
+
+```text
+same introduction
+same motifs
+same composition
+different channel interpretation
+```
+
+It also has practical advantages:
+
+```text
+no new seed
+no uncertain transitional state
+no old-channel residues
+exact history reconstruction
+exact export reconstruction
+clear comparison between channels
+```
+
+A seamless live morph is possible, but it is substantially riskier.
+
+There are two ways to do it:
+
+```text
+1. Run a second engine at the same elapsed position and crossfade.
+   Problem: briefly doubles CPU usage.
+
+2. Interpolate channel parameters inside the live engine.
+   Problem: can recreate the apparent channel-bleed problem.
+```
+
+On the Stratus C8, restarting the same seed is the safer and clearer default. A short fade-out and fade-in of perhaps 20-100 milliseconds can prevent clicks without making the change feel slow.
+
+The sequence should be:
+
+```text
+user changes channel
+-> capture current seed and candidate
+-> clear voices, delays, and transient audio state
+-> reload the same seed and candidate with the new channel
+-> begin at 0:00
+```
+
+No new seed should be generated.
+
+## A deeper engine correction
+
+Currently, channels participate fairly early in candidate construction. The internal sound is approximately:
+
+```text
+sound = Generate(seed, candidate, channel)
+```
+
+For genuinely comparable channel renditions, the cleaner long-term architecture is:
+
+```text
+composition core = Generate(seed, candidate)
+
+channel rendition = Render(composition core, channel)
+```
+
+The core would contain:
+
+```text
+motifs
+bass grammar
+harmony
+rhythmic grammar
+section memory
+development paths
+```
+
+The channel would influence:
+
+```text
+synthesis models
+instrument constellation
+drum kit
+tempo multiplier
+density
+layer probabilities
+articulation
+brightness
+roughness
+space
+```
+
+That separation would make channels behave more like real "stations" or interpretations rather than alternate seed generators.
+
+It is a meaningful refactor, but it matches what you discovered through listening.
+
+## Track history
+
+The history should record channel renditions as complete sound states, not only loose seed numbers.
+
+Internally, each history entry should retain:
+
+```text
+seed
+candidate
+channel mask
+hybrid mode
+dominant channel
+elapsed listening duration
+generator format version
+```
+
+The visible row can be:
+
+```text
+3290437499  Soft Voltage  12:48
+3290437499  Heavy Orbit   08:31
+947202183   No Channel    37:05
+```
+
+The duration should mean:
+
+```text
+how long that history entry was listened to
+```
+
+because live playback no longer has a predetermined endpoint.
+
+Behavior:
+
+```text
+current entry:
+  duration updates while playing
+
+when leaving that entry:
+  elapsed duration is frozen
+
+Restart:
+  does not add a duplicate entry
+
+channel change:
+  creates a new rendition entry with the same seed
+
+Previous:
+  restores seed, candidate, channel, and position policy
+
+Next:
+  moves forward through history
+  generates a new seed only at the newest end
+```
+
+The candidate and channel details can remain hidden, but they must be stored. Seed alone is not always enough to reconstruct the exact rendition.
+
+The existing 20-entry cap remains sensible.
+
+## Start/end export from an infinite sound
+
+This is a strong feature and a cleaner model than a single export-duration field.
+
+Advanced could contain:
+
+```text
+Export filename:
+track1
+
+Start:
+00:00:00
+
+End:
+00:05:00
+
+[Export OGG]
+[Export FLAC]
+```
+
+The exported duration is:
+
+```text
+duration = end - start
+```
+
+Examples:
+
+```text
+Start 00:00:00
+End   00:03:00
+-> export first 3 minutes
+
+Start 00:12:30
+End   00:17:00
+-> export a 4 minute 30 second passage
+```
+
+The live sound can remain infinite. The exported file is necessarily finite because the user supplies an end time.
+
+The exporter should snapshot:
+
+```text
+seed
+candidate
+channel configuration
+start time
+end time
+metadata
+filename
+```
+
+Then it should:
+
+```text
+1. Create a separate engine.
+2. Reconstruct the exact seed/candidate/channel rendition.
+3. Render from 0:00 to the requested start and discard those samples.
+4. Encode samples from Start through End.
+5. Publish the OGG or FLAC file.
+6. Leave live playback completely untouched.
+```
+
+Mathematically:
+
+```text
+export =
+  Render(seed, candidate, channel, t)
+  for start <= t < end
+```
+
+## Long start times
+
+There is one practical issue.
+
+To export:
+
+```text
+2:00:00 through 2:05:00
+```
+
+the simplest deterministic method must first generate and discard the initial two hours so the engine's musical memory reaches the correct state.
+
+That is still much faster than real time because offline rendering runs faster than playback, but it consumes CPU and battery. FLAC files are also large:
+
+```text
+48 kHz
+16-bit
+stereo
+approximately 691 MB per hour before effective compression
+```
+
+For ordinary sections of a few minutes or tens of minutes, this is acceptable.
+
+For very distant start points, a later enhancement could store periodic engine checkpoints:
+
+```text
+0:00
+5:00
+10:00
+15:00
+...
+```
+
+Then export can begin from the nearest checkpoint instead of recomputing the whole timeline.
+
+Checkpointing is not necessary for the first implementation.
+
+## Metadata for segmented exports
+
+The exported file should retain:
+
+```text
+TITLE=<chosen filename>
+ARTIST=<metadata editor value>
+ALBUMARTIST=<metadata editor value>
+ALBUM=<metadata editor value or export date>
+GENRE=<channel or Hybrid>
+TECHNOMATIC_SEED=<seed>
+TECHNOMATIC_CANDIDATE=<candidate>
+TECHNOMATIC_START=<start time>
+TECHNOMATIC_END=<end time>
+```
+
+That makes the file reproducible and records where the excerpt came from.
+
+## Seed length
+
+The seed system is not restricted to seven digits. v27 accepts unsigned 32-bit values:
+
+```text
+0 through 4294967295
+```
+
+so seeds can contain up to ten decimal digits. The seven-digit seeds you encountered were a property of those generated values, not the actual seed-space limit.
+
+## Recommended next-version contract
+
+```text
+Channel change:
+  preserve current seed
+  preserve candidate
+  restart at 0:00
+  regenerate only the channel rendition
+  never create a new seed
+
+History:
+  show seed, channel, and listened duration
+  retain hidden candidate/channel reconstruction data
+  keep newest entries first
+  retain the 20-entry cap
+
+Export:
+  OGG or FLAC
+  Start and End time instead of one duration
+  independent offline rendering
+  live playback remains untouched
+
+Architecture:
+  separate composition identity from channel interpretation
+```
+
+This would turn channels into a much more meaningful feature: the user could learn what each channel does by hearing the same generated idea expressed through each one.
+
+remfan1994: Then lets do that.  and also I noticed probably you have only rudimentary opening/outro development.  Like it seems to exist yet musically is only rushed and mathematically precise and musically is unaesthetic if you get what i mean.  so I don't know if you want to look at that too
