@@ -15,12 +15,13 @@ public final class NativeAudio {
     public static native void setGenreMask(int mask);
     public static native void setGenreBlendMode(int mode);
     public static native void setGenrePrimary(int mode);
-    public static native void setGenreStateAndForceNew(int mask, int mode, int primary);
+    public static native void setGenreStateAndRerenderCurrent(int mask, int mode, int primary);
     public static native String currentSongData();
     public static native String historyData();
     public static native void clearHistory();
     public static native boolean loadSongData(String data);
     public static native boolean exportPcm16ToFile(String data, int seconds, String path);
+    public static native boolean exportPcm16RangeToFile(String data, int startSeconds, int endSeconds, String path);
     public static native void cancelExportRender();
     public static native int currentGenreMask();
     public static native int currentGenreBlendMode();

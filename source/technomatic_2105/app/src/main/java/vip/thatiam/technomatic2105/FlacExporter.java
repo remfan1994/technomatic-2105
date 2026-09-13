@@ -160,7 +160,7 @@ final class FlacExporter {
         addTag(fields, "COMMENT", m.comment);
 
         ByteArrayOutputStream data = new ByteArrayOutputStream(256);
-        byte[] vendor = "Technomatic 2105 v27".getBytes(StandardCharsets.UTF_8);
+        byte[] vendor = "Technomatic 2105 v28".getBytes(StandardCharsets.UTF_8);
         writeU32LE(data, vendor.length);
         data.write(vendor);
         writeU32LE(data, fields.size());

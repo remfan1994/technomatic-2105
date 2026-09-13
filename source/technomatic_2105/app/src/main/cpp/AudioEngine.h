@@ -24,12 +24,13 @@ public:
     void setGenreMask(int32_t mask);
     void setGenreBlendMode(int32_t mode);
     void setGenrePrimary(int32_t mode);
-    void setGenreStateAndForceNew(int32_t mask, int32_t mode, int32_t primary);
+    void setGenreStateAndRerenderCurrent(int32_t mask, int32_t mode, int32_t primary);
     std::string currentSongData() const;
     std::string historyData() const;
     void clearHistory();
     bool loadSongData(const std::string& data);
     bool exportPcm16ToFile(const std::string& data, int32_t seconds, const std::string& path);
+    bool exportPcm16RangeToFile(const std::string& data, int32_t startSeconds, int32_t endSeconds, const std::string& path);
     int32_t currentGenreMask() const;
     int32_t currentGenreBlendMode() const;
     int32_t currentGenrePrimary() const;
@@ -50,6 +51,7 @@ private:
     MusicEngine mMusic;
     std::atomic<bool> mNextRequested{false};
     std::atomic<bool> mForceNewRequested{false};
+    std::atomic<bool> mChannelRenditionRequested{false};
     std::atomic<bool> mGenreMaskChangeRequested{false};
     std::atomic<bool> mGenreBlendModeChangeRequested{false};
     std::atomic<bool> mGenrePrimaryChangeRequested{false};
@@ -60,6 +62,7 @@ private:
     mutable std::mutex mSongDataLock;
     std::string mPendingSongData;
     bool mPlaying = false;
+    bool mMusicInitialized = false;
 };
 
 } // namespace rb

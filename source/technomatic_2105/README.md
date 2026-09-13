@@ -2,7 +2,7 @@
 
 Technomatic 2105 is an Android procedural electronic music player. It synthesizes music locally on the phone without samples, network access, accounts, advertising, analytics, trackers, or external audio assets.
 
-Version 0.27.0 retains one live playback model: a generated sound continues indefinitely and develops within its own identity until the listener explicitly changes it. The former Continuous Radio and Hold Sound modes, their automatic seed replacement, and their live duration policy have been removed.
+Version 0.28.0 retains one live playback model: a generated sound continues indefinitely and develops within its own identity until the listener explicitly changes it. The former Continuous Radio and Hold Sound modes, their automatic seed replacement, and their live duration policy have been removed.
 
 ## Live playback model
 
@@ -15,16 +15,9 @@ Playback: one indefinitely evolving sound
 
 No Channel leaves the generator unrestricted. The current seed remains fixed during ordinary playback. The engine continues producing related statements, answers, returns, variations, layer changes, and gradual bounded development without automatically replacing the sound with another seed.
 
-A new sound is created only by an explicit action such as:
+A new composition seed is created only by an explicit action such as Next or loading another seed/history entry. Changing the Channel does not create a new seed. It reloads the same seed and winning candidate from 0:00 as another rendition, preserving its motifs, harmony, bass grammar, form, and memory while changing electronic instrumentation, articulation, tempo character, density, space, and other Channel traits.
 
-```text
-Next
-loading a seed
-loading a history entry
-changing the Channel selection
-```
-
-Restart returns the current sound to its beginning. Previous and Next navigate the latest-20 history when corresponding entries exist; Next creates a new seed only at the forward end of history.
+Restart returns the current rendition to its beginning. Previous and Next navigate the latest-20 history when corresponding entries exist; Next creates a new seed only at the forward end of history.
 
 ## Main screen
 
@@ -38,7 +31,7 @@ Track Listing (latest 20)
 Clear History
 ```
 
-Elapsed time is informational and has no live playback limit. History rows show the frozen Channel identity for each sound. Tap a row to load it. Long-press a row to copy its seed.
+Elapsed time is informational and has no live playback limit. History rows show Channel, seed, and actual listened duration. Same-seed Channel renditions receive distinct entries. Tap a row to load it. Long-press a row to copy its seed.
 
 ## Channels
 
@@ -67,7 +60,7 @@ No Channel is 100 percent unrestricted generation. Each named Channel is approxi
 50 percent selected Channel character
 ```
 
-Hybrid Channels combine several selected Channels. The first selected Channel remains dominant; later selections provide weaker secondary influence. Channel state is frozen into the generated sound, seed snapshot, history entry, and OGG export.
+Hybrid Channels combine several selected Channels. The first selected Channel remains dominant; later selections provide weaker secondary influence. Channel state is frozen into each rendition, history entry, and export snapshot. Selecting another Channel preserves the composition core and restarts it at 0:00 under the new rendition.
 
 ## Generated tension grammar
 
@@ -143,19 +136,27 @@ session anti-repetition memory between manually generated sounds
 
 The audio path remains conservative for low-cost Android hardware: fixed-size voices, no sample decoding, no neural model, no convolution, and no file IO in the audio callback.
 
+## Generated openings and endings
+
+Openings are generated as part of each composition rather than imposed as a fixed four-bar buildup. Each seed receives a 3-8 phrase reveal grammar, one of six opening geometries, and independent entrance timing for drums, bass, lead, and harmony.
+
+Live playback remains indefinite and therefore has no forced ending. Finite OGG/FLAC exports receive a 3-8 phrase ending grammar. Some resolve through a generated tonal cadence; others dissolve by allowing different layers to leave at different rates. A short edge fade remains only for click prevention.
+
 ## Advanced screen
 
 ```text
 Load seed
 Current seed: tap to copy
-Export duration
-Export filename
+Export start
+Export end
+Export filename / song title
 Export OGG
 Export FLAC
+Metadata Editor
 Cancel Export
 ```
 
-Live playback is indefinite. Export duration is a separate finite setting and does not limit or restart live playback.
+Live playback is indefinite. Export Start and End define a finite timeline excerpt and do not limit, restart, or otherwise alter live playback.
 
 Both formats snapshot the current generated sound and render it offline in parallel with listening:
 
@@ -181,10 +182,10 @@ Metadata is supplied as:
 ```text
 Artist: Technomatic 2105
 Album Artist: Technomatic 2105
-Title: <filename> [<seed>]
+Title: <filename>
 Album: MONTHNAME DD YYYY
-Genre: current Channel
-Comment: generated locally, including the seed
+Genre: metadata value or current Channel
+Comment: metadata value plus seed and export range
 ```
 
 FLAC stores these values inside the file as Vorbis comments as well as publishing the standard MediaStore fields.
@@ -235,7 +236,7 @@ Do not commit signing keys or passwords.
 Suggested tag:
 
 ```text
-v0.27.0
+v0.28.0
 ```
 
 Draft F-Droid metadata is under:

@@ -72,9 +72,9 @@ Java_vip_thatiam_technomatic2105_NativeAudio_setGenrePrimary(JNIEnv*, jclass, ji
 
 
 extern "C" JNIEXPORT void JNICALL
-Java_vip_thatiam_technomatic2105_NativeAudio_setGenreStateAndForceNew(JNIEnv*, jclass, jint mask, jint mode, jint primary) {
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenreStateAndRerenderCurrent(JNIEnv*, jclass, jint mask, jint mode, jint primary) {
     std::lock_guard<std::mutex> guard(gLock);
-    engine()->setGenreStateAndForceNew(static_cast<int32_t>(mask), static_cast<int32_t>(mode), static_cast<int32_t>(primary));
+    engine()->setGenreStateAndRerenderCurrent(static_cast<int32_t>(mask), static_cast<int32_t>(mode), static_cast<int32_t>(primary));
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -124,6 +124,28 @@ Java_vip_thatiam_technomatic2105_NativeAudio_exportPcm16ToFile(JNIEnv* env, jcla
     env->ReleaseStringUTFChars(path, pathChars);
     gExportCancel.store(false, std::memory_order_relaxed);
     const bool ok = rb::MusicEngine::exportPcm16File(dataValue, static_cast<int32_t>(seconds), pathValue, &gExportCancel);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_exportPcm16RangeToFile(
+        JNIEnv* env, jclass, jstring data, jint startSeconds, jint endSeconds, jstring path) {
+    if (!data || !path) return JNI_FALSE;
+    const char* dataChars = env->GetStringUTFChars(data, nullptr);
+    if (!dataChars) return JNI_FALSE;
+    const char* pathChars = env->GetStringUTFChars(path, nullptr);
+    if (!pathChars) {
+        env->ReleaseStringUTFChars(data, dataChars);
+        return JNI_FALSE;
+    }
+    std::string dataValue(dataChars);
+    std::string pathValue(pathChars);
+    env->ReleaseStringUTFChars(data, dataChars);
+    env->ReleaseStringUTFChars(path, pathChars);
+    gExportCancel.store(false, std::memory_order_relaxed);
+    const bool ok = rb::MusicEngine::exportPcm16RangeFile(
+        dataValue, static_cast<int32_t>(startSeconds), static_cast<int32_t>(endSeconds),
+        pathValue, &gExportCancel);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 

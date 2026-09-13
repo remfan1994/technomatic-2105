@@ -49,9 +49,15 @@ bool AudioEngine::start() {
     mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
     mMusic.setGenrePrimary(mGenrePrimary.load(std::memory_order_acquire));
 
-    const uint32_t seed = static_cast<uint32_t>(
-            std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    mMusic.reset(seed);
+    if (!mMusicInitialized) {
+        const uint32_t seed = static_cast<uint32_t>(
+                std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        mMusic.reset(seed);
+        mMusicInitialized = true;
+        // The first reset already used the selected Channel state. Do not
+        // immediately regenerate the identical rendition on the first callback.
+        mChannelRenditionRequested.store(false, std::memory_order_release);
+    }
     if (mLoadSongDataRequested.load(std::memory_order_acquire)) {
         std::string data;
         {
@@ -105,7 +111,7 @@ void AudioEngine::setGenrePrimary(int32_t primary) {
     mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
 }
 
-void AudioEngine::setGenreStateAndForceNew(int32_t mask, int32_t mode, int32_t primary) {
+void AudioEngine::setGenreStateAndRerenderCurrent(int32_t mask, int32_t mode, int32_t primary) {
     mask = std::max(0, std::min(4095, mask));
     mode = std::max(0, std::min(1, mode));
     primary = std::max(0, std::min(12, primary));
@@ -115,7 +121,7 @@ void AudioEngine::setGenreStateAndForceNew(int32_t mask, int32_t mode, int32_t p
     mGenreMaskChangeRequested.store(true, std::memory_order_release);
     mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
     mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
-    mForceNewRequested.store(true, std::memory_order_release);
+    mChannelRenditionRequested.store(true, std::memory_order_release);
 }
 
 std::string AudioEngine::currentSongData() const {
@@ -142,6 +148,11 @@ bool AudioEngine::loadSongData(const std::string& data) {
 
 bool AudioEngine::exportPcm16ToFile(const std::string& data, int32_t seconds, const std::string& path) {
     return MusicEngine::exportPcm16File(data, seconds, path);
+}
+
+bool AudioEngine::exportPcm16RangeToFile(const std::string& data, int32_t startSeconds,
+                                         int32_t endSeconds, const std::string& path) {
+    return MusicEngine::exportPcm16RangeFile(data, startSeconds, endSeconds, path);
 }
 
 int32_t AudioEngine::currentGenreMask() const {
@@ -214,6 +225,13 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
         if (!data.empty()) {
             mMusic.loadSongData(data);
         }
+    }
+
+    if (mChannelRenditionRequested.exchange(false, std::memory_order_acq_rel)) {
+        mMusic.rerenderCurrentWithChannel(
+            mGenreMask.load(std::memory_order_acquire),
+            mGenreBlendMode.load(std::memory_order_acquire),
+            mGenrePrimary.load(std::memory_order_acquire));
     }
 
     if (mForceNewRequested.exchange(false, std::memory_order_acq_rel)) {

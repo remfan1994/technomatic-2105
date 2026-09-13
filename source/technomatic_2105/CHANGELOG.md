@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.0 - v28
+
+- Reworked Channels as renditions of the current generated composition: changing Channels now preserves the visible seed, winning candidate, harmony, lead and bass grammar, motifs, form, and musical memory.
+- Channel changes restart the same composition at 0:00 with a clean audio state, allowing direct comparison of the same introduction under No Channel, a named Channel, or a dominant Hybrid Channel.
+- Kept Next as the explicit new-seed operation; Channel selection no longer creates an unrelated seed.
+- Expanded latest-20 history rows to show Channel, seed, and actual listened duration, with separate entries for same-seed Channel renditions.
+- Replaced single export duration with Start and End time controls for OGG and FLAC timeline excerpts from an indefinitely evolving sound.
+- Added a separate Metadata Editor for Artist, Album Artist, Album, Genre, and Comment; export filename remains the song title.
+- Rebuilt openings as 3-8 phrase, seed-specific reveal grammars with six geometries and independently ordered drum, bass, lead, and harmony entrances.
+- Rebuilt finite export endings as 3-8 phrase generated arrivals or staggered dissolves, with five ending geometries and phrase-level cadence placement instead of a rushed final-second fade.
+- Preserved the full 48-candidate composition search and all-local electronic synthesis.
+- Bumped versionCode to 40 and versionName to 0.28.0.
+
 ## 0.27.0 - v27
 
 - Added FLAC as a second offline export format alongside OGG.

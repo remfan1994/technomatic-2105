@@ -24,7 +24,7 @@ public final class AudioService extends Service {
     public static final String EXTRA_GENRE_BLEND_MODE = "vip.thatiam.technomatic2105.GENRE_BLEND_MODE";
     public static final String EXTRA_GENRE_PRIMARY = "vip.thatiam.technomatic2105.GENRE_PRIMARY";
     public static final String EXTRA_SONG_DATA = "vip.thatiam.technomatic2105.SONG_DATA";
-    public static final String EXTRA_FORCE_RESTART = "vip.thatiam.technomatic2105.FORCE_RESTART";
+    public static final String EXTRA_RERENDER_CURRENT = "vip.thatiam.technomatic2105.RERENDER_CURRENT";
 
     private static final String CHANNEL_ID = "technomatic_2105_playback";
     private static final int NOTIFICATION_ID = 2105;
@@ -66,11 +66,11 @@ public final class AudioService extends Service {
             return START_NOT_STICKY;
         }
 
-        if (intent != null && intent.getBooleanExtra(EXTRA_FORCE_RESTART, false)) {
+        if (intent != null && intent.getBooleanExtra(EXTRA_RERENDER_CURRENT, false)) {
             int mask = intent.getIntExtra(EXTRA_GENRE_MASK, NativeAudio.currentGenreMask());
             int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, NativeAudio.currentGenreBlendMode());
             int primary = intent.getIntExtra(EXTRA_GENRE_PRIMARY, NativeAudio.currentGenrePrimary());
-            NativeAudio.setGenreStateAndForceNew(mask, mode, primary);
+            NativeAudio.setGenreStateAndRerenderCurrent(mask, mode, primary);
             if (!NativeAudio.isPlaying()) {
                 startPlayback();
             }

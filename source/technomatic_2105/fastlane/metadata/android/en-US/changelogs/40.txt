@@ -1,0 +1,9 @@
+Technomatic 2105 v0.28.0
+
+- Channels now reinterpret the current seed instead of generating a new seed.
+- Preserve candidate, motifs, harmony, bass grammar, form, and memory across Channel renditions.
+- Show Channel, seed, and listened duration in latest-20 history.
+- Add Start/End timeline export for OGG and FLAC.
+- Add a separate export Metadata Editor.
+- Replace rushed fixed openings/endings with generated multi-phrase boundary grammar.
+- Preserve the full 48-candidate composition search.

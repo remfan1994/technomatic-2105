@@ -17,6 +17,7 @@ public:
     void reset(uint32_t seed);
     void next();
     void forceNewPiece();
+    void rerenderCurrentWithChannel(int32_t mask, int32_t mode, int32_t primary);
     void setGenreMask(int32_t mask);
     void setGenreBlendMode(int32_t mode);
     void setGenrePrimary(int32_t mode);
@@ -32,6 +33,8 @@ public:
     double currentElapsedSeconds() const;
     static bool decodeSongData(const std::string& data, uint32_t& seedOut, int32_t& secondsOut);
     static bool exportPcm16File(const std::string& data, int32_t seconds, const std::string& path, const std::atomic<bool>* cancelFlag = nullptr);
+    static bool exportPcm16RangeFile(const std::string& data, int32_t startSeconds, int32_t endSeconds,
+                                     const std::string& path, const std::atomic<bool>* cancelFlag = nullptr);
 
 private:
     static constexpr int kPatternSteps = 64;
@@ -49,6 +52,7 @@ private:
     static constexpr int kMaxFormSlots = 16;
     static constexpr int kMaxProgressionSlots = 8;
     static constexpr int kThemeSlots = 8;
+    static constexpr int kBoundarySlots = 8;
     static constexpr int kGenreModeCount = 12;
     static constexpr int32_t kIndefinitePieceSteps = 1000000000;
     static constexpr int32_t kDefaultExportSeconds = 180;
@@ -283,6 +287,22 @@ private:
         float harmonyEvolution = 0.34f;
         int32_t sectionPhraseLength = 8;
         int32_t hookCycle = 4;
+        // Generated boundary grammar. Openings reveal the existing identity in a
+        // seed-specific order; finite exports close it over complete phrases.
+        uint32_t boundaryGrammarSeed = 0x6a09e667u;
+        int32_t introPhrases = 3;
+        int32_t introShape = 0;
+        int32_t introDrumEntry = 1;
+        int32_t introBassEntry = 0;
+        int32_t introLeadEntry = 1;
+        int32_t introChordEntry = 0;
+        float introCurve = 1.0f;
+        std::array<PhraseType, kBoundarySlots> introForm{};
+        int32_t outroPhrases = 4;
+        int32_t outroShape = 0;
+        int32_t outroCadencePos = 12;
+        float outroCurve = 1.0f;
+        std::array<PhraseType, kBoundarySlots> outroForm{};
         int32_t formLength = 8;
         int32_t progressionLength = 4;
         std::array<int32_t, kMaxProgressionSlots> chordRoot{};
@@ -684,17 +704,20 @@ private:
     std::array<uint32_t, kRecentMotifHashes> mRecentMotifHash{};
     int32_t mRecentMotifHashWrite = 0;
 
-    StyleProfile profile(StyleType style) const;
+    StyleProfile profile(StyleType style, bool includeChannel = true) const;
     StyleType randomStyle();
     int32_t chooseGenreModeFromMask(int32_t genreMask);
     StyleProfile channelProfile(int32_t mode, const StyleProfile& base) const;
     void mixProfile(StyleProfile& target, const StyleProfile& source, float amount) const;
     void applyChannelBias(StyleProfile& p) const;
+    void applyChannelRenditionToCurrent();
     float scoreCurrentComposition() const;
     int32_t pieceStepsFromSeconds(int32_t seconds, float bpm) const;
     void generateSeededSong(uint32_t seed);
     void updateCurrentSongData();
     void recordCurrentSongDataToHistory();
+    void finalizeCurrentHistoryEntry();
+    std::string dataWithListeningDuration(const std::string& data, int32_t seconds) const;
     void applySongDataOverrides(const std::string& data);
     void generatePattern(StyleType style);
     void generateComposition(const StyleProfile& p);
@@ -705,6 +728,7 @@ private:
     void generateSecondaryLayerGrammars(const StyleProfile& p);
     void generateTensionGrammar(const StyleProfile& p);
     void generateTimbreGrammar(const StyleProfile& p);
+    void generateBoundaryGrammar(const StyleProfile& p);
     void deriveRelatedMotifs();
     void writeCompositionToPattern();
     void mutateDrumsOnly();
@@ -715,6 +739,11 @@ private:
     bool isMotifHashRecent(uint32_t hash) const;
     int32_t currentChordRoot(int32_t step) const;
     int32_t outroGravitySteps() const;
+    int32_t effectiveIntroPhrases() const;
+    int32_t effectiveOutroPhrases() const;
+    int32_t outroStartStep() const;
+    float boundaryEnvelope(int32_t phrase, int32_t phrasePos, int32_t entryPhrase,
+                           int32_t totalPhrases, float curve) const;
     SectionType currentSectionType(int32_t step) const;
     PhraseType currentPhraseType(int32_t step) const;
     int32_t grammarDegree(PhraseType phrase, int32_t phrasePos, int32_t chordRoot, bool& isRest, float& gate, float& dur) const;
