@@ -14761,3 +14761,129 @@ clipped samples:
 The included wrapper remains pinned to Gradle 8.9. A complete Android SDK/NDK Gradle build and Stratus C8 installation test were not possible here because the Android SDK and cached Gradle 8.9 distribution are absent from this environment.
 
 
+remfna1994: we have to resume work on TECHNOMATIC 2105.  we left off at version 28 as far as I remember technomatic_2105_android_project_v28.zip 
+
+Remember to stay dedicated to the main idea:  Technomatic 2105 is supposed to be a music-centric (no special effects) alternative to listening to popular radio.  So it randomly generates music in a variety of styles (all original, nothing ripped off from radio programming) in order to keep interesting.  So the main focus of TECHNOMATIC 2105 is keeping music musical (the law of music, the grammar of the melodies, the recognition of a theme throughout a tune) without sacrificing flexibility to make different-sounding music from one generation to the next (that is, there are a variety of styles and the melodies never repeat -- the same song can play infinitely and improvises always-unique note sequences as it goes)
+
+main thing techonmatic needs, is to check its metadata editor.  This thing working?  I couldn't find the metadata even though I used mediainfo and ogg/opus-tools to try to.  Well, whether its working or not, the seed number should be automatically affixed into the metadata.  I'll suggest in the notes, it should have the seed number and the selected channels waiting for me there when I click "edit metadata" so I don't have to type those.   I've been using all channels so its like "141414419 all channels neon drift dominant"
+
+
+other than that I was thinking the channels needs to be reconsidered.  it sounds best with all channels activated instead of with no channels selected.  is there something wrong with our channels, do they restrict the randomness too much?  maybe they should be discontinued to let the engine make the best sounds
+
+so as for a review after having listened to technomatic 2105 much, it is just white noise unless you are listening for the rhymes in the note sequences.  then it is like a badass rapper (sounds great) so I think this product is top notch and very special (reveals that music has to be paid attention to in order for it to be appreciated).  this is pretty legit, however, I had a different vision for technomatic 2105, that it is to replace radio-listening means that it should have more variety than it has.  we have some variety yet not enough.  we don't have enough slow jams for example.  not to steal anyone's style, however, it is like, up tempo (what it all is right now pretty much) is cool like half the time.  so don't forget we don't copy human styles, we make our own musical designs and devices.  so you have to be creative here.  make sure to make a variety of musical sounds so it isnt just a selection from a small pool (remember when the bass was only 6 styles of bass to choose from for every track?  that was awful).  
+
+alright so the priority here is to sound tight.  the hype should be hyper, the mellow should be mellower, and the sick should be sicker.  follow?  pro model is enabled for you to code
+
+
+chatgpt: I resumed from your v28 archive and completed TECHNOMATIC 2105 v29: version 0.29.0, build 41.
+
+The main changes are embedded metadata that can be inspected outside Android, a substantially wider musical range, and channel behavior that preserves the composition's character. The recurring themes and continuing improvisation remain central.
+
+Downloads
+
+- Updated source project: technomatic_2105_android_project_v29.zip[technomatic_2105_android_project_v29.zip](sandbox:/workspace/scratch/93254bfec215/deliverables/technomatic_2105_android_project_v29.zip)
+- Installable test build: technomatic_2105_v29_debug.apk[technomatic_2105_v29_debug.apk](sandbox:/workspace/scratch/93254bfec215/deliverables/technomatic_2105_v29_debug.apk)
+- Three listening samples: technomatic_2105_v29_auditions.zip[technomatic_2105_v29_auditions.zip](sandbox:/workspace/scratch/93254bfec215/deliverables/technomatic_2105_v29_auditions.zip)
+- Release build for signing: technomatic_2105_v29_release_unsigned.apk[technomatic_2105_v29_release_unsigned.apk](sandbox:/workspace/scratch/93254bfec215/deliverables/technomatic_2105_v29_release_unsigned.apk)
+- Implementation findings, measurements, and verification details: technomatic_2105_v29_release_notes.txt[technomatic_2105_v29_release_notes.txt](sandbox:/workspace/scratch/93254bfec215/deliverables/technomatic_2105_v29_release_notes.txt)
+
+The debug APK has a separate application ID, so it can coexist with a release installation. The unsigned release APK needs signing before installation; updating an existing release installation requires its original signing key.
+
+Metadata: the problem was real
+
+V28's OGG exporter saved information in Android's local music catalog, but did not embed the editor's notes in the OGG file. That explains why inspecting the actual file did not reveal what you expected. FLAC already embedded basic metadata, but lacked complete channel information.
+
+V29 writes metadata into both OGG/Opus and FLAC. When you open Edit Metadata, the Notes section automatically shows the actual seed and channel selection, including the dominant channel. Your example appears as:
+
+    141414419 all channels neon drift dominant
+
+Optional notes go below that generated line. The generated part follows the current sound, so you do not have to type it or remember to replace a previous seed.
+
+The files also contain separate SEED, CHANNELS, CHANNEL_MASK, CHANNEL_BLEND, and CHANNEL_PRIMARY fields, along with the engine version, export interval, and complete regeneration recipe.
+
+I fixed a related stopped-playback issue too: changing channels while stopped now updates the actual rendition and its metadata immediately, without starting audio.
+
+This was checked with real MediaInfo, opusinfo, ffprobe, and metaflac inspection. The OGG metadata insertion preserved decoded audio and duration across nine rewrite cases. FLAC decoding recovered the original test PCM exactly. The detailed evidence and reproduction commands are in the release notes and project validation reports linked above.
+
+Musical range: the engine was favoring density
+
+Your impression had a concrete explanation in the code. The candidate scorer rewarded busier arrangements, and the instrument selection imposed a large minimum number of active layers. Those mechanisms kept pushing different seeds toward dense results.
+
+V29 chooses a musical intention before evaluating its 48 composition candidates:
+
+- Slow: 56 to 84 BPM.
+- Relaxed groove: 84 to 112 BPM.
+- Driving: 112 to 144 BPM.
+- Intense: 144 to 180 BPM.
+
+Each intention has an equal selection probability. That puts approximately half of new seeds in the slow or relaxed territory you wanted.
+
+Within those ranges, the engine varies activity, syncopation, harmonic movement, bass weight, articulation, warmth, and instrumentation. Candidate scoring now rewards agreement with that intended character. A slow composition can win because its space and phrasing fit the goal.
+
+Several changes make that distinction audible in the generated structure:
+
+- Slow pieces have fewer melody attacks, longer articulation, and more rests.
+- Intense pieces have greater rhythmic activity and tighter note spacing.
+- Lead, bass, and harmony form the foundation, with a generated supporting ensemble that preferentially answers in the lead's gaps.
+- The large minimum active-layer requirement is gone.
+- Fixed drum-pattern tables have been replaced with generated rhythmic sentences and related answers.
+- Bass continues through generated base, verse, and answer grammars.
+- The harmonic vocabulary now includes nine scale families, adding major, Lydian, Mixolydian, and major pentatonic colors.
+
+I also removed continuous texture hiss, noise/zap effects, delay processing, and noise mixed into pitched lead voices. Musical synthesized percussion remains. Stronger fundamentals and clearer harmonic relationships support the pitch grammar you want listeners to hear.
+
+Channels: kept optional, with the restrictive behavior fixed
+
+I kept channels because they can provide useful preferences. Their influence now preserves more of the generator's range.
+
+"No Channel" is labeled "Auto (full range)." There is also an "All channels" button, and holding a selected channel makes it dominant.
+
+Previously, Hybrid mode averaged many channel influences together, which compressed their character. V29 retains the dominant channel and chooses a weaker secondary color from the selected set for that rendition. The selected slow/intense intention and its tempo band are preserved.
+
+There was also a separate bug in multi-channel Single mode: choosing a channel consumed randomness used by composition generation, changing the winning composition. Channel selection now has its own random stream.
+
+The measured difference is substantial. Using the same 512 independent seeds:
+
+- Auto produced tracks at or below 90 BPM in 154 cases, up from 22 in v28.
+- Your all-channels, Neon Drift dominant configuration produced tracks at or below 90 BPM in 151 cases, up from zero.
+- That same Neon Drift configuration produced tracks at or above 135 BPM in 167 cases, up from 98.
+- Its observed tempo range expanded from 90.74-155.11 BPM to 58.15-179.84 BPM.
+
+These are measurements of the generated compositions. Whether the resulting balance sounds right to you remains a listening judgment.
+
+Long playback and musical identity
+
+The theme-development system remains: statements, answers, recalls, harmony, and continuing variation within the current sound. Playback keeps its seed until you explicitly change it.
+
+I found and fixed another issue relevant to indefinite listening: drum mutations gradually filled originally empty positions. A mellow rhythm could become increasingly crowded as it continued. Variations now stay bounded around the generated reference rhythm. Across 800,000 accelerated mutations, the representative rhythms retained their intended active-position counts.
+
+The phrase audit found no complete pitched phrase repeating within the previous 32 phrases across 3,072 inspected phrases. Three distant repeats occurred in that finite audit, so I am not claiming literal uniqueness forever. Recognizable short motives and thematic returns remain intentional.
+
+What passed, and what still needs phone use
+
+Completed verification includes:
+
+- 68 native assertions, including the existing v28 regression checks.
+- 1,035 Java metadata checks.
+- 71 playback-control checks covering stopped channel changes, pending loads, stream closure, and stale callbacks.
+- Sample-exact reconstruction of 12 saved v29 snapshots.
+- Export interval and ending checks.
+- A full 180-second stereo render with finite audio and an unchanged seed.
+- AddressSanitizer and UndefinedBehaviorSanitizer checks.
+- Debug and unsigned release Android builds for arm64-v8a, armeabi-v7a, and x86_64.
+- Debug APK signature verification.
+- Android lint with zero errors and 21 warnings.
+
+I did not run this on a physical Android device or emulator. Device audio performance, the actual phone codec, MediaStore publishing, and UI behavior still need real-device use. Public Music export requires Android 10 or newer; playback supports Android 8 or newer.
+
+V29 also changes how seeds are interpreted. Old recipes can load, but they will not reproduce the exact v28 waveform in the new engine. Keep v28 and earlier recordings when exact historical playback matters.
+
+For the first listen
+
+The audition ZIP contains three 48-second excerpts, all generated with Auto selected:
+
+- Slow: seed 1013904226, approximately 77 BPM.
+- Relaxed groove: seed 2654435761, approximately 107 BPM.
+- Intense: seed 3668339987, approximately 169 BPM.
+
+They start 40 seconds into their pieces, after the generated openings. They are native-engine renders with their snapshots included, giving you a direct comparison of the mellow, relaxed, and intense directions before testing the APK on your phone.

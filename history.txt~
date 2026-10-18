@@ -14303,3 +14303,476 @@ Architecture:
 This would turn channels into a much more meaningful feature: the user could learn what each channel does by hearing the same generated idea expressed through each one.
 
 remfan1994: Then lets do that.  and also I noticed probably you have only rudimentary opening/outro development.  Like it seems to exist yet musically is only rushed and mathematically precise and musically is unaesthetic if you get what i mean.  so I don't know if you want to look at that too
+
+chatgpt: Built Technomatic 2105 v28.
+
+[Download the v28 Android source archive](sandbox:/mnt/data/technomatic_2105_android_project_v28.zip)
+
+[Download the optional 180-second v28 preview WAV](sandbox:/mnt/data/technomatic_2105_v28_preview.wav)
+
+```text
+App: Technomatic 2105
+Package: vip.thatiam.technomatic2105
+Version name: 0.28.0
+Version code: 40
+
+Source archive:
+  645,519 bytes
+  103 project/source files
+
+SHA-256:
+  deba59745239e9db2474d8bf8a36dde6c9325754b4fe2baed36f6753fbd22501
+
+Preview SHA-256:
+  ff53a8170a433b2e7401b22fbbf4288791e0842f0e2a0f5e3c0313017f474521
+```
+
+## Same-seed Channel renditions
+
+Changing the Channel no longer generates a different seed.
+
+The new model is:
+
+```text
+composition core =
+  seed
+  + winning candidate
+  + motifs
+  + bass grammar
+  + harmony
+  + phrase form
+  + musical memory
+
+rendition =
+  composition core
+  + Channel interpretation
+```
+
+A Channel change preserves:
+
+```text
+seed
+candidate
+tonal center
+harmony
+lead and hook motifs
+verse grammar
+bass statement, verse, and answer grammar
+counter-lines
+arpeggio grammar
+pulse grammar
+phrase form
+opening grammar
+ending grammar
+```
+
+It changes characteristics such as:
+
+```text
+instrument models
+drum character
+tempo character
+density
+brightness
+roughness
+space
+articulation
+layer emphasis
+```
+
+Channel selection now:
+
+```text
+1. preserves the current seed
+2. preserves the winning candidate
+3. clears voices, delay, filters, and transient audio state
+4. reloads the composition from 0:00
+5. applies the selected Channel rendition
+```
+
+This makes it possible to compare:
+
+```text
+3290437499 - No Channel
+3290437499 - Soft Voltage
+3290437499 - Chrome Pulse
+3290437499 - Hybrid: Soft Voltage + Heavy Orbit
+```
+
+as different interpretations of the same generated composition.
+
+`Next` remains the explicit operation that generates a new seed.
+
+Hybrid Channels retain the established dominant-primary rule:
+
+```text
+first selected Channel:
+  dominant influence
+
+later selected Channels:
+  weaker secondary influences
+```
+
+## Track history
+
+The latest-20 history now records:
+
+```text
+Channel
+seed
+actual listened duration
+```
+
+Example:
+
+```text
+No Channel
+3290437499   18:42
+
+Soft Voltage
+3290437499   06:15
+
+Hybrid: Heavy Orbit + 1
+847294103   11:08
+```
+
+Behavior:
+
+```text
+tap:
+  reload the exact seed, candidate, and Channel rendition
+
+long press:
+  copy the seed
+
+same seed under another Channel:
+  separate history entry
+
+current entry:
+  listened duration updates while it plays
+
+old entry:
+  duration freezes when another rendition or seed is loaded
+
+history limit:
+  latest 20 entries
+```
+
+`Previous` and `Next` continue navigating history. `Next` generates a new seed only when the user is already at the forward end.
+
+I also corrected a stopped-state edge case:
+
+```text
+Start while stopped:
+  resumes the existing sound
+
+Next while stopped:
+  creates a new seed, then starts playback
+```
+
+## Start and End export
+
+Advanced now replaces the old single export duration with:
+
+```text
+Export start: HH:MM:SS
+Export end:   HH:MM:SS
+
+Export filename / song title
+
+Export OGG
+Export FLAC
+```
+
+The exporter snapshots:
+
+```text
+seed
+candidate
+Channel mask
+Hybrid state
+dominant Channel
+Start
+End
+metadata
+filename
+```
+
+Then a separate offline engine:
+
+```text
+1. reconstructs the exact rendition
+2. generates from 0:00 to Start
+3. discards everything before Start
+4. writes audio from Start through End
+5. concludes the excerpt musically at End
+6. publishes the result under Music/
+```
+
+Live playback is not restarted, followed, or changed.
+
+Example:
+
+```text
+Start: 00:12:30
+End:   00:17:00
+
+Result:
+  a 4-minute, 30-second excerpt
+```
+
+Current limits:
+
+```text
+minimum excerpt:
+  8 seconds
+
+maximum excerpt length:
+  1 hour
+
+maximum timeline position:
+  24 hours
+```
+
+The one-hour excerpt limit avoids creating raw temporary files larger than approximately 691 MB on the 32 GB phone.
+
+## Generated openings
+
+The old opening behavior was too close to:
+
+```text
+begin quietly
+add layers on fixed boundaries
+reach full arrangement quickly
+```
+
+v28 gives every composition a generated opening grammar:
+
+```text
+length:
+  3 to 8 complete phrases
+
+opening geometries:
+  6
+
+independently ordered entrances:
+  drums
+  bass
+  lead
+  harmony
+```
+
+Possible opening roles include:
+
+```text
+Statement
+Afterimage
+Shadow
+Orbit
+Weave
+Suspension
+Answer
+Variation
+Tide
+Crystallize
+Hook
+```
+
+The opening uses the actual generated motifs and bass grammar. It does not introduce a separate prefabricated introductory melody.
+
+The seed determines:
+
+```text
+which identity-bearing layer appears first
+how long other layers remain absent
+how density grows
+whether rhythm or melody establishes the sound
+how the first complete statement is reached
+```
+
+## Generated endings
+
+Live playback remains indefinite, so it has no artificial live ending.
+
+Finite OGG and FLAC exports receive a generated ending based on the selected End time.
+
+Each export ending uses:
+
+```text
+length:
+  3 to 8 phrases
+
+ending geometries:
+  5
+
+generated cadence position
+generated phrase roles
+generated layer-exit order
+```
+
+Some endings are conclusive:
+
+```text
+earlier return of recognizable material
+gradual harmonic movement toward home
+generated cadence
+tonal arrival
+```
+
+Others dissolve:
+
+```text
+different layers leave at different rates
+motif fragments remain as afterimages
+density declines asymmetrically
+the sound evaporates rather than suddenly stopping
+```
+
+A very short final edge fade remains only to prevent clicks. It is no longer responsible for creating the musical ending.
+
+## Candidate search
+
+The full quality search remains unchanged:
+
+```text
+48 symbolic compositions generated
+48 candidates scored
+highest-scoring composition selected
+```
+
+No candidate reduction or quality shortcut was introduced.
+
+## Validation
+
+The v28 release tests passed:
+
+```text
+same seed under No Channel:
+  passed
+
+same seed under a named Channel:
+  passed
+
+same seed under dominant Hybrid Channels:
+  passed
+
+winning candidate preserved across Channel renditions:
+  passed
+
+motifs, harmony, bass grammar, and form preserved:
+  passed
+
+Channel rendition audibly changes:
+  passed
+
+Channel change restarts at 0:00:
+  passed
+
+separate same-seed Channel history entries:
+  passed
+
+history listened-duration tracking:
+  passed
+
+latest-20 history cap:
+  passed
+
+all 6 opening geometries reachable:
+  passed
+
+all 5 ending geometries reachable:
+  passed
+
+opening and ending lengths remain 3-8 phrases:
+  passed
+
+conclusive and dissolving endings both reachable:
+  passed
+
+same-seed Channel snapshot reconstruction:
+  sample exact
+
+Start-End range export:
+  exact requested frame count
+
+FLAC validation:
+  reference decoder accepted the file
+  decoded PCM matched source PCM byte-for-byte
+  title, artist, album artist, album, genre, and comment verified
+
+seed 3290437499 regression:
+  candidate 44 retained
+  v26 repetitive pad-wall correction retained
+
+all 48 composition candidates:
+  present and evaluated
+```
+
+Compiler/runtime checks:
+
+```text
+GCC strict build:
+  passed
+
+Clang strict build:
+  passed
+
+AddressSanitizer:
+  passed
+
+UndefinedBehaviorSanitizer:
+  passed
+
+AudioEngine strict host-stub compilation:
+  passed
+
+JNI bridge strict host-stub compilation:
+  passed
+
+Java parser check:
+  passed
+
+ZIP integrity:
+  passed
+
+gradlew executable permission:
+  preserved
+```
+
+Preview measurements:
+
+```text
+duration:
+  180 seconds
+
+sample rate:
+  48 kHz stereo
+
+peak:
+  0.564331
+
+RMS:
+  0.106779
+
+clipped samples:
+  0
+```
+
+The included wrapper remains pinned to Gradle 8.9. A complete Android SDK/NDK Gradle build and Stratus C8 installation test were not possible here because the Android SDK and cached Gradle 8.9 distribution are absent from this environment.
+
+
+remfna1994: we have to resume work on TECHNOMATIC 2105.  we left off at version 28 as far as I remember technomatic_2105_android_project_v28.zip 
+
+Remember to stay dedicated to the main idea:  Technomatic 2105 is supposed to be a music-centric (no special effects) alternative to listening to popular radio.  So it randomly generates music in a variety of styles (all original, nothing ripped off from radio programming) in order to keep interesting.  So the main focus of TECHNOMATIC 2105 is keeping music musical (the law of music, the grammar of the melodies, the recognition of a theme throughout a tune) without sacrificing flexibility to make different-sounding music from one generation to the next (that is, there are a variety of styles and the melodies never repeat -- the same song can play infinitely and improvises always-unique note sequences as it goes)
+
+main thing techonmatic needs, is to check its metadata editor.  This thing working?  I couldn't find the metadata even though I used mediainfo and ogg/opus-tools to try to.  Well, whether its working or not, the seed number should be automatically affixed into the metadata.  I'll suggest in the notes, it should have the seed number and the selected channels waiting for me there when I click "edit metadata" so I don't have to type those.   I've been using all channels so its like "141414419 all channels neon drift dominant"
+
+
+other than that I was thinking the channels needs to be reconsidered.  it sounds best with all channels activated instead of with no channels selected.  is there something wrong with our channels, do they restrict the randomness too much?  maybe they should be discontinued to let the engine make the best sounds
+
+so as for a review after having listened to technomatic 2105 much, it is just white noise unless you are listening for the rhymes in the note sequences.  then it is like a badass rapper (sounds great) so I think this product is top notch and very special (reveals that music has to be paid attention to in order for it to be appreciated).  this is pretty legit, however, I had a different vision for technomatic 2105, that it is to replace radio-listening means that it should have more variety than it has.  we have some variety yet not enough.  we don't have enough slow jams for example.  not to steal anyone's style, however, it is like, up tempo (what it all is right now pretty much) is cool like half the time.  so don't forget we don't copy human styles, we make our own musical designs and devices.  so you have to be creative here.  make sure to make a variety of musical sounds so it isnt just a selection from a small pool (remember when the bass was only 6 styles of bass to choose from for every track?  that was awful).  
+
+alright so the priority here is to sound tight.  the hype should be hyper, the mellow should be mellower, and the sick should be sicker.  follow?  pro model is enabled for you to code
+
+
+chatgpt:
