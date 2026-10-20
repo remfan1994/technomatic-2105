@@ -14910,4 +14910,263 @@ and lets make TECHNOMATIC 2105 v30
 
 
 
-chatgpt:
+chatgpt:**TECHNOMATIC 2105 v30 is built.** It expands the instrument catalogue, keeps the v29 ensemble-size rules, removes channels, and gives the foreground melody substantially more development. Both Android variants compiled with your exact **NDK `30.0.14904198`**.
+
+## Downloads
+
+| File | Contents |
+|---|---|
+| technomatic_2105_android_project_v30.zip[technomatic_2105_android_project_v30.zip](sandbox:/workspace/scratch/93254bfec215/deliverables_v30/technomatic_2105_android_project_v30.zip) | Complete Android source, Gradle wrapper, project guidance, tests and validation reports |
+| technomatic_2105_v30_debug.apk[technomatic_2105_v30_debug.apk](sandbox:/workspace/scratch/93254bfec215/deliverables_v30/technomatic_2105_v30_debug.apk) | Signed debug build for testing |
+| technomatic_2105_v30_release_unsigned.apk[technomatic_2105_v30_release_unsigned.apk](sandbox:/workspace/scratch/93254bfec215/deliverables_v30/technomatic_2105_v30_release_unsigned.apk) | Release build for signing with your own key |
+| technomatic_2105_v30_auditions.zip[technomatic_2105_v30_auditions.zip](sandbox:/workspace/scratch/93254bfec215/deliverables_v30/technomatic_2105_v30_auditions.zip) | Seven listening clips, including matched v29/v30 comparisons, with seeds and recipes |
+| technomatic_2105_v30_release_notes.txt[technomatic_2105_v30_release_notes.txt](sandbox:/workspace/scratch/93254bfec215/deliverables_v30/technomatic_2105_v30_release_notes.txt) | Detailed changes, measured results, build information and testing limits |
+
+**Installation detail:** the downloadable debug APK has a different signing certificate from the supplied v29 debug APK, so it cannot directly update that particular installation. Building the source locally with your usual signing key provides the normal update path. The release APK requires your release signature.
+
+## Your NDK setting is fixed and recorded
+
+The project now contains:
+
+```gradle
+ndkVersion '30.0.14904198'
+```
+
+Both Android build workflows use that revision, and `AGENTS.md` records your installation for future work:
+
+```text
+/home/tutan/Android/Sdk/ndk/30.0.14904198
+```
+
+The shared project resolves it through your SDK location, which should remain `/home/tutan/Android/Sdk` in Android Studio. I built the delivered APKs with that exact NDK; this is more than a configuration change.
+
+## More sounds available, with the same ensemble rules
+
+The synthesis catalogue now has:
+
+| Instrument category | v29 | v30 |
+|---|---:|---:|
+| Bass models | 12 | **20** |
+| Melodic models | 16 | **32** |
+| Harmony/pad models | 10 | **18** |
+| Drum-kit families | 8 | **12** |
+
+The additions include reed-like harmonic bodies, rounded struck tones, controlled saturated voices, and sustained tones whose harmonic balance opens gradually. Their envelopes and generated parameters create variation within each family.
+
+**Every one of the 256 matched test seeds retained its v29 supporting-part count.** The larger catalogue supplies more choices between songs.
+
+I also found and removed an unwanted source of instability: small tone changes could switch the underlying instrument family during playback. Each selected part now keeps its family while its articulation and tone develop. Consequently, the measured number of pitched synthesis families used per song fell from about **6.00 to 4.84 on average**, with a maximum of six in v30. That reduction comes from removing incidental instrument changes, while preserving the supporting-part selection rule.
+
+The source archive includes the paired palette audit and its raw results.
+
+## Your repetition concern had a concrete basis
+
+I checked the principal melody separately from the accompaniment. That distinction mattered: changing drums, supporting notes or timbre could make the whole arrangement look different while the foreground kept recycling familiar material.
+
+In the v29 sample, the principal line used only **4-9 distinct note/rest rhythm patterns per song**, with a median of seven. Hook sections occupied about 22% of the measured bars on average, so the issue was more specific than simply allocating almost everything to a chorus.
+
+The final comparison covers **256 seeds and 512 bars per seed**:
+
+| Measure | v29 | v30 |
+|---|---:|---:|
+| Median distinct foreground note/rest plans | 147 | **459.5** |
+| Median distinct main-lead rhythm plans | 7 | **167** |
+| Largest share occupied by the four most common foreground phrases | 187 of 512 bars | **95 of 512 bars** |
+| Longest identical consecutive main-lead turn run | 4 | **2** |
+
+These measurements exclude instrument identity, volume and timbre changes. They measure changes in notes and rests, rather than counting a different sound as a new melody.
+
+Theme recognition remains intentional. The new phrase plan develops through **10-18-bar cycles**, with one or two bars of recognizable recall, related developments and exchanges, then a question, arrival and release. The tests also confirm that characteristic recall rhythms survive.
+
+The full methods and qualifications are in the release notes and the source's `docs/V30_VALIDATION.md`. More distinct plans do not automatically mean better music, but they do confirm that the engine is using more of its capacity for foreground development.
+
+## New musical devices
+
+I added five coordinated devices that work through the instruments already present:
+
+| Device | What it does |
+|---|---|
+| **Counterweight** | An answer changes the direction and span of the latter phrase while retaining a relationship with the theme. |
+| **Pocket Exchange** | Interior notes move within bounded rhythmic spaces while important phrase anchors remain. |
+| **Held Question** | A phrase leaves a continuing or suspended thought, with drums and harmony making room around it. |
+| **Confluence** | Melody and bass reach a shared generated arrival point with coordinated rhythmic emphasis. |
+| **Open Release** | Activity eases after the arrival, leaving space; sometimes the existing harmony voice carries the foreground. |
+
+An answer can pass to the existing bass or a supporting instrument. The main lead yields that turn, and the answering instrument's ordinary accompaniment part yields too.
+
+Review caught a practical problem here: a sustained harmony note could block the next foreground harmony answer. That now releases briefly before replacement, so the planned answer actually sounds. The targeted render verified the handoff without adding an overlapping active pad.
+
+On your broader question, **I agree with keeping one coherent musical identity centered on relationships and continuing invention**. Recognition gives an improvisation something to answer; improvisation gives the recurring theme a reason to return. Space and simpler passages belong within that identity too. I preserved your Bismillah publishing intention and the importance of those reciprocal relationships in the project guidance.
+
+## Slow music received specific repairs
+
+The weaker slow cases had identifiable problems beyond tempo:
+
+- Some foreground lines wandered into a very high register.
+- Many phrases returned to the root almost automatically.
+- Note lengths did not always follow the spacing of the developed phrase.
+
+v30 keeps slow foreground melodies in a controlled middle register, chooses nearby equivalent octaves, allows harmony to span two or three bars, and lets intermediate phrases finish on another chord member or a suspension. Recalls and arrivals retain their resolving role.
+
+In the measured slow subset, root-ending foreground phrases fell from **80.3% to 20.7%**. The final register checks found no escapes, including stress cases involving edited tonal roots, generated arrivals and actual harmony voices.
+
+This is not a blanket increase in note length. The changes focus on continuity, register, harmonic pacing and the relationship between a phrase and its answer.
+
+## Channels and the reported game-like sound
+
+**Channels are discontinued.** Their controls and labels are removed, old preferences cannot narrow the generator, and loading an older recipe cannot restore a named-channel profile.
+
+I found no imported commercial musical content in the inspected v28, v29 or v30 project. The source and final APK inventories contain no bundled recordings, MIDI songs or soundfonts.
+
+The old engine did contain regular high sparkle/bell placements and recurring rising gestures that could plausibly contribute to the impression you described. Those paths were replaced with generated phrase-related responses. Several chiming oscillator relationships were also revised to harmonic ratios, avoiding repeated discontinuities associated with their earlier phase handling.
+
+Those are concrete changes to the possible causes. Without the recording or seed, I cannot identify the precise cause of that particular resemblance, and no source audit can guarantee that every short generated phrase will be unlike all existing music. No commercial cue was fetched, sampled or transcribed for these additions.
+
+## Metadata remains embedded, and replay is stronger
+
+The Metadata Editor automatically shows:
+
+```text
+Seed: 141414419
+Engine: 30
+```
+
+Your own notes remain separately editable. Since channels are retired, there is no selected-channel description to enter.
+
+Both OGG and FLAC physically embed the seed, engine version, notes, export range and complete regeneration recipe. The tests verified those fields using **MediaInfo, ffprobe, opusinfo and metaflac**.
+
+I also fixed an inherited recipe bug: edited settings could drift each time a snapshot was reloaded because rounded display values were being treated as fresh control inputs. v30 preserves the exact original inputs separately.
+
+The regression suite passed **48 edited-recipe cases through three successive reloads each**, comparing **23,040,000 rendered float samples exactly**. The two original drift cases now replay without differing samples in the host tests.
+
+## Verification and listening examples
+
+Completed checks include:
+
+- **63 native checks**, also passed under AddressSanitizer and UndefinedBehaviorSanitizer. Leak detection was disabled for a host restriction.
+- **1,049 Java metadata checks**, including independent inspection of embedded tags.
+- **93 playback-control checks**.
+- The separate edited-recipe replay suite.
+- Successful debug and release builds for **arm64-v8a, armeabi-v7a and x86_64**.
+- Android lint: **0 errors, 20 warnings**.
+- APK integrity, version and debug-signature verification.
+
+The audition ZIP contains three contrasting v30 examples and two same-seed v29/v30 pairs. Each clip is 48 seconds, carries its seed and exact timeline range, and includes its recipe. No loudness normalization was applied.
+
+I have not run this build on a physical Android device or emulator, and the listening clips are host renders. Device behavior and the musical result still need your ears on your usual setup.
+
+Finally, **v30 changes how older seeds are rendered**. Keep the older project and recordings when you want the exact v29 sound. Within the new version, the complete saved recipe preserves more information than the visible seed alone, including the winning candidate and any edited settings.
+
+
+
+remfan1994: The new version sounds great with good slow jams and deeper expression through the music.  However, the volume is too low now.  Technomatic 2105 is for listening to on busy market streets in earbuds that can't block out noises nor be turned up too loud (android volume limit).  So that listening to Technomatic 2105 v.30 works in a quiet place with no noise around, however, where Technomatic 2105 is designed to be used is now hostile to technomatic 2105, and it is unusable.  Can you do anything for the volume?
+
+chatgpt: I will check where v30 loses output level and adjust the final mix while preserving the slow jams, phrasing and instrument balance you like. I will measure the change across several seeds and verify that both playback and exports stay free of clipping.
+
+remfan1994: Previous versions of technomatic 2105 were noisier and so could be heard through the earbuds in the commercial area.  starting at V30 I can't hardly hear anything coming from it unless I go somewhere completely quiet
+
+chatgpt: That clarifies the regression: v30's clearer, more spacious music is getting lost in the street noise. I found that our final mixer holds the average level low and caps even the strongest peaks at about 64% of digital full scale. I am increasing the sustained musical level with controlled peaks, while keeping the v30 composition and instrument balance intact.
+
+The playback and export paths share the same low output level, so one correction can improve both. I am treating this as v30.1: a volume fix that keeps the v30 music generator intact. The tests will check how much louder the sustained music becomes, as well as whether sharp peaks remain clean.
+
+remfan1994: also I thought I noticed you reintroduced an element I asked you to remove earlier: raising and lowering the volume for musical effect.  the volume should maintain 100% of the system-set volume (which already includes a safeguard against being too loud, standard feature on Android 13) and should not vary for any reason including that you think it should be musical to lower or raise the volume setting
+
+chatgpt: Understood. I will keep the app's playback gain fixed at full level, leave Android's volume setting under your control, and remove automatic whole-mix ducking, level riding, and musical volume fades.
+
+That changes the fix I was preparing: I will use a fixed output treatment rather than a gain controller that continually turns the music up and down. Individual notes will still have their normal attack and decay, but the app will not move the master volume for expression. 
+
+I found the volume modulation you described: the mixer was ducking the whole track on kick drums and continuously adjusting its gain toward a low target. It also retained whole-mix fade code. I am removing those controls and checking the fixed output level across sparse slow jams and denser tracks.
+
+The instruments themselves have substantially more level than v30 was delivering. Removing the automatic gain reduction recovers much of that level, so the fix can preserve the existing sounds without adding instruments or noise.
+
+The new output stage has no changing volume control. I am choosing its fixed peak treatment from the measured results, then checking that saved seeds and exports still reproduce the same musical material.
+
+remfan1994: and don't forget this part: you said "I found that our final mixer holds the average level low and caps even the strongest peaks at about 64% of digital full scale" ... 100% is good.  android already has capped the volume level
+
+chatgpt: Yes. I will remove the 64% ceiling and allow output up to 100% of digital full scale, with no lower app-level volume cap. Android's volume setting will stay as you set it.
+
+The output curve will keep samples within that full digital range without an automatic volume controller. The correction also raises the sustained music level; it is not limited to making occasional peaks louder.
+
+The fixed output now measures about 5 to 7 dB louder across the 16 test seeds, with the ceiling set to 100% as requested. There is no automatic gain riding or kick-driven ducking.
+
+The final checks also caught a restart inconsistency in an older native "Next" path. I am correcting that before building the APKs so changing tracks remains reproducible.
+
+remfan1994: So that is two volume fixes:  1. the mixer caps that caused limitation to 64% of the scale and 2. the volume mixing as part of the song
+
+chatgpt: Correct. Both fixes are included:
+1. Remove the mixer restriction that held peaks to about 64%, allowing the full digital range up to 100%.
+2. Remove song-driven changes to the overall volume, including ducking, automatic level adjustment, and volume fades.
+I am also checking the phrase and section code for volume swells implemented through the individual parts, so the second fix covers the audible behavior as well as the master control. I found an additional part of the second issue: phrase effects such as "Open Release" lowered several instruments together, and the intro/outro code also scaled their volumes. I am removing those volume changes too.
+
+Their note choices, timing, and entry/exit decisions will remain. The musical exchanges will come from the phrases and instruments rather than coordinated volume swells or dips.
+
+The focused tests now pass, including checks across more than 10,000 scheduled events that verify phrase and section controls no longer scale note volumes. Both "Next" paths also reproduce their saved recipes correctly.
+
+The Android build and final before/after audio measurements are running now. I will include comparison clips at their actual output levels so you can hear both volume fixes directly.
+
+**Both volume fixes are now implemented in TECHNOMATIC 2105 v30.1.** The corrected output is substantially louder in the measured tracks, and the coordinated volume swells and dips have been removed.
+
+**Complete source project:** technomatic_2105_android_project_v30_1.zip[technomatic_2105_android_project_v30_1.zip](sandbox:/workspace/scratch/93254bfec215/deliverables_v30_1/technomatic_2105_android_project_v30_1.zip)
+
+## 1. Removed the roughly 64% output restriction
+
+The mixer now permits **100% of digital full scale**, with fixed unity output gain. I removed the old master attenuation and final processing chain that imposed the approximately 64% ceiling.
+
+The strongest native sample in the final measurements reached **99.84% of full scale**. A fixed peak-shaping curve keeps source samples within the valid digital range without a moving gain controller, recovery envelope or lookahead.
+
+Android's system media-volume setting remains under your control.
+
+## 2. Removed volume changes used as a musical effect
+
+This correction covers both the final mixer and the individual parts that were being turned up and down together:
+
+- Removed kick-triggered whole-mix ducking and automatic gain riding.
+- Removed whole-mix transition fades and the export's final volume fade.
+- Removed coordinated part-volume ramps, section boosts and section dips from all nine note-amplitude paths, including percussion, bass, harmony, foreground and supporting voices.
+
+**Both fixes apply to live playback and OGG/FLAC exports.**
+
+Individual notes still have their attacks, releases and accents, and the composition still contains rests and instrumental entrances. Those remain necessary for the instruments and phrases to speak clearly. The app no longer applies an automatic master-volume envelope or coordinated section-volume envelope over them.
+
+## Measured improvement
+
+I compared the original v30 against the final v30.1 using **16 seeds**, covering slow, groove, driving and intense compositions, including sparse examples. Each version was rendered for 88 seconds without normalization.
+
+For the settled passages, the **median RMS level increased by 6.08 dB**. The median paired loudness improvement was **5.85 LU**, with individual improvements ranging from **4.0 to 7.2 LU**.
+
+These four examples are included in the listening-comparison download:
+
+| Composition | v30 loudness | v30.1 loudness | Increase |
+|---|---:|---:|---:|
+| Slow, seed 1013904226 | -20.1 LUFS | -14.4 LUFS | +5.7 LU |
+| Groove, seed 2654435761 | -20.5 LUFS | -16.0 LUFS | +4.5 LU |
+| Quieter driving, seed 3711502885 | -21.2 LUFS | -16.4 LUFS | +4.8 LU |
+| Intense, seed 3668339987 | -17.3 LUFS | -10.1 LUFS | +7.2 LU |
+
+The improvement therefore reaches the sustained listening level as well as the strongest peaks. The measurement method, full results and implementation details are documented in technomatic_2105_v30_1_release_notes.txt[technomatic_2105_v30_1_release_notes.txt](sandbox:/workspace/scratch/93254bfec215/deliverables_v30_1/technomatic_2105_v30_1_release_notes.txt).
+
+## Preserved and verified
+
+The v30 instrument catalogue, ensemble size, slow-jam grammar, themes and improvisation remain. Across **20,247 scheduled events**, the comparison preserved note timing, pitches, durations, instrument choices and the other non-amplitude fields. Amplitudes changed as intended.
+
+The focused output tests, native regressions, playback-control tests, edited-recipe replay tests and metadata tests all passed. I also fixed a timing inconsistency discovered in the two Next paths, so the newly selected song agrees with a fresh reconstruction of its saved recipe.
+
+**Debug and release Android builds passed using NDK `30.0.14904198`.** That version remains pinned for your installation at:
+
+```text
+/home/tutan/Android/Sdk/ndk/30.0.14904198
+```
+
+The builds include all three configured architectures. Android lint reported **0 errors and 20 existing warnings**.
+
+## Downloads and installation
+
+- technomatic_2105_v30_1_debug.apk[technomatic_2105_v30_1_debug.apk](sandbox:/workspace/scratch/93254bfec215/deliverables_v30_1/technomatic_2105_v30_1_debug.apk)
+- technomatic_2105_v30_1_release_unsigned.apk[technomatic_2105_v30_1_release_unsigned.apk](sandbox:/workspace/scratch/93254bfec215/deliverables_v30_1/technomatic_2105_v30_1_release_unsigned.apk)
+- technomatic_2105_v30_1_auditions.zip[technomatic_2105_v30_1_auditions.zip](sandbox:/workspace/scratch/93254bfec215/deliverables_v30_1/technomatic_2105_v30_1_auditions.zip)
+
+The auditions contain four matched pairs of lossless FLAC clips. **A is v30; B is v30.1.** Each pair uses the same seed and the same 40-88 second passage. Keep the player volume unchanged and disable player normalization when comparing them.
+
+For an in-place update that preserves your installed app's data and history, **build the source with your existing signing key**. The supplied debug APK uses a different certificate from the earlier supplied v30 debug APK, so it cannot directly update that installation. The release APK needs your release signature before installation.
+
+These are verified builds and host audio measurements; I have not tested playback through your phone and earbuds on the street. Native samples stayed within full scale, although reconstructed and Opus-decoded peaks showed small overshoots in the strongest example, documented in the notes. The requested 100% digital range remains intact.
