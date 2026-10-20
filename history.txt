@@ -15170,3 +15170,70 @@ The auditions contain four matched pairs of lossless FLAC clips. **A is v30; B i
 For an in-place update that preserves your installed app's data and history, **build the source with your existing signing key**. The supplied debug APK uses a different certificate from the earlier supplied v30 debug APK, so it cannot directly update that installation. The release APK needs your release signature before installation.
 
 These are verified builds and host audio measurements; I have not tested playback through your phone and earbuds on the street. Native samples stayed within full scale, although reconstructed and Opus-decoded peaks showed small overshoots in the strongest example, documented in the notes. The requested 100% digital range remains intact.
+
+
+
+remfan1994: 30.1 is much better volume-wise, however, the volume still pales in comparison with RFS's media player and the FM radio player.  Can you do anything to help technomatic 2105's volume levels further?
+
+chatgpt: Yes. I made TECHNOMATIC 2105 v30.2, with about 4.5 dB more average output than v30.1 in the matched tests.
+
+Download the Android Studio project:
+
+technomatic_2105_android_project_v30_2.zip[technomatic_2105_android_project_v30_2.zip](sandbox:/workspace/scratch/93254bfec215/volume_deliverables/technomatic_2105_android_project_v30_2.zip)
+
+What changed
+
+V30.1 already allowed full-scale peaks. This update raises the average level of the music through a stronger, constant output calibration:
+
+gain = 1.75
+linear increase = 20 * log10(1.75) = 4.86 dB
+
+Strong peaks receive smooth rounding to remain within the same 100% digital sample ceiling. After that rounding, the measured median increase is 4.52 dB RMS.
+
+The calibration stays constant throughout playback. It does not reintroduce fades, volume swells, section-volume dips, kick ducking or automatic gain riding. Android's media-volume setting remains under your control. Live playback and exports receive the same treatment.
+
+Measured improvement
+
+I compared the same 16 seeds and the same portions of each track. Average loudness increased on every tested track, with these examples:
+
+- Slow seed 1013904226: -14.4 to -9.8 LUFS.
+- Groove seed 2654435761: -16.0 to -11.3 LUFS.
+- Quiet driving seed 3711502885: -16.4 to -11.7 LUFS.
+- Intense seed 3668339987: -10.1 to -6.4 LUFS.
+
+Across the set, the median paired increase was 4.50 loudness units. The quieter examples gained more than the already-dense example because their peaks needed less rounding. Full measurements and methods are in the technomatic_2105_v30_2_release_notes.txt[release notes](sandbox:/workspace/scratch/93254bfec215/volume_deliverables/technomatic_2105_v30_2_release_notes.txt) and the project's validation reports.
+
+Keeping the music intact
+
+The composition engine, instruments, note scheduling, slow-jam grammar and improvisation remain those of v30.1. The comparison verified unchanged musical-event and random-generator signatures across 20,247 scheduled events.
+
+The controls, 20-entry history and memory behavior also remain unchanged. This release contains only the volume improvement, its output-revision metadata and the version update.
+
+There is a tradeoff: stronger average output requires more rounding of strong peaks. I selected a gentler curve that preserves almost all the loudness increase while substantially reducing the decoded peak overshoot found in the first boosted candidate. Some reconstructed Opus peaks can still exceed full scale, especially in intense music, so this is not a claim of distortion-free amplification.
+
+Before/after audio
+
+technomatic_2105_v30_2_loudness_auditions.zip[technomatic_2105_v30_2_loudness_auditions.zip](sandbox:/workspace/scratch/93254bfec215/volume_deliverables/technomatic_2105_v30_2_loudness_auditions.zip)
+
+This contains four matched pairs of FLAC files:
+
+- A = v30.1.
+- B = v30.2.
+- Each pair uses the same seed and the same 48-second excerpt.
+
+Keep the player volume fixed and disable any player normalization for a direct comparison.
+
+Build verification
+
+The final native, playback-control, recipe-replay and metadata checks passed. Android debug and release builds passed for all three supported CPU architectures. Lint reported 0 errors and 20 existing warnings.
+
+Your NDK remains pinned to 30.0.14904198, matching /home/tutan/Android/Sdk/ndk/30.0.14904198.
+
+The compiled builds are also available:
+
+- technomatic_2105_v30_2_debug.apk[technomatic_2105_v30_2_debug.apk](sandbox:/workspace/scratch/93254bfec215/volume_deliverables/technomatic_2105_v30_2_debug.apk)
+- technomatic_2105_v30_2_release_unsigned.apk[technomatic_2105_v30_2_release_unsigned.apk](sandbox:/workspace/scratch/93254bfec215/volume_deliverables/technomatic_2105_v30_2_release_unsigned.apk)
+
+For an update over your existing installation, build the source with your existing signing key. The supplied debug APK uses a different temporary test key, and the release APK is unsigned.
+
+I have verified the increase in the generated audio, but have not measured your phone's RFS or FM-radio playback path. This provides a substantial additional level increase; matching those players exactly still depends on their audio and the phone's processing.
