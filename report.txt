@@ -1,0 +1,735 @@
+TECHNOMATIC 2105
+MUSIC GENERATION REVIEW
+
+Reviewed: composition engine 30 in the delivered v30.2 project
+Review date: October 28, 2026 (user's local date)
+Scope: musical construction, thematic identity, improvisation, rhythm,
+harmony, instrumental vocabulary, formal variety and originality.
+Status: review only; the delivered project was not changed.
+
+MAIN JUDGMENT
+
+TECHNOMATIC 2105 has a substantial, coherent composition engine. Its strongest
+achievement is the relationship between a stable musical identity and the
+continuing development of that identity. A tune has a subject, related answers,
+recognizable returns, and voices that can exchange roles. Those relationships
+are implemented in the musical decisions, rather than merely described in
+the project's philosophy. [S1-S5]
+
+I take your statement that skill and purpose are equally central as the basis
+of this review. Skill means the craft of making the musical relationships
+work. Purpose means what that craft makes possible: listening to a continuing,
+original musical conversation whose parts belong together. A good return can
+serve that purpose as well as a surprising departure. The useful question is
+whether the departure makes the return, and the return makes the departure,
+more meaningful.
+
+The generator already expresses much of that purpose. Its greatest remaining
+musical opportunity is to connect and organize its ideas over longer spans.
+The variation inside a bar is richer than the variety in how whole exchanges
+unfold. I also found a specific discontinuity in slow melodic voice leading
+at bar boundaries. Those are more actionable findings than a general demand
+for more randomness.
+
+This report is based on source inspection, a fresh 2,048-seed generation
+survey, a rerun of the native musical validation, and new planned-note and
+scheduler probes. I did not conduct an ears-on listening session. The musical
+judgments below are reasoned interpretations of those mechanisms and
+measurements, with that limitation stated where it matters. [R1-R3]
+
+1. THE PURPOSE THE ENGINE IS SERVING
+
+The central musical idea is clear: a composition remains itself while its
+parts continue finding related ways to speak. Your purpose gives the craft a
+direction. Recognition, exchange, continuity and discovery belong together.
+
+I would assess this through five questions:
+
+- Can the listener recognize what this particular tune is about?
+- Do replies develop something established, with an audible relationship?
+- Does a new passage have a reason to occur where it does?
+- Can a mellow, spacious piece be as complete in its own terms as an intense
+  piece?
+- Does prolonged listening reveal development while retaining a musical home?
+
+These are artistic criteria, not scores the present program can completely
+calculate. They keep technical measures in their proper place. A high count
+of different bars is useful evidence of freedom. It does not establish that
+the bars make a satisfying argument.
+
+The current architecture is well aligned with the first, second and fourth
+questions. It is less developed in its ability to vary the third: the shape,
+duration and ordering of larger arguments. The fifth has credible structural
+support, but needs longer listening than a short demonstration can provide.
+
+Your understanding of the music's spiritual meaning remains part of your
+purpose. This review examines how the musical construction supports the
+relationships you described; software measurements do not measure that
+meaning.
+
+2. HOW A NEW COMPOSITION IS MADE
+
+The engine first derives a listening intention from the seed. All 48 candidate
+compositions then compete within that intention. A slow piece therefore
+receives a slow-music target throughout the search. This is an important
+decision: the selection process does not reward a slow seed for becoming an
+intense one. [S1]
+
+The four intentions have these configured tempo ranges:
+
+- Slow: 56-84 BPM.
+- Relaxed groove: 84-112 BPM.
+- Driving: 112-144 BPM.
+- Intense: 144-180 BPM.
+
+The seed also varies pace, movement, syncopation, tonal brightness, harmonic
+weight, bass weight, note connection and ensemble size. The 32 internal design
+families contribute further biases, but the intention system reshapes much
+of their behavior. Those 32 names describe internal starting profiles, not
+32 stored songs or 32 commercial styles. [S1]
+
+For each candidate the engine generates a harmonic path, primary motif,
+related melodic material, bass grammar, supporting figures, an instrument
+palette and development parameters. The score considers such things as
+note-count fit, melodic range, directional changes, anchors, answer contrast
+and the amount of accompaniment. The winning candidate becomes the tune's
+identity. [S1-S3]
+
+My fresh survey used 2,048 deterministic seeds. It found:
+
+- 521 slow compositions, 534 relaxed, 480 driving and 513 intense.
+- All 32 internal design families, with 48-90 selections per family.
+- All nine scale choices.
+- All 32 lead, 20 bass, 18 harmony and 12 percussion-kit model indices.
+- Supporting-role counts from one to five in this sample; the allowed
+  range remains one to six. [R1]
+
+This is reassuring about reachability. The selected results are not collapsing
+into a tiny subset of the available profiles.
+
+I also compared each winning composition with candidate zero from the same
+seed, using a fresh reset so previous-session novelty memory did not interfere.
+The supporting-role count was identical for every paired seed. The average
+initial lead note count was 7.846 in the selected candidates and 7.859 in
+candidate zero; average initial bass counts were 5.840 and 5.927. Selection
+was not simply adding notes or layers. [R1]
+
+That does not make the score an aesthetic judge. It evaluates symbolic
+properties designed to encourage good music. It does not listen to a
+candidate, assess a complete long passage, or explicitly evaluate how the
+chosen timbres make the theme clear. This distinction matters when an
+occasional seed satisfies the rules but feels weak.
+
+3. WHY THE MUSIC HAS RECOGNIZABLE THEMES
+
+The principal motif is generated with a contour, an apex, a target number
+of notes, a limited leap budget, rhythmic placement and a cadence. The engine
+then derives a family of related material: answers, variations, fragments,
+recall material, a stable hook and freer verse material. [S2]
+
+The answer is meaningfully connected to the statement. It can reverse or
+rotate source material, invert part of its contour, shift it, shorten it,
+or combine it with another related line. The hook preserves important
+anchors. Freer material combines and modifies things already present.
+
+This is where your description of musical "rhymes" has a concrete basis.
+A listener can hear that two passages are related even when their literal
+notes differ. The engine retains features that make recognition possible:
+placement, contour relationships, recurring harmonic coordinates and
+important phrase joints.
+
+The same seed also supplies related secondary voices. The counterline draws
+from delayed and transformed motif material. Arpeggio, pulse and ornament
+figures have their own generated details while remaining connected to the
+composition's melodic vocabulary. [S2-S3]
+
+I consider this one of the strongest parts of the design. It provides a
+reason for the notes to belong together. Recognition is doing musical work:
+it gives subsequent changes something to mean.
+
+The main limit is the unit of thought. Much of this construction happens in
+a 16-step, four-beat bar. Longer identity is assembled by sequencing and
+transforming those units. The engine has a strong vocabulary of related
+short utterances; its ability to generate a genuinely connected multi-bar
+sentence is less explicit.
+
+4. HOW MUCH REAL IMPROVISATION IS OCCURRING?
+
+The evidence supports substantial development in the foreground itself.
+
+The current native audit examines 256 seeds and 512 phrases per seed, after
+an initial prefix. Its note/rest fingerprints exclude instrument identity,
+pan, tiny timing offsets and timbre changes. A different instrument playing
+the same notes does not automatically count as a new melody. The comparison
+uses archived v29 audit data and freshly evaluated current-engine behavior.
+[R2]
+
+The main results are:
+
+- Median distinct main-lead phrases as a fraction of its own foreground
+  turns: 28.71% in v29, 86.78% in the current engine.
+- Median distinct main-lead note/rest rhythms: 7 in v29, 167 now.
+- Longest identical consecutive main-lead turn run in the sampled current
+  material: 2.
+- Worst concentration of the four most common continuing-foreground phrases:
+  187 of 512 in v29, 95 of 512 now.
+- Recurring recall passages still retain one or two characteristic rhythms.
+  Thematic recognition was preserved. [R2]
+
+These figures address the earlier concern that the accompaniment might
+change while the main line remained essentially fixed. That concern had a
+real technical basis in v29's small foreground rhythmic vocabulary. The
+current engine gives the principal musical argument much more freedom.
+
+I did not find a general current rule that permits only two bars of
+improvisation in every 32. Ordinary development cycles include one or two
+recall bars and substantial related development around them. That does not
+prove every seed feels equally improvisational. Small changes in notes can
+remain perceptually subtle if the accents, register, articulation and
+overall cycle keep presenting them similarly.
+
+The useful interpretation is that the capacity is there and is being used.
+The next musical question is how clearly the listener perceives the
+development, and whether each change advances the tune.
+
+The engine is deterministic and finite. It can continue generating without
+replaying a fixed audio loop, but it cannot guarantee that every short
+sequence will remain unique over mathematically infinite time. Repetition
+also has a deliberate musical role here. Recognizable returns are part of
+the purpose, not evidence that the engine has stopped working. [S4-S5]
+
+5. THE RECIPROCAL RELATIONSHIPS ARE REAL
+
+The five active musical devices change musical relationships in concrete
+ways. [S4-S6]
+
+Counterweight changes the direction of an answer around a generated exchange
+point. A related line is reconsidered from another contour, sometimes carried
+by another existing voice.
+
+Pocket Exchange shifts interior note placements within bounded windows,
+retaining important anchors. The phrase acquires a different rhythmic stance
+without losing all reference to its source.
+
+Held Question gives an ending a suspended character and makes space around
+it. The surrounding rhythm and harmony participate in leaving the question
+open.
+
+Confluence brings melody, bass and harmony toward a shared generated arrival.
+The coordination creates the point of arrival through the relationships
+between parts.
+
+Open Release leaves room after that arrival. On some cycles the harmony
+voice carries the foreground. It changes who speaks and how much activity
+surrounds that statement.
+
+These devices work within the instruments already chosen for the tune.
+When bass or a support voice becomes the foreground, its ordinary
+accompaniment role yields. Other support scheduling also leaves room around
+foreground activity. The engine is not simply accumulating solos. [S6]
+
+This is a meaningful implementation of complementarity: one part changes
+the musical conditions in which another part speaks. The parts share a plan,
+motifs and harmonic context. Their behavior is coordinated by those rules.
+
+The limitation is that this coordination is planned symbolically. The engine
+does not inspect every resulting simultaneous interval and decide whether
+a tension has been prepared and resolved convincingly. Its relational craft
+is real, but less comprehensive than a fully developed voice-leading or
+counterpoint evaluator.
+
+6. THE RHYTHM SECTION HAS MORE THAN A SMALL RIFF POOL
+
+Bass content is generated independently of the finite list of bass synthesis
+models. The note generator builds positions and pitches from kick affinity,
+syncopation, root gravity, spacing and answer behavior. It derives a freer
+verse and answer from that statement. Bass movement is generally more
+restrained than lead movement, preserving a foundation for the foreground.
+[S3, S5-S6]
+
+A last-step bass note can approach the next harmonic root. At a Confluence,
+bass and the other parts share an arrival. The relationship to drums is
+therefore more than sharing a tempo.
+
+Percussion starts with generated weighted words for kick, snare, hats and
+auxiliary percussion. Candidate positions consider spacing, accents,
+syncopation and other instruments' positions. Percussion can avoid a strong
+kick/snare collision; sparse pieces discourage adjacent attacks. Four bars
+of probability patterns provide a rhythmic foundation, and continuing
+performance decisions vary what is played. [S1, S3, S6]
+
+There are recognizable conventions: a downbeat, ordinary or half-time
+backbeat, optional four-on-floor movement and hat subdivisions. All pieces
+use the same underlying 16-step bar and 64-step drum-pattern framework.
+There is no general mixed-meter or compound-meter generator. Swing and
+subdivisions do not change that underlying architecture. [S3, S9]
+
+That is a musical identity, not automatically a defect. A shared pulse makes
+relationships comprehensible. It does establish a boundary on the kinds of
+rhythmic worlds this engine can create.
+
+The long-term drum behavior is particularly sensible. Mutation stays near
+the original groove reference. A rest cannot gradually become a certain
+attack simply because the engine has been running for a long time. The
+existing stress test subjects it to 800,000 accelerated mutations and
+checks that sparse space survives. [S5, R2]
+
+The cost of that protection is that percussion mostly develops around a
+recognizable rhythmic foundation. That can serve the purpose very well:
+the rhythm provides something dependable while the foreground travels.
+
+7. HARMONY PROVIDES A HOME, WITH ROOM FOR DEEPER CONTINUITY
+
+The engine generates a four- or eight-position harmonic-root path. It favors
+manageable motion, a differentiated middle and movement back toward home.
+Slow pieces hold roots for two or three bars; relaxed pieces can hold them
+for one or two; faster pieces normally move each bar. Development can
+slightly shift the roots away from recall passages. [S3-S5]
+
+All pitched layers use a shared tonal coordinate system. The nine scale
+options include natural and harmonic minor, Dorian, Phrygian, minor
+pentatonic, major, Lydian, Mixolydian and major pentatonic. These are shared
+musical building blocks. The generated decisions happen in their use and
+relationships. [S9]
+
+This establishes relatedness and gives the listener a tonal home. It also
+lets an answer change while staying recognizable.
+
+The harmony voice uses a selected voicing and inversion with two to four
+components. The voicing remains essentially the same interval structure
+as it moves through the roots, with register correction. There is no
+explicit search that compares the next chord's individual voices with the
+previous chord to preserve common tones or minimize inner-voice travel.
+[S7]
+
+That is a meaningful limitation, especially in exposed slow music. The
+current system can choose compatible tonal material without fully composing
+the path of each harmonic voice.
+
+I would treat smoother harmonic continuity as a promising future direction.
+The criterion would be musical intention: retain common tones where they
+support continuity; permit stronger movement where an answer or arrival
+needs it. A rule that makes every chord move as little as possible would
+be too blunt.
+
+A secondary source-level observation concerns bass articulation. Some
+accompaniment-bass duration decisions still inspect the original bass
+rhythm's next gap even when the active phrase uses developed verse or answer
+onsets. That merits a targeted listening review because the articulation
+may not always follow the developed sentence. It is a hypothesis about
+musical effect, not a demonstrated audible defect. [S6]
+
+8. INSTRUMENT VARIETY HAS EXPANDED WITHOUT CROWDING THE SONG
+
+The available catalogue is 32 lead models, 20 bass models, 18 harmony models
+and 12 percussion-kit families. The fresh survey reached every model index.
+A tune chooses a stable palette, while notes, color, duration and articulation
+continue to develop. [S7, R1]
+
+The supporting melodic roles share at most three additional model choices.
+Together with the lead, bass and harmony categories, the system limits a
+composition to six pitched synthesis families. This describes instrument
+families, not a six-note polyphony limit.
+
+The paired triggered-palette audit is particularly useful. Across 256
+matched seeds, supporting-role counts were unchanged from v29. Mean actually
+triggered pitched families declined from 5.996 to 4.836, and the sampled
+maximum declined from nine to six. That is evidence that the expansion is
+being used between compositions without increasing the palette inside
+every composition. [R2]
+
+The instruments are not all just different static waveforms. The newer lead
+groups include harmonic reed-like bodies, struck tones with faster-decaying
+upper partials, voiced harmonic bodies, and sustained tones whose upper
+harmonic balance opens during a note. Bass and harmony also vary harmonic
+weighting, modulation and articulation. [S8]
+
+However, catalogue numbers need careful interpretation. Lead entries 16-31
+are four underlying formula groups with four variants each. Several newer
+bass and harmony models also share formulas with parameter changes. They
+are legitimate distinct options, but their count is not a count of wholly
+unrelated musical personalities.
+
+Two further limits affect perceived contrast:
+
+First, the melodic lead and supporting voices inherit the same song-level
+attack, release, glide, vibrato and modulation parameters. Their waveforms,
+registers and scheduled durations can differ, but much of their articulation
+character is shared. [S7]
+
+Second, principal model selections and the additional support selections
+are largely independent within their permitted subsets. The composition
+score does not explicitly ask whether a particular set of timbres makes
+the conversation clear. [S1, S7]
+
+This is a strong opportunity for skill serving purpose. An answer could
+contrast with the statement in attack and harmonic emphasis; a shared
+arrival could bring their articulation into agreement. The present ensemble
+budget is sufficient for that. More distinct relationships between voices
+could produce a larger musical benefit than the catalogue count alone
+would suggest.
+
+9. SLOW MUSIC: REAL IMPROVEMENTS AND A SPECIFIC WEAKNESS
+
+The slow intention has meaningful musical safeguards. It uses a middle
+foreground register, longer harmonic spans, a mellow subset of instruments,
+restrained vibrato, harmonic modulation ratios and more space between
+events. Its lead choices are restricted to 18 models, bass to 12, and harmony
+to eight. Those restrictions have a musical reason. [S4, S7-S8]
+
+The earlier paired validation also shows a substantial reduction in
+automatic root endings and extreme high-register foreground material.
+Across its 66 slow seeds, the mean planned lead pitch moved downward and
+root-pitch-class phrase endings fell from about 80% to about 21%. This
+supports a wider range of intermediate questions and continuations. [R2]
+
+The strongest new issue I found is how slow voice leading crosses a bar
+boundary.
+
+Inside a phrase, the engine deliberately chooses nearby allowable octaves.
+At the beginning of the next phrase it resets the context used for that
+choice. It therefore knows how to connect notes inside a bar more explicitly
+than it knows how to connect the previous bar's ending to the next bar's
+beginning. [S4]
+
+A new probe examined the 66 slow seeds in the standard 256-seed audit set,
+with 512 phrases per seed after a 16-phrase prefix. It compared immediately
+adjacent phrases owned by the main lead, excluding instrument handoff gaps.
+
+Results:
+
+- 14,881 eligible boundaries.
+- 884 boundaries, or 5.94%, jumped by more than an octave.
+- The largest boundary jump was 26 semitones.
+- Inside the same phrases, only two of 132,413 adjacent intervals exceeded
+  an octave.
+- Mean interval size was 5.41 semitones across the boundary and 2.82 within
+  phrases.
+- With unchanged harmonic root, 455 of 9,200 boundaries still exceeded an
+  octave. Harmony changes do not explain the entire effect. [R3]
+
+Seed 2950288811 provides a concrete example. It had 39 large jumps among
+171 eligible main-lead boundaries, with a maximum of 24 semitones. A probe
+of the actual production event scheduler reproduced those counts.
+
+Near 9:28.2-9:28.7, and again near 29:36.9-29:37.2, the scheduled main line
+moves from MIDI 77 to MIDI 53: the same pitch class two octaves lower.
+The observations are generated-note events, not an ears-on claim about how
+objectionable those moments sound. [R3]
+
+A large leap can be expressive. I would preserve deliberate register
+changes. The improvement would be to carry enough melodic context across
+a connected boundary that a large leap has a musical purpose rather than
+being an incidental reset.
+
+This finding is a credible place to investigate the unevenness you reported
+in some slow tracks. It does not explain every weak slow seed, and it does
+not justify putting all slow melodies into a narrower, less expressive box.
+
+10. THE LARGEST VARIETY LIMIT IS THE SHAPE OF THE CONVERSATION
+
+Every ordinary development cycle has a seed-selected length of 10-18 bars.
+The first one or two bars recall the theme. The final three bars always
+follow the same ordered relationship:
+
+Held Question, then Confluence, then Open Release. [S4]
+
+The notes, owners, exchange points, turns and middle development vary, so
+the literal cycle is not an identical loop. But the rhetorical shape keeps
+returning.
+
+This explains how both of these statements can be true: the engine produces
+many different phrases, and prolonged listening can still reveal a
+recognizable formula. Note-level freedom and formal freedom are different
+properties.
+
+The fixed four-beat unit adds another recurring shape. Even when a cycle
+has an unusual total length, much of its inner conversation still proceeds
+one bar at a time.
+
+These constraints provide comprehension and identity. I would not remove
+them indiscriminately. I would broaden how the relationships unfold:
+
+- Let some questions remain open across more than one bar.
+- Allow an answer to begin early, arrive late or continue through a boundary.
+- Let some arrivals be partial, postponed or shared in stages.
+- Vary the distance between recall and departure.
+- Occasionally develop a longer melodic sentence before a clear punctuation.
+
+Those are proposals, not implemented features. Their value would come from
+making the musical argument richer while keeping it intelligible. They do
+not require a larger ensemble, imitation of a commercial arrangement, or a
+separate mode that alternates between accessibility and demonstration.
+
+11. SOME NAMED MECHANISMS ARE NOT CURRENTLY ACTIVE
+
+I need to correct an overbroad impression left by the project's descriptions.
+
+The older tension catalogue lists Vacuum, Convergence, Hinge, Shadow,
+Afterimage and Pad Breath. The engine still generates their associated data,
+but the old tension-device selection and gate functions have no production
+scheduler callers. They should not be counted as six additional active
+devices alongside the five current PhrasePlan devices. [S10]
+
+Some outputs of that setup do survive. The chordArticulation parameter is
+used, but its five values all schedule the same simultaneous voiced chord,
+with different duration factors from 0.8 to 1.2. They do not produce five
+different strummed, rising or broken-chord gestures. [S7, S10]
+
+The older generated form[] array also remains in the source, but the current
+phrase planner determines the normal live sequence. The older material can
+still affect random-number consumption or identity fingerprints. Its presence
+does not mean all of its old formal choices are heard.
+
+This is primarily a clarity and maintenance finding. The current five active
+devices have real musical behavior. The report should describe that behavior
+accurately instead of adding up every name still present in the code.
+
+No cleanup was performed. Removing old generation casually could change
+existing seed results because random-number ordering is part of the
+composition's identity.
+
+12. ORIGINALITY AND THE OLD GLITTERING-CUE CONCERN
+
+The inspected musical path synthesizes its voices and constructs note
+material through generated rules. The source and asset audit identified
+no commercial recordings, soundfonts, MIDI songs or transcribed commercial
+tune used by this engine. [S8, S11]
+
+The old high sparkling accents and universal rising chord figure received
+structural changes. Supporting figures now derive from the song's grammar.
+Harmony notes arrive together rather than forming the old universal rising
+chime. The revised glass-like lead uses harmonic relationships. These are
+meaningful responses to the reported resemblance. [S6-S8]
+
+The particular older Zelda-like example cannot be reconstructed or evaluated
+without its audio or seed. Source inspection also cannot prove that every
+short generated phrase will be unlike all existing music.
+
+The appropriate claim is original generated material built from the
+project's own rules and synthesis, with no identified imported commercial
+musical content. Shared building blocks such as scales, harmonic series,
+inversion and call and response remain part of musical craft. The original
+work is in the particular system of choices and the music those choices
+produce.
+
+13. MUSICAL PRIORITIES I WOULD RECOMMEND
+
+First: preserve the architecture's strengths. Keep the stable subject,
+related answers, recognizable recalls, bounded development, foreground
+handoffs and restrained ensemble size. They give the generator its purpose
+in musical form.
+
+Second: improve continuity between phrases, beginning with the demonstrated
+slow-melody boundary behavior. Connected ideas should carry their context
+across the barline; intentional leaps should remain possible.
+
+Third: develop a wider range of longer arguments. Vary the duration and
+ordering of questions, answers, arrivals and releases. Assess whether those
+changes make a tune more meaningful over several minutes.
+
+Fourth: deepen harmonic and instrumental relationships. Better chord-to-chord
+voice continuity and more deliberate contrast between the selected instrument
+personalities could make the existing notes easier to understand and the
+exchanges more expressive.
+
+Fifth: make evaluation follow the purpose. Continue checking actual foreground
+notes rather than just aggregate event hashes, and add checks for continuity
+across boundaries, long-range rhythmic overfamiliarity and meaningful
+tension/resolution. Pair those checks with listening to longer passages.
+A technically distinct phrase should earn its place musically.
+
+The code already supports a strong central idea. My recommendation is to
+strengthen the continuity and expressive range of its relationships. That
+allows skill and purpose to develop together.
+
+APPENDIX A. WHAT WAS VERIFIED FOR THIS REVIEW
+
+Source identity:
+  technomatic_2105_android_project_v30_2.zip
+  SHA-256:
+  311d407d3252ccd8f90fc424b03281144a27e3a7c40ee4c5007b3563fa3d3dec
+
+MusicEngine.cpp SHA-256:
+  64b1f6b09e6887e2b8074b562e444d161f74c9188f54113f035888ec7d0f3067
+
+All 1,122 extracted project files were compared with the delivered archive
+after the review; none changed. Review probes lived outside the project.
+
+R1. Fresh generation survey:
+  2,048 seeds: uint32_t(i * 2654435761), i=1..2048.
+  A fresh reset clears recent-session novelty memory for each seed.
+  Two paths: normal best-of-48 selection and forced candidate index zero.
+  This observes generated symbolic structures, not perceived quality.
+  Files:
+    review_analysis/generation_survey.cpp
+    review_analysis/generation_survey.csv
+    review_analysis/summarize_generation.py
+    review_analysis/generation_survey_summary.json
+
+  Selected intent counts: 521,534,480,513.
+  Selected support histogram:
+    1 role:3; 2:423; 3:968; 4:567; 5:87; 6:0.
+  The candidate-zero support histogram is identical.
+  Harmonic path lengths:
+    4 positions:979; 8 positions:1,069.
+  Sampled selected BPM ranges:
+    Slow:56.148922..82.7442551.
+    Relaxed:84.5138855..111.964302.
+    Driving:112.30114..143.456451.
+    Intense:144.327225..179.428146.
+  All 32/20/18/12 model categories and all 32 profiles were reached.
+  Counts establish coverage of this sample, not uniform perceptual diversity.
+
+R2. Current native musical audit and historical paired comparison:
+  Built current MusicEngine.cpp and tools/validate_v30.cpp with
+  g++ -std=c++17 -O2 -Wall -Wextra -Werror.
+  Existing native suite completed with 64 checks passing.
+  The suite includes checks beyond musical content; this report draws only
+  on its musical results.
+  Current musical comparisons evaluate the delivered source; v29 comparison
+  data are archived evidence, not a newly rebuilt v29 executable here.
+  Fresh record:
+    review_analysis/music/current_native_validation.txt
+  Methods and historical evidence:
+    docs/V30_VALIDATION.md
+    tools/validation/v29_primary_development.csv
+    tools/validation/v30_primary_development.csv
+    tools/validate_v30.cpp
+  Statistical uniqueness excludes timbre, pan and trivial timing offsets.
+  Structural tests do not prove universal aesthetic quality.
+
+R3. New slow phrase-boundary probes:
+  First 256 standard multiplicative seeds; 66 have slow intent.
+  512 phrases after 16 prefix phrases per seed.
+  Compare consecutive main-lead-owned phrases only; skip instrument handoffs.
+  Count final planned note to next first planned note in MIDI semitones.
+  Refine comparisons by whether harmonic root changed.
+  Verify illustrative seed 2950288811 against actual onStep scheduled events.
+  No full PCM listening claim is made.
+  Files:
+    review_analysis/music/phrase_seams.cpp
+    review_analysis/music/phrase_seams.csv
+    review_analysis/music/phrase_seams_summary.json
+    review_analysis/music/seam_context.cpp
+    review_analysis/music/seam_context.txt
+
+  Main totals:
+    14,881 boundaries;884 over12semitones;maximum26.
+    132,413 within-phrase intervals;2 over12;maximum16.
+    Same harmonic root:9,200 boundaries;455 over12.
+    Changed harmonic root:5,681 boundaries;429 over12.
+    Illustrative scheduled seed:171 boundaries;39 over12;maximum24.
+
+APPENDIX B. SOURCE REFERENCE MAP
+
+All S references use the unmodified delivered project. Function names and
+starting lines identify the inspected code in app/src/main/cpp/MusicEngine.cpp
+unless another file is named.
+
+S1. Candidate generation and intention:
+    generateSeededSong, line729.
+    scoreCurrentComposition, line831.
+    applyCompositionIntent, line1237.
+    generatePattern, line1307.
+
+S2. Thematic material:
+    generatePrimaryMotif, line1493.
+    deriveRelatedMotifs, line1611.
+    generateSecondaryLayerGrammars, line1805.
+    grammarDegree, line3065.
+    themeIndexForStep, line3199.
+
+S3. Rhythm, bass and harmonic identity:
+    generatePattern rhythm construction, line1341.
+    generateHarmonyGrammar, line1443.
+    generateBassGrammar, line1674.
+    bassDegreeForStep, line3572.
+
+S4. Active phrase plan and foreground:
+    generatePhrasePlan, line2779.
+    currentChordRoot, line2747.
+    phrasePlanForStep, line2827.
+    foregroundNoteForStep, line2929.
+    Phrase-local lastDegree initialization, line2941.
+    Phrase-local precedingMidi initialization, line3028.
+
+S5. Continuing development:
+    mutateDrumsOnly, line2528.
+    rememberDrumReference, line2552.
+    repairPattern, line2561.
+    evolutionFrameForStep, line3243.
+    evolvedDegree, line3342.
+    evolvedGate, line3412.
+
+S6. Relationships in the scheduler:
+    onStep, line3713.
+    Active-device scheduling adjustments, line4066.
+    Bass accompaniment and articulation, line4174.
+    Foreground scheduling, line4220.
+    Supporting-role scheduling, line4279.
+    schedulePad, line4445.
+
+S7. Instrument palette and voicing:
+    generateTimbreGrammar, line1981.
+    Slow model restrictions, line1994.
+    Supporting model pool, line2008.
+    Pad voicing, line2042.
+    scheduleChordGesture, line4506.
+    triggerPad, line4568.
+    triggerLead, line4605.
+    Shared lead articulation assignments, line4620.
+
+S8. Synthesis:
+    renderDrum, line4633.
+    renderBass, line4775.
+    renderPad, line4875.
+    renderLead, line4977.
+    New lead formula groups, line5094.
+
+S9. Metric and tonal coordinates:
+    app/src/main/cpp/MusicEngine.h:
+      kPatternSteps, line42; kPhraseSteps, line53;
+      model catalogue constants, line60.
+    MusicEngine.cpp:
+      stepDurationSamples, line4390.
+      humanizeSamples, line4402.
+      scaleLength, line5165.
+      scaleDegreeToMidi, line5169.
+
+S10. Legacy versus active form/device paths:
+     generateTensionGrammar, line1875.
+     Older form[] construction in generateComposition, line2424.
+     Current phrase selection: phrasePlanForStep, line2827.
+     tensionDeviceForPhrase, line3590.
+     tensionFocusForPhrase, line3608.
+     tensionGateForStep, line3612.
+     Current chordArticulation behavior: scheduleChordGesture, line4506.
+     Caller search covered app/src/main.
+
+S11. Musical provenance:
+     docs/SOURCE_AUDIT_V30.txt.
+     Musical generation/synthesis source in S1-S9.
+     This establishes inspected provenance, not a universal musical
+     similarity test.
+
+APPENDIX C. MUSICAL TESTS THAT WOULD ADD THE MOST VALUE NEXT
+
+These are recommendations; no engine changes were made.
+
+1. Compare connected slow phrase seams with intentional register contrasts.
+   Preserve expressive jumps while reducing incidental context resets.
+2. Listen to complete multi-cycle passages, including around 9:28 and 29:37
+   in the documented example, rather than relying only on early excerpts.
+3. Compare formal shapes while holding palette and density steady, to learn
+   whether changed timing of an answer improves recognition and interest.
+4. Evaluate chord continuity and how unresolved melodic tones meet the
+   accompanying chord, including pentatonic and seven-note scales.
+5. Compare the selected voices' articulation and register as an ensemble,
+   with the existing palette bound maintained.
+6. Track recognizable returns and musical relevance alongside uniqueness.
+   A purpose-serving repetition should remain a success.
+
+The central musical question is whether each continuing passage makes sense
+in relation to what came before and opens a meaningful way forward.
+
