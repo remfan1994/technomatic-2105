@@ -1,0 +1,1 @@
+Full-range output for playback and exports. Removed whole-mix ducking, automatic gain riding, master attenuation, fades and coordinated part-volume swells/dips. Android media volume stays under your control. Preserves v30's instruments, slow jams, themes and improvisation. Fixed Next recipe timing. Output revision is embedded in OGG and FLAC. NDK remains pinned to 30.0.14904198.

@@ -1,0 +1,31 @@
+{
+  "seed": 2027808452,
+  "intent": 2,
+  "bpm": 114.637199402,
+  "pattern_drive": 0.564623653889,
+  "sample_rate": 48000,
+  "channels": 2,
+  "start_seconds": 0,
+  "duration_seconds": 88,
+  "frames": 4224000,
+  "next_at_seconds": -1,
+  "called_next": false,
+  "sample_peak": 0.988923311234,
+  "rms": 0.310905317929,
+  "nonfinite_samples": 0,
+  "fullscale_samples": 0,
+  "pcm_fnv1a": "4254f25969fd90ed",
+  "scheduler_fnv1a": "b8074b5cae375ea9",
+  "score_fnv1a": "a6c5e5a528f1de95",
+  "amplitude_fnv1a": "a6121ca4cb96671d",
+  "scheduled_events": 1440,
+  "initial_recipe": "technomatic2105-v1;seed=2027808452;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=3;engine=30;outputrev=2;intent=2;planseed=866869996;planbars=12;recallbars=2;harmonicspan=1;devicerotation=3;phrasejoint=8;leadmodel=14;bassmodel=0;harmonymodel=4;drumkit=0;support0=-1;support1=1;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=20;support12=-1;support13=1;support14=-1;support15=-1;style=25;tempo=115;root=33;scale=6;density=55;swing=46;melody=78;motif=100;drama=59;space=45;roughness=43;brightness=65;diversity=10;kick=81;snare=64;hats=49;openhat=34;perc=0;bass=96;sub=0;chords=69;lead=100;arp=0;counter=33;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=43;bell=0;pulse=64;grain=0;comet=0;rotor=0;listened=0",
+  "final_recipe": "technomatic2105-v1;seed=2027808452;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=3;engine=30;outputrev=2;intent=2;planseed=866869996;planbars=12;recallbars=2;harmonicspan=1;devicerotation=3;phrasejoint=8;leadmodel=14;bassmodel=0;harmonymodel=4;drumkit=0;support0=-1;support1=1;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=20;support12=-1;support13=1;support14=-1;support15=-1;style=25;tempo=115;root=33;scale=6;density=55;swing=46;melody=78;motif=100;drama=59;space=45;roughness=43;brightness=65;diversity=10;kick=81;snare=64;hats=49;openhat=34;perc=0;bass=96;sub=0;chords=69;lead=100;arp=0;counter=33;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=43;bell=0;pulse=64;grain=0;comet=0;rotor=0;listened=88",
+  "render_command": [
+    "/tmp/tm302-measure/final-probe",
+    "/tmp/tm302-measure/final-audio/v302_driving_2027808452.partial.wav",
+    "2027808452",
+    "88"
+  ],
+  "selection_reason": "first intent representative"
+}

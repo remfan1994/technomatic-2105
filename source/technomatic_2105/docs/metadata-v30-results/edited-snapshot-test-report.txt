@@ -1,0 +1,12 @@
+Edited snapshot v30 checks passed: 12582
+Replay cases: 48; successive save/load passes per case: 3; total reloads: 144
+All 40 override fields covered individually and at zero/negative/high input; absent fields and raw typed values are preserved.
+Exact stereo float samples compared: 23040000
+Original two drift reproductions: 12 seconds at 48 kHz on each pass, zero differing samples.
+Full snapshot, generated palette/plan fields, legacy selector neutrality, summary/input separation and replacement-state cleanup passed.
+Host test compiles the production MusicEngine and exercises public load/save/render APIs.
+Canonical editrecipe=1 snapshots replay only present raw edit_* controls, once.
+Output summaries, including rounded lane gains and brightness, are not override inputs.
+The 40 supported controls are tested independently, together and across three reload generations.
+Comparison is byte-exact float PCM at 48 kHz within this host build; no cross-version promise is made.
+Android backend timing, device playback and perceived musical quality are separate checks.

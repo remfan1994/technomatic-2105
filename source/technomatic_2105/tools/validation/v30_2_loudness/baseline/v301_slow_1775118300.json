@@ -1,0 +1,31 @@
+{
+  "seed": 1775118300,
+  "intent": 0,
+  "bpm": 58.979473114,
+  "pattern_drive": 0.430759698153,
+  "sample_rate": 48000,
+  "channels": 2,
+  "start_seconds": 0,
+  "duration_seconds": 88,
+  "frames": 4224000,
+  "next_at_seconds": -1,
+  "called_next": false,
+  "sample_peak": 0.8688403368,
+  "rms": 0.166819203247,
+  "nonfinite_samples": 0,
+  "fullscale_samples": 0,
+  "pcm_fnv1a": "02381425e297c82e",
+  "scheduler_fnv1a": "d13051424526e964",
+  "score_fnv1a": "62a80f5712b51539",
+  "amplitude_fnv1a": "80395a984322526a",
+  "scheduled_events": 976,
+  "initial_recipe": "technomatic2105-v1;seed=1775118300;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=9;engine=30;outputrev=1;intent=0;planseed=629562452;planbars=10;recallbars=2;harmonicspan=2;devicerotation=4;phrasejoint=7;leadmodel=28;bassmodel=15;harmonymodel=13;drumkit=3;support0=-1;support1=-1;support2=-1;support3=13;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=15;support10=-1;support11=-1;support12=-1;support13=-1;support14=-1;support15=-1;style=18;tempo=59;root=40;scale=1;density=22;swing=16;melody=87;motif=100;drama=34;space=63;roughness=23;brightness=84;diversity=9;kick=80;snare=76;hats=42;openhat=0;perc=0;bass=96;sub=69;chords=85;lead=100;arp=0;counter=0;stab=0;texture=0;drone=52;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=0;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=0",
+  "final_recipe": "technomatic2105-v1;seed=1775118300;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=9;engine=30;outputrev=1;intent=0;planseed=629562452;planbars=10;recallbars=2;harmonicspan=2;devicerotation=4;phrasejoint=7;leadmodel=28;bassmodel=15;harmonymodel=13;drumkit=3;support0=-1;support1=-1;support2=-1;support3=13;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=15;support10=-1;support11=-1;support12=-1;support13=-1;support14=-1;support15=-1;style=18;tempo=59;root=40;scale=1;density=22;swing=16;melody=87;motif=100;drama=34;space=63;roughness=23;brightness=84;diversity=9;kick=80;snare=76;hats=42;openhat=0;perc=0;bass=96;sub=69;chords=85;lead=100;arp=0;counter=0;stab=0;texture=0;drone=52;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=0;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=88",
+  "render_command": [
+    "/tmp/tm302-measure/baseline-probe",
+    "/tmp/tm302-measure/baseline-audio/v301_slow_1775118300.partial.wav",
+    "1775118300",
+    "88"
+  ],
+  "selection_reason": "sparse primary candidate"
+}

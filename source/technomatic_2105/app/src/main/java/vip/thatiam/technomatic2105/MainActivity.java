@@ -26,7 +26,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -53,7 +52,6 @@ public final class MainActivity extends Activity {
     private static final int MAX_EXPORT_POSITION_SECONDS = 24 * 60 * 60;
 
     private static final String PREFS = "technomatic_2105";
-    private static final String KEY_V23_CHANNEL_MODE = "v23_channel_mode";
     private static final String KEY_V23_EXPORT_SECONDS = "v23_export_seconds";
     private static final String KEY_V28_EXPORT_START_SECONDS = "v28_export_start_seconds";
     private static final String KEY_V28_EXPORT_END_SECONDS = "v28_export_end_seconds";
@@ -62,12 +60,8 @@ public final class MainActivity extends Activity {
     private static final String KEY_V28_META_ALBUM = "v28_meta_album";
     private static final String KEY_V28_META_GENRE = "v28_meta_genre";
     private static final String KEY_V28_META_COMMENT = "v28_meta_comment";
-    private static final String KEY_V24_CHANNEL_MASK = "v24_channel_mask";
-    private static final String KEY_V24_CHANNEL_BLEND = "v24_channel_blend";
-    private static final String KEY_V24_CHANNEL_PRIMARY = "v24_channel_primary";
 
     private static final int SCREEN_MAIN = 0;
-    private static final int SCREEN_CHANNEL = 1;
     private static final int SCREEN_ADVANCED = 2;
     private static final int SCREEN_METADATA = 3;
 
@@ -86,38 +80,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private static final String[] CHANNEL_LABELS = new String[] {
-            "No Channel",
-            "Chrome Pulse",
-            "Velvet Circuit",
-            "Glass Trap",
-            "Dust Machine",
-            "Liquid Grid",
-            "Neon Drift",
-            "Broken Speaker",
-            "Deep Magnet",
-            "Pixel Ritual",
-            "Soft Voltage",
-            "Heavy Orbit",
-            "Cold Arcade"
-    };
-
-    private static final String[] CHANNEL_DESCRIPTIONS = new String[] {
-            "Pure unrestricted generation; no channel character is imposed.",
-            "Hard chrome rhythm, bright motion, and decisive pulse pressure.",
-            "Rounded electric flow, soft circuitry, and patient melodic current.",
-            "Crystalline hooks, clipped low-end logic, and suspended reflections.",
-            "Grainy motors, weathered voltage, and percussion with mechanical dust.",
-            "Fluid bass motion through a precise but continuously shifting lattice.",
-            "Luminous nocturnal drift with long melodic trails and open air.",
-            "Fractured pressure, unstable edges, and deliberate electronic abrasion.",
-            "Low-register gravity, magnetic bass pull, and dark harmonic mass.",
-            "Tiny hard pulses organized as an evolving machine ritual.",
-            "Mellow current, airy leads, spacious harmony, and restrained impact.",
-            "Large circular bass motion with weight, momentum, and widening force.",
-            "Icy hooks, exact timing, and bright synthetic architecture."
-    };
-
     private final Handler statusHandler = new Handler(Looper.getMainLooper());
     private final ArrayList<String> trackHistory = new ArrayList<>();
 
@@ -126,7 +88,6 @@ public final class MainActivity extends Activity {
     private boolean historyDirty = true;
 
     private Button startStopButton;
-    private Button channelButton;
     private TextView elapsedText;
     private Button previousButton;
     private Button nextButton;
@@ -142,6 +103,8 @@ public final class MainActivity extends Activity {
     private Button exportFlacButton;
     private Button cancelExportButton;
     private TextView exportStatusView;
+    private TextView metadataIdentityView;
+    private final ArrayList<EditText> metadataInputFields = new ArrayList<>();
     private volatile ExportFormat activeExportFormat = ExportFormat.OGG;
 
     private final Runnable statusTicker = new Runnable() {
@@ -159,9 +122,14 @@ public final class MainActivity extends Activity {
         requestNotificationPermissionIfNeeded();
         registerSystemBackHandler();
 
-        NativeAudio.setGenreBlendMode(loadChannelBlendMode());
-        NativeAudio.setGenreMask(loadChannelMask());
-        NativeAudio.setGenrePrimary(loadChannelPrimary());
+        // These preferences belonged to the retired channel selector. Preserve
+        // all metadata and export settings while removing their old influence.
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .remove("v23_channel_mode")
+                .remove("v24_channel_mask")
+                .remove("v24_channel_blend")
+                .remove("v24_channel_primary")
+                .apply();
         showMainScreen();
     }
 
@@ -182,8 +150,7 @@ public final class MainActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (currentScreen == SCREEN_CHANNEL) showChannelSelectorScreen();
-        else if (currentScreen == SCREEN_ADVANCED) showAdvancedScreen();
+        if (currentScreen == SCREEN_ADVANCED) showAdvancedScreen();
         else if (currentScreen == SCREEN_METADATA) showMetadataScreen();
         else showMainScreen();
     }
@@ -265,10 +232,6 @@ public final class MainActivity extends Activity {
         startStopButton.setOnClickListener(view -> togglePlayback());
         controls.addView(startStopButton, params(widthDp, compact ? 54 : 70, 0));
 
-        channelButton = navButton(currentChannelText(), compact ? 13.5f : 14.5f);
-        channelButton.setOnClickListener(view -> showChannelSelectorScreen());
-        controls.addView(channelButton, params(widthDp, compact ? 45 : 48, 7));
-
         elapsedText = label(currentElapsedText());
         elapsedText.setTextSize(compact ? 13.5f : 14.5f);
         elapsedText.setGravity(Gravity.CENTER);
@@ -318,7 +281,7 @@ public final class MainActivity extends Activity {
         hint.setTextSize(10.8f);
         panel.addView(hint, params(widthDp, -2, 2));
 
-        TextView heading = status("Channel / seed / listened");
+        TextView heading = status("Seed / listened");
         heading.setGravity(Gravity.LEFT);
         heading.setTextSize(11.5f);
         panel.addView(heading, params(widthDp, -2, 2));
@@ -341,147 +304,11 @@ public final class MainActivity extends Activity {
         return panel;
     }
 
-    private void showChannelSelectorScreen() {
-        currentScreen = SCREEN_CHANNEL;
-        int width = contentWidthDp();
-        LinearLayout controls = baseColumn();
-
-        Button back = button("Back", 15.0f);
-        back.setOnClickListener(view -> showMainScreen());
-        controls.addView(back, params(width, 46, 0));
-        controls.addView(label("CHANNEL SELECTOR"), params(width, -2, 10));
-
-        TextView explanation = status(
-                "No Channel is unrestricted. Named channels reinterpret the current seed without replacing it. " +
-                "Changing channels restarts the same composition at 0:00, so its intro can be compared directly. " +
-                "Hybrid Channels keeps the first selected channel dominant and uses later selections as secondary influences.");
-        explanation.setTextSize(11.5f);
-        controls.addView(explanation, params(width, -2, 7));
-
-        final boolean[] updating = new boolean[] {false};
-        final CheckBox noChannel = checkBox("No Channel - " + CHANNEL_DESCRIPTIONS[0]);
-        final CheckBox hybrid = checkBox("Hybrid Channels");
-        final ArrayList<CheckBox> channelBoxes = new ArrayList<>();
-
-        controls.addView(noChannel, params(width, 54, 8));
-        controls.addView(hybrid, params(width, 46, 4));
-
-        int initialMask = loadChannelMask();
-        int initialBlend = loadChannelBlendMode();
-        int initialPrimary = normalizedPrimary(initialMask, loadChannelPrimary());
-        noChannel.setChecked(initialMask == 0);
-        hybrid.setChecked(initialBlend == 1 && initialMask != 0);
-
-        for (int mode = 1; mode < CHANNEL_LABELS.length; ++mode) {
-            CheckBox box = checkBox(channelLine(mode, mode == initialPrimary && initialBlend == 1));
-            box.setTag(mode);
-            box.setChecked((initialMask & channelMask(mode)) != 0);
-            channelBoxes.add(box);
-            controls.addView(box, params(width, 58, 3));
-        }
-
-        Runnable refreshLabels = () -> {
-            int mask = currentMask(channelBoxes);
-            int primary = normalizedPrimary(mask, loadChannelPrimary());
-            boolean isHybrid = hybrid.isChecked() && mask != 0;
-            for (CheckBox box : channelBoxes) {
-                int mode = (Integer) box.getTag();
-                box.setText(channelLine(mode, isHybrid && mode == primary));
-            }
-        };
-
-        noChannel.setOnCheckedChangeListener((buttonView, checked) -> {
-            if (updating[0]) return;
-            if (!checked) {
-                // No Channel cannot be left empty. Selecting a named channel clears it
-                // through the guarded channel listener below.
-                if (currentMask(channelBoxes) == 0) {
-                    updating[0] = true;
-                    noChannel.setChecked(true);
-                    updating[0] = false;
-                    Toast.makeText(this, "Select a channel before leaving No Channel.", Toast.LENGTH_SHORT).show();
-                }
-                return;
-            }
-            updating[0] = true;
-            hybrid.setChecked(false);
-            for (CheckBox box : channelBoxes) box.setChecked(false);
-            updating[0] = false;
-            applyChannelState(0, 0, 0);
-            refreshLabels.run();
-            Toast.makeText(this, "No Channel: unrestricted generation.", Toast.LENGTH_SHORT).show();
-        });
-
-        hybrid.setOnCheckedChangeListener((buttonView, checked) -> {
-            if (updating[0]) return;
-            int mask = currentMask(channelBoxes);
-            if (checked && mask == 0) {
-                updating[0] = true;
-                hybrid.setChecked(false);
-                noChannel.setChecked(true);
-                updating[0] = false;
-                Toast.makeText(this, "Select the dominant channel first, then enable Hybrid Channels.", Toast.LENGTH_LONG).show();
-                refreshLabels.run();
-                return;
-            }
-            int primary = normalizedPrimary(mask, loadChannelPrimary());
-            if (!checked && Integer.bitCount(mask) > 1) {
-                // Leaving Hybrid keeps the dominant channel and removes secondary influences.
-                mask = primary > 0 ? channelMask(primary) : 0;
-                updating[0] = true;
-                for (CheckBox box : channelBoxes) {
-                    int mode = (Integer) box.getTag();
-                    box.setChecked(mode == primary);
-                }
-                updating[0] = false;
-            }
-            applyChannelState(mask, checked && mask != 0 ? 1 : 0, primary);
-            refreshLabels.run();
-        });
-
-        for (CheckBox box : channelBoxes) {
-            box.setOnCheckedChangeListener((buttonView, checked) -> {
-                if (updating[0]) return;
-                int mode = (Integer) buttonView.getTag();
-                int mask = currentMask(channelBoxes);
-                int primary = loadChannelPrimary();
-
-                updating[0] = true;
-                noChannel.setChecked(false);
-                if (checked) {
-                    if (!hybrid.isChecked()) {
-                        for (CheckBox other : channelBoxes) {
-                            if (other != buttonView) other.setChecked(false);
-                        }
-                        mask = channelMask(mode);
-                        primary = mode;
-                    } else {
-                        mask |= channelMask(mode);
-                        if (primary <= 0 || (mask & channelMask(primary)) == 0) primary = mode;
-                    }
-                } else {
-                    mask &= ~channelMask(mode);
-                    if (mask == 0) {
-                        hybrid.setChecked(false);
-                        noChannel.setChecked(true);
-                        primary = 0;
-                    } else if (mode == primary) {
-                        primary = firstSelectedMode(mask);
-                    }
-                }
-                updating[0] = false;
-
-                int blend = hybrid.isChecked() && mask != 0 ? 1 : 0;
-                applyChannelState(mask, blend, primary);
-                refreshLabels.run();
-            });
-        }
-
-        setScrollRoot(controls);
-    }
-
-
     private void showAdvancedScreen() {
+        if (currentScreen == SCREEN_METADATA) {
+            metadataInputFields.clear();
+            metadataIdentityView = null;
+        }
         currentScreen = SCREEN_ADVANCED;
         int width = contentWidthDp();
         LinearLayout controls = baseColumn();
@@ -492,7 +319,7 @@ public final class MainActivity extends Activity {
         controls.addView(label("ADVANCED"), params(width, -2, 10));
 
         controls.addView(label("Load seed"), params(width, -2, 12));
-        TextView loadExplanation = status("Enter a seed to regenerate its sound under the selected channel.");
+        TextView loadExplanation = status("Enter a seed to regenerate its sound with the full music engine.");
         loadExplanation.setTextSize(11.5f);
         controls.addView(loadExplanation, params(width, -2, 3));
 
@@ -559,7 +386,7 @@ public final class MainActivity extends Activity {
 
         exportStatusView = status(exportRunning
                 ? exportStatusForUi()
-                : "OGG is compact and lossy. FLAC is lossless and larger. Both exports reconstruct the captured seed and channel independently of live playback.");
+                : idleExportStatus());
         exportStatusView.setTextSize(11.5f);
         controls.addView(exportStatusView, params(width, -2, 7));
 
@@ -605,6 +432,24 @@ public final class MainActivity extends Activity {
     }
 
     private void showMetadataScreen() {
+        // Configuration changes rebuild this screen in place. Preserve typing
+        // during that redraw; leaving with Back still discards unsaved edits.
+        ArrayList<String> draft = new ArrayList<>();
+        int focusedField = -1;
+        int selectionStart = 0;
+        int selectionEnd = 0;
+        if (currentScreen == SCREEN_METADATA) {
+            for (int i = 0; i < metadataInputFields.size(); i++) {
+                EditText field = metadataInputFields.get(i);
+                draft.add(textOf(field));
+                if (field.hasFocus()) {
+                    focusedField = i;
+                    selectionStart = Math.max(0, field.getSelectionStart());
+                    selectionEnd = Math.max(0, field.getSelectionEnd());
+                }
+            }
+        }
+        metadataInputFields.clear();
         currentScreen = SCREEN_METADATA;
         int width = contentWidthDp();
         LinearLayout controls = baseColumn();
@@ -615,7 +460,7 @@ public final class MainActivity extends Activity {
         controls.addView(label("EXPORT METADATA"), params(width, -2, 10));
 
         TextView note = status(
-                "The song title comes from the export filename. Leave Album blank to use the export date and Genre blank to use the current Channel.");
+                "Title comes from the export filename. Blank Album uses the export date; blank Genre uses Generative music. Notes include the actual seed automatically in both OGG and FLAC.");
         note.setTextSize(11.5f);
         controls.addView(note, params(width, -2, 4));
 
@@ -623,8 +468,29 @@ public final class MainActivity extends Activity {
         EditText albumArtist = metadataField(controls, width, "Album Artist", KEY_V28_META_ALBUM_ARTIST, "Technomatic 2105");
         EditText album = metadataField(controls, width, "Album", KEY_V28_META_ALBUM, "");
         EditText genre = metadataField(controls, width, "Genre", KEY_V28_META_GENRE, "");
-        EditText comment = metadataField(controls, width, "Comment", KEY_V28_META_COMMENT,
-                "Generated locally by Technomatic 2105");
+        controls.addView(label("Notes"), params(width, -2, 9));
+        metadataIdentityView = status(ExportMetadata.identityNote(NativeAudio.currentSongData()));
+        metadataIdentityView.setTextColor(Color.WHITE);
+        metadataIdentityView.setTextSize(13.0f);
+        metadataIdentityView.setTextIsSelectable(true);
+        controls.addView(metadataIdentityView, params(width, -2, 3));
+        TextView automatic = status("The seed details above and the export range are added automatically. Add your own notes below.");
+        automatic.setTextSize(11.5f);
+        controls.addView(automatic, params(width, -2, 4));
+        EditText comment = editField(metadataValue(KEY_V28_META_COMMENT,
+                "Generated locally by Technomatic 2105"), InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        comment.setSingleLine(false);
+        comment.setMinLines(3);
+        comment.setGravity(Gravity.TOP | Gravity.START);
+        comment.setSelectAllOnFocus(false);
+        comment.setTextSize(14.0f);
+        comment.setHint("Optional notes");
+        controls.addView(comment, params(width, -2, 3));
+        metadataInputFields.add(comment);
+        if (draft.size() == metadataInputFields.size()) {
+            for (int i = 0; i < draft.size(); i++) metadataInputFields.get(i).setText(draft.get(i));
+        }
 
         Button save = button("Save Metadata", 15.0f);
         save.setOnClickListener(view -> {
@@ -640,6 +506,12 @@ public final class MainActivity extends Activity {
         });
         controls.addView(save, params(width, 48, 12));
         setScrollRoot(controls);
+        if (focusedField >= 0 && focusedField < metadataInputFields.size()) {
+            EditText field = metadataInputFields.get(focusedField);
+            field.requestFocus();
+            int length = field.length();
+            field.setSelection(Math.min(selectionStart, length), Math.min(selectionEnd, length));
+        }
     }
 
     private EditText metadataField(LinearLayout controls, int width, String labelText,
@@ -648,6 +520,7 @@ public final class MainActivity extends Activity {
         EditText field = editField(metadataValue(key, fallback),
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         controls.addView(field, params(width, 50, 2));
+        metadataInputFields.add(field);
         return field;
     }
 
@@ -722,38 +595,10 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        int mask = loadChannelMask();
-        int blend = loadChannelBlendMode();
-        int primary = loadChannelPrimary();
         String data = "technomatic2105-v1;seed=" + value +
-                ";seconds=" + DEFAULT_EXPORT_END_SECONDS +
-                ";edited=0;gmask=" + mask +
-                ";gblend=" + blend +
-                ";gprimary=" + primary +
-                ";gmode=" + primary;
+                ";seconds=" + DEFAULT_EXPORT_END_SECONDS + ";edited=0";
         playSongData(data, true);
         Toast.makeText(this, "Seed loaded.", Toast.LENGTH_SHORT).show();
-    }
-
-    private void applyChannelState(int mask, int blend, int primary) {
-        mask = clamp(mask, 0, 4095);
-        blend = blend == 1 && mask != 0 ? 1 : 0;
-        primary = normalizedPrimary(mask, primary);
-        saveChannelState(mask, blend, primary);
-        if (NativeAudio.isPlaying()) {
-            Intent intent = serviceIntent(AudioService.ACTION_START);
-            intent.putExtra(AudioService.EXTRA_GENRE_MASK, mask);
-            intent.putExtra(AudioService.EXTRA_GENRE_BLEND_MODE, blend);
-            intent.putExtra(AudioService.EXTRA_GENRE_PRIMARY, primary);
-            intent.putExtra(AudioService.EXTRA_RERENDER_CURRENT, true);
-            startAudioService(intent);
-        } else {
-            // Queue the same-seed rendition while stopped. The next Start resumes
-            // this composition under the selected Channel instead of inventing a
-            // new seed merely because playback had been stopped.
-            NativeAudio.setGenreStateAndRerenderCurrent(mask, blend, primary);
-        }
-        updateMainStatusDelayed();
     }
 
     private void syncTrackHistory() {
@@ -808,11 +653,9 @@ public final class MainActivity extends Activity {
     }
 
     private String soundIdentityKey(String data) {
+        // Retired channel values do not create a distinct v30 composition.
         return String.valueOf(seedFromSongData(data) & 0xffffffffL) + ":" +
-                signedFieldFromSongData(data, "cand", 0) + ":" +
-                signedFieldFromSongData(data, "gmask", 0) + ":" +
-                signedFieldFromSongData(data, "gblend", 0) + ":" +
-                signedFieldFromSongData(data, "gprimary", signedFieldFromSongData(data, "gmode", 0));
+                signedFieldFromSongData(data, "cand", 0);
     }
 
     private void clearTrackHistory() {
@@ -859,7 +702,7 @@ public final class MainActivity extends Activity {
     private String historyRowText(String data) {
         long seed = seedFromSongData(data) & 0xffffffffL;
         int listened = Math.max(0, signedFieldFromSongData(data, "listened", 0));
-        return channelNameFromSongData(data) + "\n" + seed + "   " + formatDuration(listened);
+        return "Seed: " + seed + "\nListened: " + formatDuration(listened);
     }
 
     private String mergeHistoryData(String oldData, String newData) {
@@ -884,36 +727,9 @@ public final class MainActivity extends Activity {
         return data.substring(0, pos) + field + data.substring(end);
     }
 
-    private String channelNameFromSongData(String data) {
-        int mask = signedFieldFromSongData(data, "gmask", 0);
-        int blend = signedFieldFromSongData(data, "gblend", 0);
-        int primary = signedFieldFromSongData(data, "gprimary",
-                signedFieldFromSongData(data, "gmode", 0));
-        if (blend == 1 && Integer.bitCount(mask) > 1) {
-            primary = normalizedPrimary(mask, primary);
-            int secondaryCount = Math.max(1, Integer.bitCount(mask) - 1);
-            return "Hybrid: " + CHANNEL_LABELS[primary] + " + " + secondaryCount;
-        }
-        int mode = signedFieldFromSongData(data, "gmode", -1);
-        if (mode >= 0 && mode < CHANNEL_LABELS.length) return CHANNEL_LABELS[mode];
-        if (Integer.bitCount(mask) == 1) {
-            for (int i = 0; i < 12; ++i) if ((mask & (1 << i)) != 0) return CHANNEL_LABELS[i + 1];
-        }
-        return "No Channel";
-    }
-
     private Intent serviceIntent(String action) {
         Intent intent = new Intent(this, AudioService.class);
         intent.setAction(action);
-        int mask = loadChannelMask();
-        int blend = loadChannelBlendMode();
-        int primary = loadChannelPrimary();
-        NativeAudio.setGenreBlendMode(blend);
-        NativeAudio.setGenreMask(mask);
-        NativeAudio.setGenrePrimary(primary);
-        intent.putExtra(AudioService.EXTRA_GENRE_MASK, mask);
-        intent.putExtra(AudioService.EXTRA_GENRE_BLEND_MODE, blend);
-        intent.putExtra(AudioService.EXTRA_GENRE_PRIMARY, primary);
         return intent;
     }
 
@@ -929,28 +745,14 @@ public final class MainActivity extends Activity {
     private void updateMainStatus() {
         syncTrackHistory();
         if (startStopButton != null) startStopButton.setText(NativeAudio.isPlaying() ? "Stop" : "Start");
-        if (channelButton != null) channelButton.setText(currentChannelText());
         if (elapsedText != null) elapsedText.setText(currentElapsedText());
         if (previousButton != null) previousButton.setEnabled(historyCursor > 0);
         if (nextButton != null) nextButton.setEnabled(true);
-        rebuildHistoryList();
-    }
-
-    private String currentChannelText() {
-        return "Channel: " + currentChannelValue() + "  >";
-    }
-
-    private String currentChannelValue() {
-        String data = NativeAudio.currentSongData();
-        if (NativeAudio.isPlaying() && data != null && !data.isEmpty()) return channelNameFromSongData(data);
-        int mask = loadChannelMask();
-        int blend = loadChannelBlendMode();
-        int primary = normalizedPrimary(mask, loadChannelPrimary());
-        if (mask == 0) return CHANNEL_LABELS[0];
-        if (blend == 1 && Integer.bitCount(mask) > 1) {
-            return "Hybrid: " + CHANNEL_LABELS[primary] + " + " + (Integer.bitCount(mask) - 1);
+        if (currentScreen == SCREEN_METADATA && metadataIdentityView != null) {
+            String identity = ExportMetadata.identityNote(NativeAudio.currentSongData());
+            if (!identity.contentEquals(metadataIdentityView.getText())) metadataIdentityView.setText(identity);
         }
-        return CHANNEL_LABELS[primary];
+        rebuildHistoryList();
     }
 
     private String currentElapsedText() {
@@ -961,6 +763,10 @@ public final class MainActivity extends Activity {
 
     private void startExport(String requestedName, ExportFormat format) {
         if (exportRunning) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Toast.makeText(this, "Saving audio to Music requires Android 10 or newer.", Toast.LENGTH_LONG).show();
+            return;
+        }
         String source = NativeAudio.currentSongData();
         if (source == null || source.isEmpty()) {
             Toast.makeText(this, "No sound is available to export.", Toast.LENGTH_SHORT).show();
@@ -978,7 +784,17 @@ public final class MainActivity extends Activity {
         // End defines the finite musical boundary. The offline engine advances
         // from time zero, discards everything before Start, and generates its
         // conclusion at End without touching live playback.
-        String data = songDataWithDuration(source, endSeconds);
+        final String data = songDataWithDuration(source, endSeconds);
+        final String displayName = exportDisplayName(requestedName, format);
+        // Capture preferences, date, notes and the exact native recipe once on
+        // the UI thread. Later edits and live playback cannot retag this job.
+        final ExportMetadata metadata;
+        try {
+            metadata = exportMetadata(displayName, data, startSeconds, endSeconds);
+        } catch (IllegalArgumentException ex) {
+            Toast.makeText(this, "Load a sound before exporting.", Toast.LENGTH_LONG).show();
+            return;
+        }
         activeExportFormat = format;
         exportRunning = true;
         exportCancelRequested = false;
@@ -996,7 +812,6 @@ public final class MainActivity extends Activity {
             ExportCancellationToken token =
                     () -> exportCancelRequested || Thread.currentThread().isInterrupted();
             try {
-                String displayName = exportDisplayName(requestedName, format);
                 raw = File.createTempFile("technomatic_2105_export_", ".pcm", getCacheDir());
                 encoded = File.createTempFile("technomatic_2105_export_", format.extension, getCacheDir());
 
@@ -1016,11 +831,9 @@ public final class MainActivity extends Activity {
 
                 updateExportStatus("Encoding " + format.label + "...");
                 if (format == ExportFormat.OGG) {
-                    OggExporter.encodeRawPcm16ToOgg(raw, encoded, token);
+                    OggExporter.encodeRawPcm16ToOgg(raw, encoded, metadata, token);
                 } else {
-                    FlacExporter.encodeRawPcm16ToFlac(
-                            raw, encoded,
-                            flacMetadata(displayName, data, startSeconds, endSeconds), token);
+                    FlacExporter.encodeRawPcm16ToFlac(raw, encoded, metadata, token);
                 }
                 checkExportCancelled(token);
                 if (!encoded.exists() || encoded.length() <= 0L) {
@@ -1030,7 +843,7 @@ public final class MainActivity extends Activity {
 
                 updateExportStatus("Publishing to Music...");
                 ExportResult result = publishAudioToMusic(
-                        encoded, displayName, data, format, startSeconds, endSeconds, token);
+                        encoded, displayName, metadata, format, token);
                 publicPath = result.displayPath;
                 ok = true;
                 message = "Exported " + formatDuration(startSeconds) + "-" +
@@ -1062,42 +875,39 @@ public final class MainActivity extends Activity {
         exportThread.start();
     }
 
-    private FlacExporter.Metadata flacMetadata(
+    private ExportMetadata exportMetadata(
             String displayName, String songData, int startSeconds, int endSeconds) {
-        String baseName = removeKnownAudioExtension(displayName);
-        long seed = seedFromSongData(songData) & 0xffffffffL;
-        return new FlacExporter.Metadata(
-                baseName,
+        Date capturedDate = new Date();
+        return new ExportMetadata(
+                removeKnownAudioExtension(displayName),
                 exportArtist(),
                 exportAlbumArtist(),
-                exportAlbum(),
-                exportGenre(songData),
-                exportComment(startSeconds, endSeconds) + "; Seed: " + seed);
+                exportAlbum(capturedDate),
+                exportGenre(),
+                metadataValue(KEY_V28_META_COMMENT, "Generated locally by Technomatic 2105"),
+                new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(capturedDate),
+                songData, startSeconds, endSeconds);
     }
 
     private ExportResult publishAudioToMusic(
             File encodedAudio,
             String displayName,
-            String songData,
+            ExportMetadata metadata,
             ExportFormat format,
-            int startSeconds,
-            int endSeconds,
             ExportCancellationToken token) throws java.io.IOException {
         checkExportCancelled(token);
         ContentResolver resolver = getContentResolver();
         ContentValues values = new ContentValues();
-        String baseName = removeKnownAudioExtension(displayName);
-
         values.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
         values.put(MediaStore.MediaColumns.MIME_TYPE, format.mimeType);
-        values.put(MediaStore.Audio.Media.TITLE, baseName);
-        values.put("artist", exportArtist());
-        values.put("album_artist", exportAlbumArtist());
-        values.put("album", exportAlbum());
-        values.put("genre", exportGenre(songData));
+        values.put(MediaStore.Audio.Media.TITLE, metadata.title);
+        values.put("artist", metadata.artist);
+        values.put("album_artist", metadata.albumArtist);
+        values.put("album", metadata.album);
+        values.put("genre", metadata.genre);
         values.put(MediaStore.Audio.Media.IS_MUSIC, 1);
         values.put(MediaStore.Audio.Media.DURATION,
-                Math.max(0L, (long) (endSeconds - startSeconds) * 1000L));
+                Math.max(0L, (long) (metadata.endSeconds - metadata.startSeconds) * 1000L));
         values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC);
         values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
@@ -1121,7 +931,9 @@ public final class MainActivity extends Activity {
             checkExportCancelled(token);
             ContentValues done = new ContentValues();
             done.put(MediaStore.MediaColumns.IS_PENDING, 0);
-            resolver.update(uri, done, null, null);
+            if (resolver.update(uri, done, null, null) != 1) {
+                throw new java.io.IOException("Could not finalize the exported Music file.");
+            }
             return new ExportResult(uri, Environment.DIRECTORY_MUSIC + "/" + displayName);
         } catch (Exception ex) {
             try { resolver.delete(uri, null, null); } catch (Exception ignored) {}
@@ -1130,9 +942,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String exportAlbumName() {
+    private String exportAlbumName(Date date) {
         return new SimpleDateFormat("MMMM dd yyyy", Locale.US)
-                .format(new Date()).toUpperCase(Locale.US);
+                .format(date).toUpperCase(Locale.US);
     }
 
     private void requestExportCancel() {
@@ -1151,8 +963,9 @@ public final class MainActivity extends Activity {
     }
 
     private void updateExportUi() {
-        if (exportOggButton != null) exportOggButton.setEnabled(!exportRunning);
-        if (exportFlacButton != null) exportFlacButton.setEnabled(!exportRunning);
+        boolean canExport = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !exportRunning;
+        if (exportOggButton != null) exportOggButton.setEnabled(canExport);
+        if (exportFlacButton != null) exportFlacButton.setEnabled(canExport);
         if (cancelExportButton != null) {
             cancelExportButton.setEnabled(exportRunning);
             cancelExportButton.setVisibility(exportRunning ? View.VISIBLE : View.GONE);
@@ -1160,8 +973,15 @@ public final class MainActivity extends Activity {
         if (exportStatusView != null) {
             exportStatusView.setText(exportRunning
                     ? exportStatusForUi()
-                    : "OGG is compact and lossy. FLAC is lossless and larger. Both exports reconstruct the captured seed and channel independently of live playback.");
+                    : idleExportStatus());
         }
+    }
+
+    private String idleExportStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return "Audio export to Music requires Android 10 or newer. Playback remains available.";
+        }
+        return "OGG is compact and lossy. FLAC is lossless and larger. Both embed your metadata and seed, and render independently of live playback.";
     }
 
     private String exportStatusForUi() {
@@ -1205,6 +1025,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showExportResultDialog(boolean ok, String message) {
+        if (isFinishing() || isDestroyed()) return;
         boolean cancelled = message != null && message.toLowerCase(Locale.US).contains("cancel");
         new AlertDialog.Builder(this)
                 .setTitle(ok ? "Export complete" : (cancelled ? "Export cancelled" : "Export failed"))
@@ -1301,77 +1122,6 @@ public final class MainActivity extends Activity {
         return data.substring(0, start) + seconds + data.substring(end);
     }
 
-    private int loadChannelMask() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        if (prefs.contains(KEY_V24_CHANNEL_MASK)) {
-            return clamp(prefs.getInt(KEY_V24_CHANNEL_MASK, 0), 0, 4095);
-        }
-        int legacyMode = clamp(prefs.getInt(KEY_V23_CHANNEL_MODE, 0), 0, CHANNEL_LABELS.length - 1);
-        return channelMask(legacyMode);
-    }
-
-    private int loadChannelBlendMode() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        int mask = loadChannelMask();
-        int blend = prefs.contains(KEY_V24_CHANNEL_BLEND)
-                ? prefs.getInt(KEY_V24_CHANNEL_BLEND, 0) : 0;
-        return blend == 1 && mask != 0 ? 1 : 0;
-    }
-
-    private int loadChannelPrimary() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        int mask = loadChannelMask();
-        int legacyMode = clamp(prefs.getInt(KEY_V23_CHANNEL_MODE, 0), 0, CHANNEL_LABELS.length - 1);
-        int primary = prefs.contains(KEY_V24_CHANNEL_PRIMARY)
-                ? prefs.getInt(KEY_V24_CHANNEL_PRIMARY, legacyMode) : legacyMode;
-        return normalizedPrimary(mask, primary);
-    }
-
-    private void saveChannelState(int mask, int blend, int primary) {
-        mask = clamp(mask, 0, 4095);
-        primary = normalizedPrimary(mask, primary);
-        blend = blend == 1 && mask != 0 ? 1 : 0;
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putInt(KEY_V24_CHANNEL_MASK, mask)
-                .putInt(KEY_V24_CHANNEL_BLEND, blend)
-                .putInt(KEY_V24_CHANNEL_PRIMARY, primary)
-                .apply();
-    }
-
-    private int channelMask(int mode) {
-        return mode <= 0 ? 0 : 1 << (clamp(mode, 1, 12) - 1);
-    }
-
-    private int firstSelectedMode(int mask) {
-        for (int mode = 1; mode < CHANNEL_LABELS.length; ++mode) {
-            if ((mask & channelMask(mode)) != 0) return mode;
-        }
-        return 0;
-    }
-
-    private int normalizedPrimary(int mask, int primary) {
-        mask = clamp(mask, 0, 4095);
-        if (mask == 0) return 0;
-        if (primary > 0 && primary < CHANNEL_LABELS.length &&
-                (mask & channelMask(primary)) != 0) return primary;
-        return firstSelectedMode(mask);
-    }
-
-    private int currentMask(ArrayList<CheckBox> boxes) {
-        int mask = 0;
-        for (CheckBox box : boxes) {
-            if (!box.isChecked() || !(box.getTag() instanceof Integer)) continue;
-            mask |= channelMask((Integer) box.getTag());
-        }
-        return mask;
-    }
-
-    private String channelLine(int mode, boolean primary) {
-        String marker = primary ? " (dominant)" : "";
-        return CHANNEL_LABELS[mode] + marker + " - " + CHANNEL_DESCRIPTIONS[mode];
-    }
-
-
     private int loadExportStartSeconds() {
         return clamp(getSharedPreferences(PREFS, MODE_PRIVATE)
                 .getInt(KEY_V28_EXPORT_START_SECONDS, DEFAULT_EXPORT_START_SECONDS),
@@ -1446,21 +1196,14 @@ public final class MainActivity extends Activity {
         return value.isEmpty() ? exportArtist() : value;
     }
 
-    private String exportAlbum() {
+    private String exportAlbum(Date date) {
         String value = metadataValue(KEY_V28_META_ALBUM, "").trim();
-        return value.isEmpty() ? exportAlbumName() : value;
+        return value.isEmpty() ? exportAlbumName(date) : value;
     }
 
-    private String exportGenre(String songData) {
+    private String exportGenre() {
         String value = metadataValue(KEY_V28_META_GENRE, "").trim();
-        return value.isEmpty() ? channelNameFromSongData(songData) : value;
-    }
-
-    private String exportComment(int startSeconds, int endSeconds) {
-        String value = metadataValue(KEY_V28_META_COMMENT,
-                "Generated locally by Technomatic 2105").trim();
-        String range = "Range: " + formatDuration(startSeconds) + "-" + formatDuration(endSeconds);
-        return value.isEmpty() ? range : value + "; " + range;
+        return value.isEmpty() ? "Generative music" : value;
     }
 
     private int clamp(int value, int min, int max) {
@@ -1520,18 +1263,6 @@ public final class MainActivity extends Activity {
         button.setIncludeFontPadding(false);
         button.setPadding(dp(6), dp(4), dp(6), dp(4));
         return button;
-    }
-
-    private CheckBox checkBox(String text) {
-        CheckBox box = new CheckBox(this);
-        box.setText(text);
-        box.setTextColor(Color.WHITE);
-        box.setButtonTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
-        box.setTextSize(14.0f);
-        box.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-        box.setPadding(dp(4), dp(3), dp(4), dp(3));
-        box.setMaxLines(2);
-        return box;
     }
 
     private EditText editField(String text, int inputType) {

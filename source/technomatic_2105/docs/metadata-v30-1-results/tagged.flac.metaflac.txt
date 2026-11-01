@@ -1,0 +1,30 @@
+TITLE=fixture
+ARTIST=Technomatic 2105
+ALBUMARTIST=Technomatic 2105
+ALBUM=OCTOBER 18 2026
+GENRE=Original design
+DATE=2026-10-18
+COMMENT=Seed: 141414419
+Engine: 30
+Original slow motion. Unicode: α / 東京.
+Second note line.
+Range: 00:00:10-00:00:18
+DESCRIPTION=Seed: 141414419
+Engine: 30
+Original slow motion. Unicode: α / 東京.
+Second note line.
+Range: 00:00:10-00:00:18
+SEED=141414419
+CHANNELS=Retired
+CHANNEL_MASK=0
+CHANNEL_BLEND=none
+CHANNEL_PRIMARY=None
+CHANNEL_PRIMARY_ID=0
+EXPORT_START_SECONDS=10
+EXPORT_END_SECONDS=18
+ENGINE_VERSION=30
+OUTPUT_MASTER_VERSION=1
+COMPOSITION_INTENT=slow
+COMPOSITION_INTENT_ID=0
+TECHNOMATIC_SONG_DATA=technomatic2105-v1;seed=141414419;seconds=18;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=17;engine=30;intent=0;outputrev=1
+ENCODER=Technomatic 2105

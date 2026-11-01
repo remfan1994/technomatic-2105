@@ -1,0 +1,73 @@
+TECHNOMATIC 2105 v29: stopped channel identity and audio controls
+
+Historical v29 record. Its channel/rendition assertions describe v29.
+The v30 control runner uses tools/audio_controls_v30.cpp instead.
+
+Problem and change
+
+Previously a channel change only queued a request for the audio callback.
+When playback was stopped, no callback applied it. The channel selector
+could show the new choice while Notes and exports still used the previous
+native rendition.
+
+On an initialized, stopped sound, AudioEngine now applies a pending
+history/seed load first and then regenerates that same seed and candidate
+with the selected channels. This updates the actual composition snapshot
+immediately and opens no stream. Before the first Start, channel choices
+remain the selection for the first generated sound. During playback,
+channel regeneration remains in the audio callback.
+
+Audio control ordering
+
+A separate control mutex serializes start(), stop() and the combined
+channel/rendition operation. stop() retains it until stream.close() returns.
+This matters because the public playing flag becomes false before the old
+stream has finished closing, and a final data callback may still run.
+
+Neither the audio callback nor onErrorAfterClose() acquires the control
+mutex. The existing state mutex is released before close(), including when
+requestStart() fails, so a close/error callback can acquire it. A delayed
+error callback from an older stream cannot clear a replacement stream.
+An active stream's onErrorAfterClose() is safe to mark quiescent because
+Oboe documents that the stream has already stopped and closed at that point.
+
+Host verification
+
+Run from the project root with Python 3 and g++ or clang++ installed:
+
+python3 tools/test_audio_controls.py --output /tmp/audio-control-check
+
+The runner compiles the production AudioEngine.cpp and MusicEngine.cpp
+using C++17 and test-only Oboe/log stubs. The stubs are included only by
+this host command and are not part of the Android build.
+
+Recorded result: 71 checks passed.
+
+The test verifies:
+
+- A selection before first Start is retained without opening audio.
+- A stopped change updates the actual seed/candidate/channel snapshot
+  without restarting playback or opening another stream.
+- A pending history load is honored before a stopped change and is not
+  replayed over the changed rendition on the subsequent Start.
+- A playing change waits for the next data callback.
+- A concurrent channel change waits while close() is deliberately held
+  open, even after isPlaying() reports false.
+- A final data callback can run during that close without acquiring the
+  control mutex; the new rendition is applied after close returns.
+- An error callback during close completes without a lock inversion.
+- A stale old-stream error does not stop a newer stream.
+- An active-stream error permits subsequent stopped regeneration.
+- A failed requestStart() closes safely, leaves a stopped state and can
+  recover on the next Start.
+
+The generated audio-control-test-report.txt records the outcome. This
+test verifies application control ordering and actual MusicEngine identity.
+It does not emulate an Android audio backend, a hardware disconnect or
+real-time callback scheduling. Device playback and disconnect checks remain
+necessary; this host result is not a claim of device coverage.
+
+Primary reference
+
+Oboe AudioStreamErrorCallback, onErrorAfterClose contract:
+https://google.github.io/oboe/classoboe_1_1_audio_stream_error_callback.html

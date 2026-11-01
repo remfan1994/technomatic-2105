@@ -8,11 +8,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 
 /**
  * Deterministic lossless FLAC encoder for Technomatic's export format:
@@ -27,37 +25,15 @@ final class FlacExporter {
     private static final int BLOCK_SIZE = 4096;
     private static final int IO_BUFFER_SIZE = 64 * 1024;
 
-    static final class Metadata {
-        final String title;
-        final String artist;
-        final String albumArtist;
-        final String album;
-        final String genre;
-        final String comment;
-
-        Metadata(String title, String artist, String albumArtist,
-                 String album, String genre, String comment) {
-            this.title = safe(title);
-            this.artist = safe(artist);
-            this.albumArtist = safe(albumArtist);
-            this.album = safe(album);
-            this.genre = safe(genre);
-            this.comment = safe(comment);
-        }
-
-        private static String safe(String value) {
-            return value == null ? "" : value;
-        }
-    }
-
     private FlacExporter() {}
 
     static void encodeRawPcm16ToFlac(
             File rawPcm,
             File output,
-            Metadata metadata,
+            ExportMetadata metadata,
             ExportCancellationToken token) throws IOException {
         validateInput(rawPcm, output);
+        if (metadata == null) throw new IOException("Missing export metadata.");
         final long totalSamples = rawPcm.length() / BYTES_PER_FRAME;
         if (totalSamples <= 0L || totalSamples > 0xfffffffffL) {
             throw new IOException("FLAC sample count is outside the supported range.");
@@ -65,7 +41,7 @@ final class FlacExporter {
 
         checkCancelled(token);
         byte[] pcmMd5 = md5(rawPcm, token);
-        byte[] commentBlock = makeVorbisComment(metadata);
+        byte[] commentBlock = metadata.vorbisCommentBlock(ExportMetadata.APPLICATION, Collections.emptyList());
 
         try (BufferedInputStream input = new BufferedInputStream(
                      new FileInputStream(rawPcm), IO_BUFFER_SIZE);
@@ -145,35 +121,6 @@ final class FlacExporter {
         writeU64BE(data, packed);
         data.write(md5 != null && md5.length == 16 ? md5 : new byte[16]);
         writeMetadataBlock(out, false, 0, data.toByteArray());
-    }
-
-    private static byte[] makeVorbisComment(Metadata metadata) throws IOException {
-        Metadata m = metadata == null
-                ? new Metadata("", "Technomatic 2105", "Technomatic 2105", "", "", "")
-                : metadata;
-        List<String> fields = new ArrayList<>();
-        addTag(fields, "TITLE", m.title);
-        addTag(fields, "ARTIST", m.artist);
-        addTag(fields, "ALBUMARTIST", m.albumArtist);
-        addTag(fields, "ALBUM", m.album);
-        addTag(fields, "GENRE", m.genre);
-        addTag(fields, "COMMENT", m.comment);
-
-        ByteArrayOutputStream data = new ByteArrayOutputStream(256);
-        byte[] vendor = "Technomatic 2105 v28".getBytes(StandardCharsets.UTF_8);
-        writeU32LE(data, vendor.length);
-        data.write(vendor);
-        writeU32LE(data, fields.size());
-        for (String field : fields) {
-            byte[] bytes = field.getBytes(StandardCharsets.UTF_8);
-            writeU32LE(data, bytes.length);
-            data.write(bytes);
-        }
-        return data.toByteArray();
-    }
-
-    private static void addTag(List<String> fields, String key, String value) {
-        if (value != null && !value.isEmpty()) fields.add(key + "=" + value);
     }
 
     private static void writeMetadataBlock(
@@ -299,13 +246,6 @@ final class FlacExporter {
         out.write((value >>> 16) & 0xff);
         out.write((value >>> 8) & 0xff);
         out.write(value & 0xff);
-    }
-
-    private static void writeU32LE(OutputStream out, int value) throws IOException {
-        out.write(value & 0xff);
-        out.write((value >>> 8) & 0xff);
-        out.write((value >>> 16) & 0xff);
-        out.write((value >>> 24) & 0xff);
     }
 
     private static void writeU64BE(OutputStream out, long value) throws IOException {

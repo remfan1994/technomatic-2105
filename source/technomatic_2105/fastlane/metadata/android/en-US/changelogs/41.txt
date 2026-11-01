@@ -1,0 +1,1 @@
+Real embedded OGG and FLAC metadata, automatic seed/channel Notes, wider slow-to-intense musical range, generated drum grammar, clearer themes and bounded accompaniment. Removed background noise/effects. Auto full range, one-action All channels and selectable dominant color. Fixed long-term drum density creep. Version 29 changes old seed rendering.

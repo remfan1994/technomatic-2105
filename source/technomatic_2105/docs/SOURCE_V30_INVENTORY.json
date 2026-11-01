@@ -1,0 +1,82 @@
+{
+  "version": "v30",
+  "scope": "Production app/src/main files and explicitly supplied APKs; no similarity detection.",
+  "production_file_count": 33,
+  "audio_or_sequence_assets": [],
+  "assets_or_raw_files": [],
+  "internet_permission": false,
+  "named_cue_or_sample_loader_references": [],
+  "production_sha256": {
+    "app/src/main/AndroidManifest.xml": "0daf56460d6658b939714cd39c24386b847068ec2eaddb3c33bc146355bd0453",
+    "app/src/main/cpp/AudioEngine.cpp": "739f0aa431199dbcf338f4242b24ee3e875ea8434d8f3899865f1035a0935ccd",
+    "app/src/main/cpp/AudioEngine.h": "14e9afa1533a663f215399cb11ab2a2111cf98bfd89d8033a5fecb1157bd2efc",
+    "app/src/main/cpp/CMakeLists.txt": "5833eb46f2037f017dafda9369a536c7f2f4826cff34dbcb13fcc41fcb7e70e6",
+    "app/src/main/cpp/MusicEngine.cpp": "759885caecfaaa12dc07e83977e94948f17d853b1a69284ab1dd7adfcfe58496",
+    "app/src/main/cpp/MusicEngine.h": "8acddec9294a13dc4a5854503b1f0c30e3f3c3e05ea731577d4e1170427ee18b",
+    "app/src/main/cpp/native-lib.cpp": "0d864ac101aa5cfc2ea43fdd118875962b57cb940b3644426f6cc5b2cbf1729b",
+    "app/src/main/java/vip/thatiam/technomatic2105/AudioService.java": "011e0f5ca0732fd0f97e03eca46c1c7045c4ee1587b8e0b26573365250d735c0",
+    "app/src/main/java/vip/thatiam/technomatic2105/ExportCancellationToken.java": "8862a2f0f5ae428f653c30e9c2aa97776fad851da4b7fcd8ff18dd6dd53f9707",
+    "app/src/main/java/vip/thatiam/technomatic2105/ExportMetadata.java": "7c3dacd8d4063c5b49a7e5ecb11bbe92e6988de063122e8647e349bf446273b0",
+    "app/src/main/java/vip/thatiam/technomatic2105/FlacExporter.java": "25911de1565deddb90baba85a1a44299cbf08e098b6e2e2eb5701e49712ef190",
+    "app/src/main/java/vip/thatiam/technomatic2105/MainActivity.java": "883a9e0d2f1fa3b3b7721c9496cb3ddddf727d0342d05507b85fb18ccb6b8ca5",
+    "app/src/main/java/vip/thatiam/technomatic2105/NativeAudio.java": "5126eb36c77956274b5dd3135f438ad71db966e8e8632e80fbb2ab9ebe399efc",
+    "app/src/main/java/vip/thatiam/technomatic2105/OggExporter.java": "6adbdcb60203c97306ad202b74303e431110771ff0b99aaf78aba0ef1802bad0",
+    "app/src/main/java/vip/thatiam/technomatic2105/OggMetadataWriter.java": "0433f623c8a2a7188662c5e955fa006116bdf40917b0ab699d02771c326b98d4",
+    "app/src/main/res/drawable/ic_launcher_foreground.xml": "56166c4088482b4dd8f501d53f57b1542fa9c3c4e9ddf56b9dfab1d981d632da",
+    "app/src/main/res/drawable/ic_stat_technomatic_2105.xml": "995e0d567a5ba330c2786c57efbef7f2b759a7f3bb95da44dde1168fada9a6b9",
+    "app/src/main/res/drawable-nodpi/ic_launcher_foreground_technomatic.png": "4c20c27ef64b4e2a26b79a2671be893dbab7f657c41fe601ca57fe0ef20f0a37",
+    "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "9495fb28c667e7a98d4321bbaab31b5ec7ba8ecf8b722783aeabf08a2c8fdb09",
+    "app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml": "9495fb28c667e7a98d4321bbaab31b5ec7ba8ecf8b722783aeabf08a2c8fdb09",
+    "app/src/main/res/mipmap-hdpi/ic_launcher.png": "dc1de59859080d8badb550870a981e687aaeff2bfae849534039bb69be94a7cb",
+    "app/src/main/res/mipmap-hdpi/ic_launcher_round.png": "4ae4794ffc8917d61fd04168f9c2eca41ede4c8dabdd96bfd7380e1788ea9b68",
+    "app/src/main/res/mipmap-mdpi/ic_launcher.png": "6d498f5d288242c299f1347f2dc6702ec1675115d37b63f4770a2cf48b0e28a4",
+    "app/src/main/res/mipmap-mdpi/ic_launcher_round.png": "40b9714b0dc3ba724b89a243e385851abd756590e16244dd2cdb732fb7703770",
+    "app/src/main/res/mipmap-xhdpi/ic_launcher.png": "bce8e8e7cf05f0f9dafb68451ff6a78a99df4ffcd9e7d771050703849fd38bea",
+    "app/src/main/res/mipmap-xhdpi/ic_launcher_round.png": "08fa11151edd3e67bacccd215ccb4f4ebeda81b59ec1e0b2207a7d57447271ad",
+    "app/src/main/res/mipmap-xxhdpi/ic_launcher.png": "3e36188c9a27ca72465abc37e560bae49032d04f1f76abdc48934ce7cf74ca28",
+    "app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png": "9d57c8fcdc35bddf59b8cd1ac401574770fb46091f526e8831c7f91bc6158af9",
+    "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": "2b1c255b3958d2a2366deec5debfb2f8b8a895fde7bdeeb69329f1e93e73b41b",
+    "app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png": "6641272732768003133308834d40fff2039e36fd319285d334262fa8b361d327",
+    "app/src/main/res/values/colors.xml": "3912bb8e93a539a28244434cad25dd9b298a3e31ddfb16c6153b8e36dff3be1c",
+    "app/src/main/res/values/strings.xml": "a56cbe3b0b6f129652528edcc999294f0b53fe588b0f84931cd640d5ff139c8d",
+    "app/src/main/res/values/styles.xml": "1179925a4835fdf44691e376fc8b5cb77210e37f1003986a2d9ec2bfbcfe2b34"
+  },
+  "apks": [
+    {
+      "filename": "technomatic_2105_v30_debug.apk",
+      "sha256": "cf3db2c06d267fd30d4bca96865df31ecbd36ac59f56cf180f227586f8d1c0b4",
+      "zip_crc_failure": null,
+      "audio_or_sequence_assets": [],
+      "assets_or_raw_files": [],
+      "native_libraries": [
+        "lib/arm64-v8a/libc++_shared.so",
+        "lib/arm64-v8a/liboboe.so",
+        "lib/arm64-v8a/libtechnomatic_2105.so",
+        "lib/armeabi-v7a/libc++_shared.so",
+        "lib/armeabi-v7a/liboboe.so",
+        "lib/armeabi-v7a/libtechnomatic_2105.so",
+        "lib/x86_64/libc++_shared.so",
+        "lib/x86_64/liboboe.so",
+        "lib/x86_64/libtechnomatic_2105.so"
+      ]
+    },
+    {
+      "filename": "technomatic_2105_v30_release_unsigned.apk",
+      "sha256": "f1c94df6003201e4a8ebfeb13c292b0dd91408f3629b6053d272da510098be3d",
+      "zip_crc_failure": null,
+      "audio_or_sequence_assets": [],
+      "assets_or_raw_files": [],
+      "native_libraries": [
+        "lib/arm64-v8a/libc++_shared.so",
+        "lib/arm64-v8a/liboboe.so",
+        "lib/arm64-v8a/libtechnomatic_2105.so",
+        "lib/armeabi-v7a/libc++_shared.so",
+        "lib/armeabi-v7a/liboboe.so",
+        "lib/armeabi-v7a/libtechnomatic_2105.so",
+        "lib/x86_64/libc++_shared.so",
+        "lib/x86_64/liboboe.so",
+        "lib/x86_64/libtechnomatic_2105.so"
+      ]
+    }
+  ]
+}

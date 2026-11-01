@@ -1,0 +1,80 @@
+TECHNOMATIC 2105 v30: retired channel APIs and audio controls
+
+Compatibility behavior
+
+AudioEngine, NativeAudio and the JNI bridge retain the legacy channel
+method names so older integrations still link. Setters and the old
+setGenreStateAndRerenderCurrent method have no effect: they do not alter
+MusicEngine, queue a rendition, rewind playback or open a stream. All four
+legacy numeric getters return zero. AudioService retains the old intent
+extra names as deprecated constants but ignores their values.
+
+MusicEngine owns canonical recipe loading. Historical recipes retain their
+seed and candidate when loaded by v30, while gmask, gblend, gprimary and
+gmode serialize as zero and engine serializes as 30. Current metadata
+therefore describes the applied full-generator composition.
+
+Start and stop retain the separate control mutex introduced in v29.
+stop() holds it until stream.close() returns; a concurrent Start cannot
+prepare the music engine while an old stream's final callback may still
+run. Neither the data callback nor the error callback takes this mutex.
+The ordinary stop path and failed-start cleanup release the state mutex
+before close(), allowing an error callback to complete. A stale error
+callback cannot clear a replacement stream.
+
+Reproducible host verification
+
+Requirements: Python 3 and g++ or clang++ with C++17. From the project root:
+
+python3 tools/test_audio_controls.py --output /tmp/audio-control-v30-check
+
+The runner compiles the production AudioEngine.cpp and MusicEngine.cpp
+with test-only Oboe/log stubs. These stubs are not used in Android builds.
+The current source is tools/audio_controls_v30.cpp; the v29 source remains
+as a clearly marked historical record.
+
+Actual v30 result: 93 control checks passed.
+
+Coverage includes:
+
+- Legacy commands before Start neither open audio nor generate a sound.
+- Loaded v29 and v28 recipes retain seed/candidate and produce canonical
+  zero channel fields with engine 30.
+- Legacy commands while stopped leave the actual snapshot and playback
+  state unchanged.
+- Pending history loads survive obsolete commands and are applied at Start.
+- Legacy commands during playback leave the snapshot and elapsed position
+  unchanged; the next callback continues without a queued regeneration.
+- Concurrent Start waits while an old stream.close() is deliberately held
+  open, even after isPlaying() reports false.
+- A final data callback can finish during close without taking the control
+  mutex, and an error callback inside close does not deadlock.
+- Delayed old-stream errors leave a replacement stream playing.
+- An active-stream error marks the engine stopped.
+- Failed requestStart() cleanup closes safely and a subsequent Start recovers.
+
+The generated audio-control-test-report.txt records the result; a copy is
+included beside the metadata evidence in docs/metadata-v30-results.
+
+Edited recipe replay has a separate public-API regression gate:
+
+python3 tools/test_edited_snapshots.py --output /tmp/edited-snapshot-v30-check
+
+That suite covers all 40 raw override controls, their presence/absence,
+three successive snapshot reloads and sample-exact PCM. Its counts are
+separate from the 93 control checks above; see
+EDITED_SNAPSHOT_V30_VALIDATION.txt for the final results.
+
+Scope
+
+This test checks application control ordering and actual MusicEngine
+snapshot identity. It does not emulate an Android audio backend, hardware
+disconnects or real-time scheduling, and it does not assess musical quality.
+Android build and audio-quality checks are recorded separately. Device
+playback and disconnect testing are still required for hardware coverage.
+
+Primary reference
+
+Oboe documents that the stream is stopped and closed before
+onErrorAfterClose is invoked:
+https://google.github.io/oboe/classoboe_1_1_audio_stream_error_callback.html

@@ -1,0 +1,28 @@
+{
+  "seed": 2528090685,
+  "intent": 2,
+  "bpm": 137.811447144,
+  "sample_rate": 48000,
+  "channels": 2,
+  "start_seconds": 0,
+  "duration_seconds": 88,
+  "frames": 4224000,
+  "next_at_seconds": -1,
+  "called_next": false,
+  "sample_peak": 0.605782866478,
+  "rms": 0.0898505942704,
+  "nonfinite_samples": 0,
+  "fullscale_samples": 0,
+  "pcm_fnv1a": "960a974101c741ff",
+  "scheduler_fnv1a": "d04381f5fe385abf",
+  "scheduled_events": 1226,
+  "initial_recipe": "technomatic2105-v1;seed=2528090685;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=3;engine=30;intent=2;planseed=1543562735;planbars=15;recallbars=1;harmonicspan=1;devicerotation=2;phrasejoint=6;leadmodel=24;bassmodel=3;harmonymodel=13;drumkit=0;support0=5;support1=23;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=5;support12=-1;support13=-1;support14=-1;support15=-1;style=22;tempo=138;root=36;scale=6;density=59;swing=26;melody=85;motif=100;drama=47;space=53;roughness=41;brightness=78;diversity=10;kick=85;snare=64;hats=45;openhat=41;perc=0;bass=100;sub=0;chords=85;lead=100;arp=39;counter=36;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=64;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=0",
+  "final_recipe": "technomatic2105-v1;seed=2528090685;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=3;engine=30;intent=2;planseed=1543562735;planbars=15;recallbars=1;harmonicspan=1;devicerotation=2;phrasejoint=6;leadmodel=24;bassmodel=3;harmonymodel=13;drumkit=0;support0=5;support1=23;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=5;support12=-1;support13=-1;support14=-1;support15=-1;style=22;tempo=138;root=36;scale=6;density=59;swing=26;melody=85;motif=100;drama=47;space=53;roughness=41;brightness=78;diversity=10;kick=85;snare=64;hats=45;openhat=41;perc=0;bass=100;sub=0;chords=85;lead=100;arp=39;counter=36;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=64;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=88",
+  "render_command": [
+    "/workspace/scratch/93254bfec215/loudness_work/probe_v30",
+    "/workspace/scratch/93254bfec215/loudness_work/v30_float/v30_driving_2528090685.wav",
+    "2528090685",
+    "88"
+  ],
+  "selection_reason": "sparse primary candidate"
+}

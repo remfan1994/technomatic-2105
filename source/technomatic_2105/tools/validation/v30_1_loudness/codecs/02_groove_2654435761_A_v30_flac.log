@@ -1,0 +1,34 @@
+Input #0, flac, from '/workspace/scratch/93254bfec215/loudness_work/auditions_v30_1/02_groove_2654435761_A_v30.flac':
+  Metadata:
+    title           : TECHNOMATIC 2105 before groove seed 2654435761
+    comment         : Seed 2654435761; groove; host live excerpt [40,88) seconds; original signal level; no normalization
+    encoder         : Lavf60.16.100
+  Duration: 00:00:48.00, start: 0.000000, bitrate: 321 kb/s
+  Stream #0:0: Audio: flac, 48000 Hz, stereo, s16
+Stream mapping:
+  Stream #0:0 -> #0:0 (flac (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    title           : TECHNOMATIC 2105 before groove seed 2654435761
+    comment         : Seed 2654435761; groove; host live excerpt [40,88) seconds; original signal level; no normalization
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+[out#0/null @ 0x55b751deaf00] video:0kB audio:9000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:00:47.90 bitrate=N/A speed= 173x    
+[Parsed_ebur128_0 @ 0x55b751e7ca00] Summary:
+
+  Integrated loudness:
+    I:         -20.5 LUFS
+    Threshold: -30.7 LUFS
+
+  Loudness range:
+    LRA:         3.4 LU
+    Threshold: -40.6 LUFS
+    LRA low:   -22.1 LUFS
+    LRA high:  -18.6 LUFS
+
+  True peak:
+    Peak:       -3.9 dBFS

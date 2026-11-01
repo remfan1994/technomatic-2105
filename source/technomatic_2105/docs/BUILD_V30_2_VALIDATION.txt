@@ -1,0 +1,142 @@
+TECHNOMATIC 2105 v30.2 - Android build verification
+
+Build started: 2026-10-20T21:43:36.321632+00:00
+Verification completed: 2026-10-20T21:44:11.575259+00:00
+versionName: 0.30.2
+versionCode: 44
+Composition engine: 30
+Output master revision: 2
+
+Final Gradle invocation:
+  gradle --no-daemon --max-workers=2 assembleDebug assembleRelease lintDebug
+
+Result: BUILD SUCCESSFUL in 25 seconds.
+101 actionable tasks: 22 executed, 79 up-to-date.
+
+This final run uses output gain 1.75, knee 0.40 and ceiling 1.0. It replaces
+the provisional build record. Native objects were rebuilt for all three ABIs
+in both variants, and both APKs were repackaged. Unchanged Java/lint tasks were
+correctly up-to-date from the preceding successful full build.
+
+Debug and release Java compilation passed. Native debug and release builds
+ran for arm64-v8a, armeabi-v7a and x86_64. Release vital lint and debug lint
+completed. All 38 production/configuration files in the before/after inventory
+were unchanged during this build. No production workaround was required.
+
+Toolchain
+
+  OpenJDK 17.0.20.1; Gradle 8.9; Android Gradle Plugin 8.7.3.
+  Android platform 33 revision 3; build-tools 34.0.0; CMake 3.22.1.
+  NDK 30.0.14904198, exactly the owner's requested revision.
+  Oboe 1.10.0; C++17; configured native flags include -O3 -Wall -Wextra.
+
+The official NDK archive is r30-beta1. Its unmodified source.properties
+records BaseRevision 30.0.14904198. The official SDK index revision includes
+preview=1, displayed by sdkmanager as rc1. No NDK downgrade, altered version
+file or compiler workaround was applied.
+
+SDK, Gradle and Ubuntu OpenJDK archives were downloaded from official hosts
+and checked against their published sizes and checksums before extraction.
+SDK licenses were accepted through sdkmanager. Exact URLs and checksums are
+recorded in tools/validation/v30_2_android_toolchain.txt.
+
+The temporary build environment lives under /tmp/technomatic-v30-2-toolchain.
+Its SDK, Java installation, caches, debug keystore and build-env.sh script are
+not project requirements and do not belong in the source delivery. The shared
+project pins ndkVersion without hard-coding the owner's home directory.
+
+APK verification
+
+Debug APK
+  Output: app/build/outputs/apk/debug/app-debug.apk
+  Package: vip.thatiam.technomatic2105.debug
+  Version: 0.30.2-debug (44)
+  Bytes: 6039266
+  SHA-256:
+  0b569eb760e053b7c329c37a431d9f53546ad83e3c37c4bf808b274735e06867
+  apksigner verify --verbose --print-certs: passed.
+  APK Signature Scheme v2: verified; one signer.
+  Debug certificate SHA-256:
+  b84b9b7242816d1a23baf361794a2c65416690951a27003d969cab3ff075b4c7
+
+Unsigned release APK
+  Output: app/build/outputs/apk/release/app-release-unsigned.apk
+  Package: vip.thatiam.technomatic2105
+  Version: 0.30.2 (44)
+  Bytes: 5683981
+  SHA-256:
+  70e112d29ec776c7d94c6cba0ae814bcb6ffbcc5084195a2795b0822872b0ad1
+  Confirmed unsigned: no JAR signature entries or APK signing block.
+  apksigner returned the expected failure for an unsigned APK.
+  The owner's release signature is required before installation/distribution.
+
+Both APKs have minimum API 26, target API 33 and the expected version code
+and application ID. ZIP CRC checks passed on every entry. Each APK contains
+exactly the configured native ABIs: arm64-v8a, armeabi-v7a and x86_64.
+
+Each ABI contains libtechnomatic_2105.so, liboboe.so and libc++_shared.so.
+All nine libraries in each APK have the correct ELF machine identifier and
+match the corresponding stripped native build output byte for byte. Their
+individual sizes and SHA-256 values are in v30_2_android_apks.json.
+
+Neither APK requests INTERNET permission. No packaged audio tracks, MIDI
+files, soundfonts, keystores or private key files were found in either APK.
+
+Lint
+
+  0 errors, 20 warnings.
+  DataExtractionRules: 1; GradleDependency: 2; InlinedApi: 1;
+  MonochromeLauncherIcon: 2; ObsoleteSdkInt: 8; OldTargetApi: 1;
+  RtlHardcoded: 2; UnusedAttribute: 1; UnusedResources: 1;
+  WakelockTimeout: 1.
+
+The warning counts and issue IDs match the delivered v30.1 report. This is
+not a warning-free build. Debug and release compilation also report use of
+deprecated Java APIs; compilation completes successfully.
+
+Source integrity
+
+Relative to the delivered v30.1 archive, exactly three production files changed:
+  app/src/main/cpp/OutputStage.h
+  app/src/main/cpp/MusicEngine.cpp
+  app/build.gradle
+
+The other 35 production/configuration files in the inventory are byte-identical
+to v30.1. All 38 before/after build hashes match. This volume follow-up does
+not incorporate the cancelled naming/history or scanner/rewind update.
+
+Changed production file hashes:
+
+  app/src/main/cpp/MusicEngine.cpp:
+  64b1f6b09e6887e2b8074b562e444d161f74c9188f54113f035888ec7d0f3067
+  app/src/main/cpp/OutputStage.h:
+  a576f6157b30e16bd1ab4d4e393854e6ccf7706fdae138d8229cba14fb968294
+  app/build.gradle:
+  413e15b76617081380ecb83e3134bfb1f236589749a96fafacc13d3e53b5a5ec
+
+Signing continuity and scope
+
+This temporary build environment generated a new debug certificate. It differs
+from the delivered v30.1 debug APK certificate, so the new debug APK cannot be
+installed as a direct update over that differently signed package. Building
+locally with the same signing key as the installed app supports an in-place
+update. The unsigned release APK retains the release application ID and can
+be signed with the owner's existing release key.
+
+No physical Android device or emulator was used. This report verifies actual
+compilation, packaging, APK signatures, native library identity and static lint.
+It does not measure earbud loudness, device audio routing, Android volume-key
+behavior, real-time audio performance or real MediaCodec/MediaStore execution.
+PCM loudness and host metadata checks are reported separately.
+
+Raw evidence
+
+  tools/validation/v30_2_android_build.log
+  tools/validation/v30_2_android_lint.txt
+  tools/validation/v30_2_android_apks.json
+  tools/validation/v30_2_android_sources.json
+  tools/validation/v30_2_android_toolchain.txt
+  tools/validation/v30_2_android_debug_badging.txt
+  tools/validation/v30_2_android_release_badging.txt
+  tools/validation/v30_2_android_debug_signature.txt
+  tools/validation/v30_2_android_release_signature.txt

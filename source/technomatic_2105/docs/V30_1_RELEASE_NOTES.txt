@@ -1,0 +1,236 @@
+TECHNOMATIC 2105 v30.1
+Full digital range and fixed playback level
+Release date: 2026-10-20 UTC
+
+Version name: 0.30.1
+Version code: 43
+Composition engine: 30
+Output revision: 1
+NDK: 30.0.14904198
+
+PURPOSE
+
+This revision addresses the two volume problems reported after v30:
+
+1. The output mixer held average level low and limited even strong sample
+   peaks to about 64 percent of digital full scale.
+2. The mixer and composition also raised and lowered volume over time,
+   including coordinated part-volume swells and dips for musical effect.
+
+Both are corrected in live playback and offline exports. The v30 music
+generator remains: its expanded original instrument catalogue, same ensemble
+size, slow-music grammar, recognizable themes, complementary phrases and
+continuing improvisation. Channels remain discontinued. This patch adds no
+audio recordings, samples, background noise or special effects.
+
+FIX 1: FULL-RANGE OUTPUT
+
+Removed the attenuating master setting, RMS automatic gain control and old
+final limiting/saturation chain responsible for the roughly 64-percent bound.
+App output gain is fixed at unity. Android's system media volume stays under
+the listener's control; the app does not change that setting.
+
+The output sample range is now [-1.0, 1.0], up to 100 percent of digital full
+scale. There is no replacement 94-percent or 98-percent ceiling. A fixed,
+memoryless peak curve rounds unusually large peaks, with a knee at 0.80 and
+a ceiling of 1.0. The knee is where rounding begins, not the maximum output.
+Below that knee the new stage is linear. It has no level detector, attack or
+release controller, gain-recovery envelope, lookahead, normalization, added
+latency or persistent gain state. Channels are processed independently.
+
+The original fixed per-song tonal drive and DC filter remain. Their purpose
+is tone/filtering; they do not ride the volume during a song. The full curve
+and retained processing are documented in docs/OUTPUT_V30_1_DESIGN.txt.
+
+FIX 2: NO VOLUME AUTOMATION FOR MUSICAL EFFECT
+
+Removed kick-triggered whole-mix ducking, automatic gain riding, transition
+fades, the legacy fade/dead-air switch state and the final export tail fade.
+Both Next paths now change composition immediately.
+
+Also removed continuous phrase and section multipliers from all nine note
+amplitude sites: kick, snare/clap, closed hats, open hats, percussion, bass,
+harmony, foreground and supporting voices. Intro/outro volume ramps,
+Hook/Surge boosts, Shadow/OpenRelease dips, Confluence gain accents and
+long-term section level drift no longer turn those parts up and down.
+
+The existing phrase factors still determine note activity, probabilities
+and structural entrances/exits. Previously silent structural events remain
+silent. Fixed role balance, existing user/support weights, individual note
+accents, rolls, flams, rests and instrument attack/decay/release remain.
+Notes can start, end and leave space without a moving master volume or
+coordinated positive-amplitude envelope.
+
+Fixed gain does not make every waveform sample or musical passage equally
+loud. A rest is still a rest, and fewer simultaneous notes produce less
+sound. This revision removes the controls that intentionally swell or dip
+the band's level; it does not flatten the music into a constant waveform.
+
+MEASURED RESULT
+
+Sixteen declared seeds were rendered before and after the patch at 48 kHz
+stereo for 88 seconds each. The set covers slow, groove, driving and intense
+intents, including sparse candidates selected before loudness measurement.
+No mastering normalization was used. The settled measurement window is
+[40,88) seconds; startup [0,10) and full [0,88) windows were also measured.
+
+Settled window:
+  Original v30 median loudness:             -19.65 LUFS
+  v30.1 median loudness:                    -14.05 LUFS
+  Median paired loudness improvement:       +5.85 LU
+  Individual paired improvements:           +4.0 to +7.2 LU
+  Median paired RMS improvement:            +6.08 dB
+
+The difference of the two medians is not the median of paired differences;
+both statistics are reported deliberately. Full-window paired improvement
+was +5.95 LU at the median; startup improvement was +6.0 LU at the median.
+
+The largest native sample measured was -0.0139845 dBFS, about 99.84 percent
+of full scale. No nonfinite or out-of-range source samples occurred in the
+matrix. The added peak curve operated on a median 0.0271 percent of samples
+per tune; its maximum fraction was 0.9235 percent in the sampled set.
+
+The four included 48-second A/B pairs use these identical seed excerpts:
+
+  Intent / seed                 v30 LUFS    v30.1 LUFS    Change
+  Slow / 1013904226                 -20.1         -14.4      +5.7
+  Groove / 2654435761               -20.5         -16.0      +4.5
+  Driving / 3711502885              -21.2         -16.4      +4.8
+  Intense / 3668339987               -17.3         -10.1      +7.2
+
+The driving example is the quietest settled seed in the declared set. These
+are examples from a limited test matrix, not guarantees for every seed or
+every phone. The measured gain addresses sustained level as well as peaks.
+
+FULL-SCALE AND CODEC MEASUREMENT LIMITS
+
+The sample bound is not a universal reconstructed true-peak guarantee.
+Measured native-float reconstructed true peak reached +0.4 dBTP. A separate
+host libopus check at 128 kbps with 20 ms frames found three excerpts below
+full scale and one intense excerpt with a +0.7 dBTP reconstructed peak.
+That decoded intense excerpt had 803 of 4,608,000 float samples above an
+absolute value of 1.0 (0.0174 percent), with a peak of 1.06832. These are
+codec reconstruction results, not out-of-range source samples. No lower
+ceiling or adaptive gain controller was added to conceal them.
+
+All eight audition FLACs are lossless encodings of their 48 kHz stereo PCM16
+fixtures and decode byte-for-byte. They have no gain or ReplayGain tags.
+The Opus check used host libopus, not Android MediaCodec. Neither these
+measurements nor the builds establish actual earbud loudness on a street.
+
+RECIPE, HISTORY AND METADATA
+
+Composition snapshots retain engine=30 and record outputrev=1. Old saved
+v30 recipes use the corrected output when loaded. Notes, instruments and
+seed identity remain; waveforms and per-part amplitudes change as intended.
+Previously rendered audio files are not rewritten by updating the app.
+
+A related switching defect could carry the prior composition's backbeat
+delay into a new song. Timing now comes from a separate seed-local random
+stream using the same initial draws as reset. Both Next paths reproduce
+their saved recipes; normal reset/load timing and composition randomness
+are unchanged.
+
+OGG and FLAC metadata expose ENGINE_VERSION=30, OUTPUT_MASTER_VERSION=1,
+and the complete TECHNOMATIC_SONG_DATA recipe. Automatic Notes still contain
+the seed and engine followed by the listener's optional notes; the technical
+output revision does not clutter the editor. Missing or invalid revisions
+in arbitrary legacy metadata input are omitted rather than invented.
+
+VALIDATION COMPLETED
+
+  58 fixed-output native checks plus source-absence guards passed.
+    Includes 200,001 injected curve inputs, block-size independence,
+    reset/load/both-Next replay, exact export interval and final samples,
+    repeated export, 10,124 controlled phrase-amplitude events and
+    additional sample rates of 8 kHz, 44.1 kHz and 96 kHz.
+
+  64 native v30 checks passed, including existing 512-seed structural gates
+    and a 180-second live seed/palette/bounded-output check.
+
+  93 AudioEngine control checks passed.
+
+  12,582 edited-recipe checks passed across 48 cases and 144 reloads,
+    comparing 23,040,000 stereo float samples exactly.
+
+  20,247 scheduled events across the 16 audio seeds preserved every
+    non-amplitude event field and score RNG state. All 16 recipes matched
+    except the intentional output revision; amplitude signatures changed
+    in all 16. Old and new mixed PCM are not claimed to be identical.
+
+  1,065 Java metadata checks passed. ffprobe, MediaInfo, opusinfo and
+    metaflac verified physical tags. FLAC decoded to all 1,536,000 source
+    bytes exactly and passed frame CRC/MD5 validation. Nine OGG metadata
+    rewrites preserved decoded audio and duration.
+
+  Android assembleDebug, assembleRelease and lintDebug passed with the
+    exact requested NDK 30.0.14904198, Gradle 8.9, AGP 8.7.3, JDK 17,
+    SDK platform 33, build-tools 34.0.0 and CMake 3.22.1.
+    All three ABIs are included: arm64-v8a, armeabi-v7a and x86_64.
+    Lint: 0 errors, 20 warnings, matching the v30 issue counts.
+    APK ZIP integrity, native library identity, package/version fields
+    and debug signature were independently checked.
+
+No physical Android device or emulator was used. On-device playback,
+earbud/street listening, Android routing, real-time performance and actual
+MediaCodec/MediaStore behavior remain outside the completed checks.
+
+BUILD AND INSTALLATION
+
+The project keeps ndkVersion '30.0.14904198'. On the owner's machine, select
+SDK root /home/tutan/Android/Sdk so Gradle uses the installed NDK at:
+  /home/tutan/Android/Sdk/ndk/30.0.14904198
+
+Open the source project in Android Studio using its included Gradle wrapper,
+or run ./gradlew assembleDebug or ./gradlew assembleRelease. No SDK path
+specific to the temporary build environment is included as local.properties.
+AGENTS.md preserves the NDK and fixed-output requirements for future work.
+
+The supplied debug APK is signed with a new temporary build certificate.
+Its package is vip.thatiam.technomatic2105.debug. It cannot directly update
+the previously supplied v30 debug APK, which has a different certificate.
+Build the source using the same signing key as the existing installation
+for an in-place update that retains app data and history.
+
+The release APK uses vip.thatiam.technomatic2105 and is unsigned. Sign it
+with the owner's release key before installing or distributing it. Using
+the existing release key supports an in-place release update. Signing
+keys and toolchain caches are not included in the source package.
+
+DELIVERABLES
+
+  technomatic_2105_android_project_v30_1.zip
+    Complete source, Gradle wrapper, tests, final reports and raw text data.
+  technomatic_2105_v30_1_debug.apk
+    Signed debug build; see certificate continuity above.
+  technomatic_2105_v30_1_release_unsigned.apk
+    Release build ready for the owner's signing key.
+  technomatic_2105_v30_1_auditions.zip
+    Four A/B FLAC pairs, README and manifest with seeds/recipes/hashes.
+    A = original v30; B = v30.1; all excerpts are [40,88) seconds.
+    Keep player/system volume unchanged and disable player normalization
+    during comparison so it does not hide the measured difference.
+  technomatic_2105_v30_1_release_notes.txt
+    This release record.
+
+APK SHA-256
+
+  Debug:
+  709c41c245e551b91e9bf25248212d8b0374930230b33dd9765ca6f7dfa55028
+  Unsigned release:
+  28dc79a07e1d8705ccf406bd92f700d293c17b667c5d048cbbf6ad54d78e5235
+
+DETAILED EVIDENCE IN THE SOURCE ZIP
+
+  docs/OUTPUT_V30_1_DESIGN.txt
+  docs/LOUDNESS_V30_1_VALIDATION.txt
+  docs/METADATA_V30_1_VALIDATION.txt
+  docs/BUILD_V30_1_VALIDATION.txt
+  tools/validation/v30_1_loudness/
+  tools/validation/v30_1_android_*
+  docs/metadata-v30-1-results/
+
+Historical v30 reports remain labeled as historical evidence. Superseded
+loudness calibration experiments and generated host executables/audio are
+excluded from the source archive. Current final measurements, the original
+v30 measurement baseline, comparison tables and reproducible tools remain.

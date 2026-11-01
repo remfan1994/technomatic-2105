@@ -1,0 +1,117 @@
+TECHNOMATIC 2105 v30.2 - Stronger fixed output
+Date: 2026-10-20
+
+Purpose
+-------
+The owner reports that v30.1 improved volume considerably but remains too
+quiet compared with other players on the same phone. This patch increases
+average source-audio level. It preserves the original v30 music generator,
+v30.1's removal of master and coordinated part-volume automation, and the
+owner's full digital sample ceiling.
+
+The live and export paths were checked for a second hidden attenuation.
+AudioEngine already requests stereo Float output with Media usage and Music
+content. The native callback writes MusicEngine's rendered samples directly.
+Export uses that same engine followed by normal PCM16 quantization. No
+additional whole-mix gain reduction was found in those paths. Device-specific
+processing differences between players were not measured and are not changed
+speculatively.
+
+The delivered transfer
+----------------------
+Let x be one channel's sample after the retained song-fixed drive and DC
+filter. Use the same constants for every song and every sample:
+
+    G = 1.75
+    K = 0.40
+    C = 1.00
+    z = G*x
+
+    F(x) = z                                    when abs(z) <= K
+    F(x) = sign(z) * (K + (C-K) *
+             tanh((abs(z)-K)/(C-K)))             otherwise
+
+The fixed gain in the linear region is:
+
+    20*log10(1.75) = 4.86076097 dB
+
+For abs(x) <= 0.40/1.75 = 0.22857143, the stage is exactly linear at that
+gain, subject to ordinary float arithmetic. Above this boundary the gentle
+curve rounds peaks, so a track's measured RMS/LUFS increase is smaller than
+the linear-region gain. The onset has matching value and first derivative.
+The transfer is symmetric and monotonic, maps zero to exact zero, and remains
+inside [-1,1]. NaN is mapped to silence and infinities to a finite endpoint.
+
+C remains 1.0. K marks the beginning of peak rounding; it is not the output
+ceiling. Lowering K from the v30.1 value of 0.80 widens and softens the curve.
+It does not reinstate the former 64-percent cap or another lower ceiling.
+
+Why this calibration
+--------------------
+The fixed gains 1.0, 1.5, 1.75, 2.0 and 2.25 were measured first with K=0.80
+on the same 16-seed raw input. G=1.75 supplied a substantial increase before
+the diminishing extra loudness and stronger waveform reshaping at G>=2.0.
+
+An Opus check then found substantial reconstructed overrange on the densest
+test track at G=1.75/K=0.80. Two wider knees, K=0.60 and K=0.40, were tested
+without changing G or C. K=0.40 retained almost all the average-level gain
+while reducing near-flat peaks and the measured codec-overrange exposure.
+It was selected for the final native render and Android build.
+
+This choice is a measured compromise, not an assertion of distortion-free
+amplification or an objective optimum for every tune and device. Rounding
+peaks changes waveform shape. The parameter comparison and final numerical
+limits are in docs/LOUDNESS_V30_2_VALIDATION.txt.
+
+Constant behavior
+-----------------
+OutputStage remains a stateless type. It has no level detector, attack,
+release, loudness target, per-track normalization, gain recovery, lookahead,
+audio buffer or dynamic controller. It adds no playback latency or persistent
+memory. A strong peak cannot change the gain of later samples. The channels
+are processed independently so a peak on one cannot turn down the other.
+
+The app does not move Android's volume setting. There are no composition-
+driven fades, swells, dips, kick ducking or coordinated part-volume envelopes.
+The original note attacks, releases, accents and rests remain. Rests and
+changing instrumentation can naturally change how much music is present;
+this output patch does not replace musical silence with noise.
+
+Composition and metadata
+------------------------
+MusicEngine.cpp changes only two serialization values from outputrev=1 to
+outputrev=2. All scheduling, note amplitudes, timing, instruments, harmony,
+melody grammar and RNG behavior remain those of the delivered v30.1 source.
+The composition version stays engine=30. Legacy recipes use the current
+output treatment, and a newly captured recipe identifies output revision 2.
+
+The existing metadata writer includes OUTPUT_MASTER_VERSION=2 and the entire
+recipe in OGG/Opus and FLAC. User notes and seed metadata remain unchanged.
+Live playback and finite exports use the same OutputStage. There is no
+additional export fade, volume reduction or added ReplayGain tag.
+
+The UI, history behavior and memory model remain those of v30.1. The cancelled
+scanner/rewind proposal and the postponed persistent naming work are excluded.
+NDK remains pinned to 30.0.14904198.
+
+Limits
+------
+A bounded digital sample stream is not a universal reconstructed-peak bound.
+Resampling and lossy coding can create peaks between samples or decoded
+values above full scale. The wider knee reduces this measured exposure; it
+does not eliminate it. No lower ceiling or moving gain control was added.
+
+Host measurements establish the change in the generated signal. They do not
+measure the owner's phone, earbuds, street noise, RFS, or FM radio and cannot
+promise identical perceived loudness across those players.
+
+Primary background references
+-----------------------------
+EBU Tech 3343, section 2.1 (peak level versus average loudness):
+https://tech.ebu.ch/docs/tech/tech3343.pdf
+
+Android AudioTrack reference (unity gain and float sample range):
+https://developer.android.com/reference/android/media/AudioTrack
+
+These explain measurement concepts; this release does not adopt a broadcast
+loudness target or run a loudness-normalization algorithm during playback.

@@ -51,31 +51,31 @@ Java_vip_thatiam_technomatic2105_NativeAudio_forceNew(JNIEnv*, jclass) {
 }
 
 
+// Legacy entry point: channels are retired, including calls from older clients.
 extern "C" JNIEXPORT void JNICALL
-Java_vip_thatiam_technomatic2105_NativeAudio_setGenreMask(JNIEnv*, jclass, jint mask) {
-    std::lock_guard<std::mutex> guard(gLock);
-    engine()->setGenreMask(static_cast<int32_t>(mask));
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenreMask(JNIEnv*, jclass, jint /*mask*/) {
 }
 
 
-extern "C" JNIEXPORT void JNICALL
-Java_vip_thatiam_technomatic2105_NativeAudio_setGenreBlendMode(JNIEnv*, jclass, jint mode) {
-    std::lock_guard<std::mutex> guard(gLock);
-    engine()->setGenreBlendMode(static_cast<int32_t>(mode));
-}
 
+// Legacy entry point: channels are retired, including calls from older clients.
 extern "C" JNIEXPORT void JNICALL
-Java_vip_thatiam_technomatic2105_NativeAudio_setGenrePrimary(JNIEnv*, jclass, jint mode) {
-    std::lock_guard<std::mutex> guard(gLock);
-    engine()->setGenrePrimary(static_cast<int32_t>(mode));
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenreBlendMode(JNIEnv*, jclass, jint /*mode*/) {
 }
 
 
+// Legacy entry point: channels are retired, including calls from older clients.
 extern "C" JNIEXPORT void JNICALL
-Java_vip_thatiam_technomatic2105_NativeAudio_setGenreStateAndRerenderCurrent(JNIEnv*, jclass, jint mask, jint mode, jint primary) {
-    std::lock_guard<std::mutex> guard(gLock);
-    engine()->setGenreStateAndRerenderCurrent(static_cast<int32_t>(mask), static_cast<int32_t>(mode), static_cast<int32_t>(primary));
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenrePrimary(JNIEnv*, jclass, jint /*mode*/) {
 }
+
+
+
+// Legacy entry point: channels are retired, including calls from older clients.
+extern "C" JNIEXPORT void JNICALL
+Java_vip_thatiam_technomatic2105_NativeAudio_setGenreStateAndRerenderCurrent(JNIEnv*, jclass, jint /*mask*/, jint /*mode*/, jint /*primary*/) {
+}
+
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentSongData(JNIEnv* env, jclass) {
@@ -156,27 +156,27 @@ Java_vip_thatiam_technomatic2105_NativeAudio_cancelExportRender(JNIEnv*, jclass)
 
 extern "C" JNIEXPORT jint JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentGenreMask(JNIEnv*, jclass) {
-    std::lock_guard<std::mutex> guard(gLock);
-    return engine()->currentGenreMask();
+    return 0;
 }
+
 
 extern "C" JNIEXPORT jint JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentGenreBlendMode(JNIEnv*, jclass) {
-    std::lock_guard<std::mutex> guard(gLock);
-    return engine()->currentGenreBlendMode();
+    return 0;
 }
+
 
 extern "C" JNIEXPORT jint JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentGenrePrimary(JNIEnv*, jclass) {
-    std::lock_guard<std::mutex> guard(gLock);
-    return engine()->currentGenrePrimary();
+    return 0;
 }
+
 
 extern "C" JNIEXPORT jint JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentGenreMode(JNIEnv*, jclass) {
-    std::lock_guard<std::mutex> guard(gLock);
-    return gEngine ? static_cast<jint>(gEngine->currentGenreMode()) : 0;
+    return 0;
 }
+
 
 extern "C" JNIEXPORT jdouble JNICALL
 Java_vip_thatiam_technomatic2105_NativeAudio_currentElapsedSeconds(JNIEnv*, jclass) {

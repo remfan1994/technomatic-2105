@@ -1,0 +1,40 @@
+{
+  "command": [
+    "ffmpeg",
+    "-v",
+    "error",
+    "-y",
+    "-f",
+    "s16le",
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
+    "-i",
+    "/tmp/tm302-measure/wide-knee-codec-work/g175k040_driving_3711502885.pcm",
+    "-c:a",
+    "libopus",
+    "-b:a",
+    "128000",
+    "-frame_duration",
+    "20",
+    "-application",
+    "audio",
+    "/tmp/tm302-measure/wide-knee-codec-work/g175k040_driving_3711502885.opus"
+  ],
+  "result": {
+    "curve": "g175k040",
+    "seed": 3711502885,
+    "intent": "driving",
+    "bitrate": 128000,
+    "frame_ms": 20,
+    "output_gain_q78_db": 0,
+    "lufs": -11.7,
+    "true_peak_dbfs": 0.2,
+    "decoded_sample_peak": 1.0221774578094482,
+    "decoded_samples": 4608000,
+    "decoded_overfull_samples": 67,
+    "decoded_overfull_fraction": 1.4539930555555556e-05,
+    "decoded_integer_clip_error_relative_rms": 0.00010471553316977262
+  }
+}

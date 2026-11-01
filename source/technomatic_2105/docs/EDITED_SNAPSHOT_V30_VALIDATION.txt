@@ -1,0 +1,104 @@
+TECHNOMATIC 2105 v30: exact edited-recipe replay
+
+Problem and contract
+
+The v29 recipe loader accepted integer editing controls, but its saved
+snapshot exposed rounded effective values under the same field names.
+Loading that snapshot as edited=1 applied the control mappings again.
+For example, an input lead control of 70 became an effective summary of
+85, which became 99 on the next load. Brightness, other instrument levels
+and absent controls could also drift. Ordinary edited=0 reconstruction
+was unaffected. This defect was reproduced in both the v29 baseline and
+the initial v30 source, then corrected during the v30 review.
+
+A canonical v30 edited snapshot now includes edited=1;editrecipe=1 and
+an edit_<control> field only for each input control actually present.
+These fields retain the original signed integer values, including zero
+and values that are clamped for playback. The native loader applies those
+raw controls once, after generating the seed/candidate composition.
+Unprefixed fields remain human-readable effective summaries. Their
+rounded values are not used as inputs to a canonical edited load.
+
+Legacy edited recipes without editrecipe=1 still use the original input
+field names. The loader also retains the existing inference for extended
+legacy recipes without gmask or an explicit edited marker. Once loaded,
+these recipes serialize with the v30 marker and exact input fields.
+An unedited load clears earlier raw controls. Channels remain retired;
+all four old numeric selector fields serialize as zero. Version and
+complete recipe metadata are captured from the actual native snapshot.
+
+There are 40 supported editing controls. These cover design selection,
+tempo, root, scale, percentage controls and individual instrument levels.
+The music-only policy still keeps texture, fx and grain inaudible; their
+legacy raw inputs can be retained without reactivating those lanes.
+Generated model and phrase-plan fields are derived summaries, not new
+editing controls. A v30 recipe is not a promise of the same rendition in
+an older engine, and a migrated old recipe is interpreted by v30.
+
+Reproduction and results
+
+From the project root, with Python 3 and a C++17 compiler:
+
+python3 tools/test_edited_snapshots.py --output /tmp/edited-snapshot-v30-check
+
+The runner builds tools/edited_snapshot_v30.cpp with the production
+MusicEngine.cpp using -O2 -Wall -Wextra -Werror. It uses public
+loadSongData, currentSongData and render APIs; no private-state inspection
+or Android audio stubs are needed. The executable and its text report
+are retained in the selected output directory, outside project source.
+
+Actual final result:
+
+- 12,582 assertions passed in 48 replay cases.
+- Three successive save/load generations were checked for every case,
+  giving 144 reloads.
+- 23,040,000 stereo float samples were compared byte-for-byte at 48 kHz,
+  including four additional obsolete-selector variants.
+- All 40 controls were checked individually, including exact presence
+  and the absence of the other 39 raw fields.
+- Combined all-zero, negative and high inputs preserved raw controls
+  while respecting style, tempo, root, scale and percentage bounds.
+- The original two drift reproductions each remained sample-exact for
+  12 seconds on every reload. No float samples differed.
+- Full recipe strings remained identical across generations, including
+  generated instrument models, supporting-role models and phrase plans.
+- Deliberately misleading rounded summary values did not change the
+  reconstructed canonical composition or override absent raw controls.
+- Legacy channel fields, even invalid old values, had no effect on the
+  edited snapshot or PCM.
+- Replacing an edited recipe with an unedited or empty edited recipe
+  cleared the old raw values and their presence bits.
+
+The first reproduction uses seed 141414419, candidate 17, root 43,
+scale 2, tempo 88, brightness 80, lead 70, bass 65, chords 60, arp 90,
+counter 75, motif 70 and drama 65. Its display summaries correctly remain
+brightness 83, lead 85, bass 81, chords 71, arp 92 and counter 73 after
+every load, while its edit_* values remain the original inputs.
+
+The second uses seed 987654321, candidate 7, root 36, scale 6, tempo 104,
+lead 0, bass 100, brightness 25 and diversity 90. It retains the muted
+lead and saturated bass display, while brightness stays 42 rather than
+being remapped on each load. The separate native musical validator tests
+that an enabled bass still emits notes when it owns the foreground.
+
+Final source SHA-256
+
+MusicEngine.cpp:
+759885caecfaaa12dc07e83977e94948f17d853b1a69284ab1dd7adfcfe58496
+
+MusicEngine.h:
+8acddec9294a13dc4a5854503b1f0c30e3f3c3e05ea731577d4e1170427ee18b
+
+Raw evidence is included in
+docs/metadata-v30-results/edited-snapshot-test-report.txt.
+The small tools/review_edited_snapshot_v30.cpp program remains as the
+original two-case diagnostic. The assertion suite above is the regression
+gate; the diagnostic is not counted as an additional passed test suite.
+
+Limits
+
+These comparisons establish determinism within the same final host
+build. They do not establish cross-architecture floating-point identity,
+compatibility with earlier rendering engines, Android callback timing
+or subjective musical quality. Android build, playback-control, export
+metadata and musical-distribution checks are reported separately.

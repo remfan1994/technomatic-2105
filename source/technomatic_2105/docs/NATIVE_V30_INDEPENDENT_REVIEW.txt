@@ -1,0 +1,93 @@
+TECHNOMATIC 2105 v30: independent native review
+
+Scope
+
+Read-only review compared MusicEngine.cpp/.h with the supplied v29
+baseline. The review focused on fixed instrument identity, generated
+recipe reconstruction, final note bounds, event scheduling, foreground
+handoffs and real-time resource use. The reviewer did not edit those
+production files; concrete findings were sent to the engine owner for
+scoped fixes. Intentional retirement of channel controls is not treated
+as a regression.
+
+Concrete findings and final disposition
+
+1. Foreground harmony could be discarded behind an existing pad.
+
+The first v30 schedulePad guard returned whenever a sustained pad was
+present, including when the new event was the foreground answer or final
+cadence. Since phrase planning can hand the melody to harmony and mute
+other accompaniment, that guard could drop the intended answer.
+
+Foreground scheduling now cancels pending accompaniment pad events and
+releases the active pad over eight milliseconds before starting the new
+foreground pad. The cadence uses the same priority behavior. A focused
+48 kHz render probe observed the new voice starting at sample 385,
+nonzero new-voice output and at most one active pad during that handoff.
+The persistent regression in tools/validate_v30.cpp also checks pending
+event replacement, actual voice activation, finite output and the
+one-active-pad foreground transition. That final validator passes.
+
+This guarantee applies to foreground replacement. Ordinary accompaniment
+can intentionally overlap the final tail of a pad with less than 120 ms
+remaining. A universal claim that there is never any pad overlap would
+be incorrect.
+
+2. Edited snapshot values were remapped on every load.
+
+Both the v29 baseline and initial v30 source confused raw edit inputs
+with rounded effective display summaries. The original two cases showed
+different PCM after the very first snapshot reload. The final v30 raw
+editrecipe/edit_* representation fixes this without treating every
+display field as an explicit edit. All 40 control fields, absent-field
+semantics and three successive reloads are covered by the public-API
+regression in tools/edited_snapshot_v30.cpp. Its final result is 48 cases,
+144 reloads and 23,040,000 exactly equal float samples; see
+EDITED_SNAPSHOT_V30_VALIDATION.txt for inputs, counts and limits.
+
+3. A muted primary lead could silence an enabled foreground owner.
+
+The initial v30 answer scheduler multiplied a promoted bass or support
+voice by the primary lead weight. With an edited lead=0/bass=100 recipe,
+the planner could suppress normal bass accompaniment for a bass-owned
+answer and then schedule no foreground notes. Phrase gain now follows
+the actual owner. Muted foundation instruments also remain muted through
+arrivals, cadence and silence recovery. The final native validator
+checks promoted bass with a muted lead, disabled bass/harmony and a
+fully muted finite export. These checks pass.
+
+Additional reviewed areas
+
+Final note-bound repair runs after device, harmony-owner and cadence
+transformations. The separate validator stresses edited root extremes,
+private octave variation, final slow foreground notes and triggered
+harmony components. This closes the bounds issue independently raised
+by the main reviewer before this review began.
+
+The generated catalogue indices and per-support model lookups are
+bounded. Models remain fixed for a composition; changing tone does not
+select a different model. The new catalogue does not create extra voice
+roles merely because more instrument designs are available. The final
+paired palette and scheduled-event audits provide the actual coverage.
+
+The new phrase-planning and foreground-note work uses fixed-size local
+arrays. No new per-sample heap allocation was found. The fixed event and
+voice pools remain bounded; no concrete new queue-index or lifetime
+defect was identified in the reviewed paths. These are code-review
+observations, not a proof that every possible composition meets a device
+deadline. The inherited candidate search and snapshot/history work on a
+new-piece transition still need real Android timing coverage.
+
+Final production identity
+
+MusicEngine.cpp SHA-256:
+759885caecfaaa12dc07e83977e94948f17d853b1a69284ab1dd7adfcfe58496
+
+MusicEngine.h SHA-256:
+8acddec9294a13dc4a5854503b1f0c30e3f3c3e05ea731577d4e1170427ee18b
+
+The final native suite result is recorded in tools/validation/v30_native.log.
+The independent edited-recipe report is in docs/metadata-v30-results.
+Device scheduling and subjective listening remain separate from these
+source and host checks. No further production edits were requested after
+the final targeted regressions passed.

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/tmp/tm302-measure/tone-probe",
+    "/tmp/tm302-measure/raw-audio/raw_slow_3267723310.wav",
+    "/tmp/tm302-measure/calibration-audio/tone_slow_3267723310.wav",
+    "0.443112492561"
+  ],
+  "processing": {
+    "rms": 0.15358026707,
+    "peak": 0.837974727154,
+    "knee_samples": 0,
+    "samples": 8448000,
+    "gain": 1,
+    "knee": 0.72000002861,
+    "ceiling": 0.939999997616
+  }
+}

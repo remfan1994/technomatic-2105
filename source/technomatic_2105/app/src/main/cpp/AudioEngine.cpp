@@ -1,8 +1,8 @@
 #include "AudioEngine.h"
 
 #include <android/log.h>
-#include <algorithm>
 #include <chrono>
+#include <utility>
 
 namespace rb {
 namespace {
@@ -14,7 +14,8 @@ AudioEngine::~AudioEngine() {
 }
 
 bool AudioEngine::start() {
-    std::lock_guard<std::mutex> guard(mLock);
+    std::lock_guard<std::mutex> controlGuard(mControlLock);
+    std::unique_lock<std::mutex> guard(mLock);
     if (mPlaying && mStream) return true;
 
     oboe::AudioStreamBuilder builder;
@@ -45,18 +46,12 @@ bool AudioEngine::start() {
 
     const int32_t sampleRate = mStream->getSampleRate() > 0 ? mStream->getSampleRate() : 48000;
     mMusic.prepare(static_cast<double>(sampleRate));
-    mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
-    mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
-    mMusic.setGenrePrimary(mGenrePrimary.load(std::memory_order_acquire));
 
     if (!mMusicInitialized) {
         const uint32_t seed = static_cast<uint32_t>(
                 std::chrono::high_resolution_clock::now().time_since_epoch().count());
         mMusic.reset(seed);
         mMusicInitialized = true;
-        // The first reset already used the selected Channel state. Do not
-        // immediately regenerate the identical rendition on the first callback.
-        mChannelRenditionRequested.store(false, std::memory_order_release);
     }
     if (mLoadSongDataRequested.load(std::memory_order_acquire)) {
         std::string data;
@@ -75,8 +70,12 @@ bool AudioEngine::start() {
         __android_log_print(ANDROID_LOG_ERROR, kTag,
                             "requestStart failed: %s",
                             oboe::convertToText(result));
-        mStream->close();
-        mStream.reset();
+        std::shared_ptr<oboe::AudioStream> failedStream = std::move(mStream);
+        mPlaying = false;
+        // A close can deliver onErrorAfterClose(), which needs mLock. Keep
+        // external controls serialized while allowing that callback to finish.
+        guard.unlock();
+        failedStream->close();
         return false;
     }
 
@@ -93,36 +92,13 @@ void AudioEngine::forceNew() {
 }
 
 
-void AudioEngine::setGenreMask(int32_t mask) {
-    mask = std::max(0, std::min(4095, mask));
-    mGenreMask.store(mask, std::memory_order_release);
-    mGenreMaskChangeRequested.store(true, std::memory_order_release);
-}
-
-void AudioEngine::setGenreBlendMode(int32_t mode) {
-    mode = std::max(0, std::min(1, mode));
-    mGenreBlendMode.store(mode, std::memory_order_release);
-    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
-}
-
-void AudioEngine::setGenrePrimary(int32_t primary) {
-    primary = std::max(0, std::min(12, primary));
-    mGenrePrimary.store(primary, std::memory_order_release);
-    mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
-}
-
-void AudioEngine::setGenreStateAndRerenderCurrent(int32_t mask, int32_t mode, int32_t primary) {
-    mask = std::max(0, std::min(4095, mask));
-    mode = std::max(0, std::min(1, mode));
-    primary = std::max(0, std::min(12, primary));
-    mGenreMask.store(mask, std::memory_order_release);
-    mGenreBlendMode.store(mode, std::memory_order_release);
-    mGenrePrimary.store(primary, std::memory_order_release);
-    mGenreMaskChangeRequested.store(true, std::memory_order_release);
-    mGenreBlendModeChangeRequested.store(true, std::memory_order_release);
-    mGenrePrimaryChangeRequested.store(true, std::memory_order_release);
-    mChannelRenditionRequested.store(true, std::memory_order_release);
-}
+// ABI compatibility only. v30 always uses the full generator, and an old
+// channel command must not change the sound, rewind it or open a stream.
+void AudioEngine::setGenreMask(int32_t /*mask*/) {}
+void AudioEngine::setGenreBlendMode(int32_t /*mode*/) {}
+void AudioEngine::setGenrePrimary(int32_t /*primary*/) {}
+void AudioEngine::setGenreStateAndRerenderCurrent(
+        int32_t /*mask*/, int32_t /*mode*/, int32_t /*primary*/) {}
 
 std::string AudioEngine::currentSongData() const {
     return mMusic.currentSongData();
@@ -155,21 +131,10 @@ bool AudioEngine::exportPcm16RangeToFile(const std::string& data, int32_t startS
     return MusicEngine::exportPcm16RangeFile(data, startSeconds, endSeconds, path);
 }
 
-int32_t AudioEngine::currentGenreMask() const {
-    return std::max(0, std::min(4095, mGenreMask.load(std::memory_order_acquire)));
-}
-
-int32_t AudioEngine::currentGenreBlendMode() const {
-    return std::max(0, std::min(1, mGenreBlendMode.load(std::memory_order_acquire)));
-}
-
-int32_t AudioEngine::currentGenrePrimary() const {
-    return std::max(0, std::min(12, mGenrePrimary.load(std::memory_order_acquire)));
-}
-
-int32_t AudioEngine::currentGenreMode() const {
-    return mMusic.currentGenreMode();
-}
+int32_t AudioEngine::currentGenreMask() const { return 0; }
+int32_t AudioEngine::currentGenreBlendMode() const { return 0; }
+int32_t AudioEngine::currentGenrePrimary() const { return 0; }
+int32_t AudioEngine::currentGenreMode() const { return 0; }
 
 double AudioEngine::currentElapsedSeconds() const {
     return mMusic.currentElapsedSeconds();
@@ -177,6 +142,7 @@ double AudioEngine::currentElapsedSeconds() const {
 
 
 void AudioEngine::stop() {
+    std::lock_guard<std::mutex> controlGuard(mControlLock);
     std::shared_ptr<oboe::AudioStream> stream;
     {
         std::lock_guard<std::mutex> guard(mLock);
@@ -204,18 +170,6 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
         return oboe::DataCallbackResult::Continue;
     }
 
-    if (mGenreBlendModeChangeRequested.exchange(false, std::memory_order_acq_rel)) {
-        mMusic.setGenreBlendMode(mGenreBlendMode.load(std::memory_order_acquire));
-    }
-
-    if (mGenreMaskChangeRequested.exchange(false, std::memory_order_acq_rel)) {
-        mMusic.setGenreMask(mGenreMask.load(std::memory_order_acquire));
-    }
-
-    if (mGenrePrimaryChangeRequested.exchange(false, std::memory_order_acq_rel)) {
-        mMusic.setGenrePrimary(mGenrePrimary.load(std::memory_order_acquire));
-    }
-
     if (mLoadSongDataRequested.exchange(false, std::memory_order_acq_rel)) {
         std::string data;
         {
@@ -225,13 +179,6 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
         if (!data.empty()) {
             mMusic.loadSongData(data);
         }
-    }
-
-    if (mChannelRenditionRequested.exchange(false, std::memory_order_acq_rel)) {
-        mMusic.rerenderCurrentWithChannel(
-            mGenreMask.load(std::memory_order_acquire),
-            mGenreBlendMode.load(std::memory_order_acquire),
-            mGenrePrimary.load(std::memory_order_acquire));
     }
 
     if (mForceNewRequested.exchange(false, std::memory_order_acq_rel)) {
@@ -247,11 +194,14 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
     return oboe::DataCallbackResult::Continue;
 }
 
-void AudioEngine::onErrorAfterClose(oboe::AudioStream* /*stream*/, oboe::Result error) {
+void AudioEngine::onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) {
     __android_log_print(ANDROID_LOG_ERROR, kTag,
                         "audio stream closed after error: %s",
                         oboe::convertToText(error));
     std::lock_guard<std::mutex> guard(mLock);
+    // A late callback from a replaced/explicitly stopped stream must not tear
+    // down a newer stream. Oboe guarantees this stream is already closed here.
+    if (mStream.get() != stream) return;
     mStream.reset();
     mPlaying = false;
 }

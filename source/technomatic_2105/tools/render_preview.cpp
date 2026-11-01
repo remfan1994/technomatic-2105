@@ -63,17 +63,29 @@ int main(int argc, char** argv) {
     const uint32_t seed = argc > 3 ? static_cast<uint32_t>(std::strtoul(argv[3], nullptr, 0)) : 0x52423934u;
     const int genreMask = argc > 4 ? std::max(0, std::atoi(argv[4])) : 0;
     const int genreBlendMode = argc > 5 ? std::max(0, std::min(1, std::atoi(argv[5]))) : 0;
+    const int genrePrimary = argc > 6 ? std::max(0, std::min(12, std::atoi(argv[6]))) : 0;
+    const int startSeconds = argc > 7 ? std::max(0, std::atoi(argv[7])) : 0;
     constexpr int blockFrames = 256;
 
     rb::MusicEngine engine;
     engine.prepare(sampleRate);
     engine.setGenreBlendMode(genreBlendMode);
     engine.setGenreMask(genreMask);
+    engine.setGenrePrimary(genrePrimary);
     engine.reset(seed);
     std::printf("song data: %s\n", engine.currentSongData().c_str());
 
     std::vector<float> all(static_cast<size_t>(sampleRate * seconds * channels), 0.0f);
     std::vector<float> block(static_cast<size_t>(blockFrames * channels), 0.0f);
+
+    // Render the actual live prefix so a short comparison can start after the
+    // generated opening without changing its subsequent development or seed.
+    int skipFrames = sampleRate * startSeconds;
+    while (skipFrames > 0) {
+        const int frames = std::min(blockFrames, skipFrames);
+        engine.render(block.data(), frames, channels);
+        skipFrames -= frames;
+    }
 
     int framesLeft = sampleRate * seconds;
     size_t write = 0;
@@ -87,6 +99,7 @@ int main(int argc, char** argv) {
     }
 
     writeWav(out, all, sampleRate, channels);
-    std::printf("wrote %s (%d sec indefinite sound, genre mask %d, blend %d)\n", out, seconds, genreMask, genreBlendMode);
+    std::printf("wrote %s (%d sec excerpt from %d sec, genre mask %d, blend %d, primary %d)\n",
+                out, seconds, startSeconds, genreMask, genreBlendMode, genrePrimary);
     return 0;
 }

@@ -21,6 +21,7 @@ public:
     void stop();
     void next();
     void forceNew();
+    // Retired channel API retained as no-op/zero-valued compatibility shims.
     void setGenreMask(int32_t mask);
     void setGenreBlendMode(int32_t mode);
     void setGenrePrimary(int32_t mode);
@@ -46,19 +47,15 @@ public:
     void onErrorAfterClose(oboe::AudioStream* stream, oboe::Result error) override;
 
 private:
+    // External stream controls remain serialized until close() has actually
+    // completed. Neither audio nor error callbacks acquire this mutex.
+    mutable std::mutex mControlLock;
     mutable std::mutex mLock;
     std::shared_ptr<oboe::AudioStream> mStream;
     MusicEngine mMusic;
     std::atomic<bool> mNextRequested{false};
     std::atomic<bool> mForceNewRequested{false};
-    std::atomic<bool> mChannelRenditionRequested{false};
-    std::atomic<bool> mGenreMaskChangeRequested{false};
-    std::atomic<bool> mGenreBlendModeChangeRequested{false};
-    std::atomic<bool> mGenrePrimaryChangeRequested{false};
     std::atomic<bool> mLoadSongDataRequested{false};
-    std::atomic<int32_t> mGenreMask{0};
-    std::atomic<int32_t> mGenreBlendMode{0};
-    std::atomic<int32_t> mGenrePrimary{0};
     mutable std::mutex mSongDataLock;
     std::string mPendingSongData;
     bool mPlaying = false;

@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.30.1 - v30.1
+
+- Corrected the quiet output reported in v30 with fixed output calibration shared by playback and offline exports.
+- Removed kick-driven whole-mix ducking, RMS automatic gain control, the attenuating master setting, legacy transition fades/dead air and the export's whole-file tail fade. Android's system media volume remains under the listener's control.
+- Removed coordinated volume envelopes from the composition's part amplitudes, including intro/outro ramps, Hook/Surge boosts and Shadow/OpenRelease dips. Preserved their note activity decisions, structural silence, fixed role balance and individual note accents/envelopes.
+- Replaced the old roughly 64-percent digital ceiling with the full range up to 100 percent, using a memoryless peak curve without a moving gain controller, compressor recovery envelope or lookahead delay. Individual notes retain their synthesis envelopes, articulation and rests.
+- Kept the v30 composition engine, instrument catalogue, ensemble size, slow-music grammar, theme development, history and retired-channel behavior.
+- Kept engine=30 and added outputrev=1 to native snapshots and OUTPUT_MASTER_VERSION to embedded OGG/FLAC metadata. Old saved v30 recipes use the corrected output; their rendered waveforms change with the output treatment.
+- Fixed both Next paths retaining the preceding composition's backbeat delay. Seed-local timing now agrees with a fresh load of the saved recipe without changing normal reset/load timing or composition randomness.
+- Retained NDK 30.0.14904198 and recorded the fixed-output requirement in AGENTS.md for future versions.
+- Bumped versionCode to 43 and versionName to 0.30.1.
+
+## 0.30.0 - v30
+
+- Pinned the owner's NDK version to 30.0.14904198 in Gradle and Android workflows. Recorded the installed path and future-version preference in AGENTS.md without hardcoding a machine-specific SDK path into the shared build.
+- Discontinued Channels. Removed the selector and channel labels from playback, history and the Metadata Editor; retired channel preferences and controls cannot influence new or loaded music. Legacy recipe fields are neutralized for compatibility.
+- Expanded the synthesized instrument catalogue from 12 to 20 bass models, 16 to 32 lead models, 10 to 18 harmony/pad models and 8 to 12 drum-kit families. The v29 support-count rule and ensemble roles remain; supporting roles share a bounded palette rather than adding instruments.
+- Made instrument-family selection stable within a composition. Articulation and tone can evolve without changing to an unrelated synthesis family because of an incidental color offset.
+- Added a shared foreground phrase plan with generated development cycles, short recognizable theme recalls, related melodic and rhythmic transformations, and exchanges between existing voices.
+- Added Counterweight, Pocket Exchange, Held Question, Confluence and Open Release as coordinated musical devices. Climaxes and releases use the current ensemble, generated pitch relationships and dynamics rather than sound effects.
+- Replaced fixed high sparkle/bell placement and revised legacy chiming tones. Removed the retired Velvet Circuit profile. All music remains local oscillator-based synthesis, with no imported recordings, soundfonts, MIDI songs or commercial cue assets.
+- Gave slow music longer harmonic spans, a controlled melodic register, bounded voice leading, connected articulation and intermediate third/fifth/suspension endings. Applied register checks after cadence and arrival generation, including actual harmony voices and finite-export closing notes.
+- Fixed sustained accompaniment pads blocking a harmony-owned foreground answer. The old pad releases before replacement without overlapping a second active pad during the handoff.
+- Fixed edited-recipe drift on repeated loading by preserving exact original override inputs separately from readable derived summaries. Foreground ownership now respects the selected instrument's gain, so a muted lead cannot silence an existing bass answer; muted roles remain muted.
+- Kept physically embedded OGG OpusTags and FLAC comments. Automatic Notes now show the actual seed and engine version; optional user notes remain editable. Legacy channel tags are explicitly neutral.
+- Added primary-melody and actual-trigger palette audits, native and playback-control regressions, and independent metadata inspection. Historical validators and reports remain available as historical evidence.
+- Bumped versionCode to 42 and versionName to 0.30.0. v30 reinterprets older seeds with the new engine; it does not reproduce v29 waveforms exactly.
+
+## 0.29.0 - v29
+
+- Fixed OGG metadata: exported Opus files now contain real OpusTags, rather than only Android MediaStore catalog values. OGG and FLAC share one immutable metadata snapshot captured before rendering.
+- Added automatic Notes showing the current seed, selected channels, and dominant hybrid channel, plus separate optional user notes. Both formats embed COMMENT and DESCRIPTION, explicit seed/channel/range fields, engine version, composition intent, and the complete regeneration recipe.
+- Channel changes while stopped now update the actual rendition and metadata immediately without starting audio. Serialized stream-close/control operations and stale-callback handling are covered by 71 host checks.
+- Added a streaming Ogg tag writer that preserves audio packets and timing, verifies page checksums, and handles metadata growth/shrinkage across page boundaries. Export cancellation removes partial output.
+- Replaced the dense-arrangement bias in the 48-candidate search with seed-selected listening intent and target-relative musical scoring. Slow, relaxed, driving, and intense compositions have distinct tempo, activity, articulation, and ensemble ranges.
+- Replaced fixed drum-pattern and drum-DNA tables with generated rhythmic sentences, related answers, intentional rests, and bounded long-form development.
+- Fixed indefinite drum-density creep: long playback preserves intentional rests through bounded variations around the generated reference rhythm.
+- Removed the minimum 12/15 active-lane floor. A lead/bass/harmony foundation receives a generated supporting ensemble with phrase-level call and response.
+- Removed continuous texture hiss, noise/zap effects, free-running delay, and noise in pitched lead voices. Strengthened pitched fundamentals and harmonic relationships while preserving generated synthesis and articulation variation.
+- Expanded tonal color to nine scale families, including major, Lydian, Mixolydian, and major pentatonic alongside the existing minor modes.
+- Renamed No Channel to Auto (full range), added All channels, and added hold-to-select the dominant channel. Existing channel preferences are retained.
+- Reworked channel color to preserve the selected composition's slow/intense range. Hybrids retain the dominant channel and choose a weaker secondary color from the selected set per rendition, avoiding an average of all colors.
+- Fixed multi-channel Single selection consuming composition randomness and changing the winning candidate.
+- Preserved indefinite playback, recurring themes, continuing improvisation, latest-20 history, same-core channel renditions, exact v29 snapshot reconstruction, and finite export ranges.
+- Added native distribution/development validation and independent OGG/FLAC metadata tests with FFmpeg, MediaInfo, opusinfo, metaflac, and flac.
+- Added an early Android 10 requirement message for public Music export; playback still supports Android 8 and newer.
+- Bumped versionCode to 41 and versionName to 0.29.0. The new engine changes the interpretation of old seeds; v28 audio is not reproduced sample-for-sample by v29.
+
 ## 0.28.0 - v28
 
 - Reworked Channels as renditions of the current generated composition: changing Channels now preserves the visible seed, winning candidate, harmony, lead and bass grammar, motifs, form, and musical memory.

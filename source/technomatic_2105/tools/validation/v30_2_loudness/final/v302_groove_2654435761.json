@@ -1,0 +1,31 @@
+{
+  "seed": 2654435761,
+  "intent": 1,
+  "bpm": 106.813926697,
+  "pattern_drive": 0.511416733265,
+  "sample_rate": 48000,
+  "channels": 2,
+  "start_seconds": 0,
+  "duration_seconds": 88,
+  "frames": 4224000,
+  "next_at_seconds": -1,
+  "called_next": false,
+  "sample_peak": 0.962290763855,
+  "rms": 0.254412689102,
+  "nonfinite_samples": 0,
+  "fullscale_samples": 0,
+  "pcm_fnv1a": "68dff385996e15db",
+  "scheduler_fnv1a": "f3d7d6355a8329ce",
+  "score_fnv1a": "0814fd5e943f0f91",
+  "amplitude_fnv1a": "45abcdcdca26dc3c",
+  "scheduled_events": 1254,
+  "initial_recipe": "technomatic2105-v1;seed=2654435761;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=20;engine=30;outputrev=2;intent=1;planseed=1220290865;planbars=10;recallbars=1;harmonicspan=1;devicerotation=4;phrasejoint=9;leadmodel=16;bassmodel=12;harmonymodel=4;drumkit=7;support0=2;support1=-1;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=4;support8=-1;support9=-1;support10=-1;support11=-1;support12=-1;support13=-1;support14=-1;support15=4;style=28;tempo=107;root=41;scale=2;density=41;swing=55;melody=70;motif=100;drama=52;space=66;roughness=36;brightness=62;diversity=11;kick=90;snare=75;hats=48;openhat=0;perc=0;bass=99;sub=0;chords=81;lead=100;arp=36;counter=0;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=74;glyph=0;sheen=0;pluck=0;bell=0;pulse=0;grain=0;comet=0;rotor=45;listened=0",
+  "final_recipe": "technomatic2105-v1;seed=2654435761;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=20;engine=30;outputrev=2;intent=1;planseed=1220290865;planbars=10;recallbars=1;harmonicspan=1;devicerotation=4;phrasejoint=9;leadmodel=16;bassmodel=12;harmonymodel=4;drumkit=7;support0=2;support1=-1;support2=-1;support3=-1;support4=-1;support5=-1;support6=-1;support7=4;support8=-1;support9=-1;support10=-1;support11=-1;support12=-1;support13=-1;support14=-1;support15=4;style=28;tempo=107;root=41;scale=2;density=41;swing=55;melody=70;motif=100;drama=52;space=66;roughness=36;brightness=62;diversity=11;kick=90;snare=75;hats=48;openhat=0;perc=0;bass=99;sub=0;chords=81;lead=100;arp=36;counter=0;stab=0;texture=0;drone=0;spark=0;fx=0;echo=0;orbit=0;bloom=74;glyph=0;sheen=0;pluck=0;bell=0;pulse=0;grain=0;comet=0;rotor=45;listened=88",
+  "render_command": [
+    "/tmp/tm302-measure/final-probe",
+    "/tmp/tm302-measure/final-audio/v302_groove_2654435761.partial.wav",
+    "2654435761",
+    "88"
+  ],
+  "selection_reason": "first intent representative"
+}

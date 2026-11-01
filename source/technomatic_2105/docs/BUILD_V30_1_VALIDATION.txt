@@ -1,0 +1,161 @@
+TECHNOMATIC 2105 v30.1 - Android build verification
+
+Build date: 2026-10-20 UTC
+versionName: 0.30.1
+versionCode: 43
+Composition engine: 30
+Output master revision: 1
+
+Final Gradle invocation, from the project root:
+  gradle --no-daemon --max-workers=2 assembleDebug assembleRelease lintDebug
+
+Result: BUILD SUCCESSFUL in 36 seconds.
+101 actionable tasks: 54 executed, 47 up-to-date.
+
+This final run started at 2026-10-20T00:45:00 UTC, after the native source was
+frozen. Debug and release Java compilation passed. Native debug and release
+build tasks ran for arm64-v8a, armeabi-v7a and x86_64. No production source or
+build configuration workaround was needed. All eight production files listed
+below had identical SHA-256 values before and after the build.
+
+The earlier invocation cancelled before the renewed source freeze is not used
+as validation evidence. The results here are from the completed final run.
+
+Toolchain
+
+  Gradle 8.9; Android Gradle Plugin 8.7.3; OpenJDK 17.0.20.
+  Android platform 33, revision 3; build-tools 34.0.0; CMake 3.22.1.
+  NDK 30.0.14904198, exactly the owner's requested revision.
+  Oboe 1.10.0; C++17; configured native flags include -O3 -Wall -Wextra.
+
+The official NDK archive identifies itself as r30-beta1 with BaseRevision
+30.0.14904198. Its source.properties was preserved. The SDK's preview revision
+is displayed as rc1 by sdkmanager. There was no NDK downgrade, altered NDK
+version file or special compiler workaround.
+
+The restored toolchain used these machine-local directories:
+  JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+  ANDROID_SDK_ROOT=/tmp/technomatic-v30-toolchain/android-sdk
+  ANDROID_HOME=/tmp/technomatic-v30-toolchain/android-sdk
+  ANDROID_USER_HOME=/tmp/technomatic-v30-toolchain/android-user
+  GRADLE_USER_HOME=/tmp/technomatic-v30-toolchain/gradle-cache
+
+An environment script was available at
+  /tmp/technomatic-v30-toolchain/build-env.sh
+These temporary paths are build-environment details, not project requirements.
+Android Studio users retain their own SDK root; app/build.gradle pins the NDK
+revision without hard-coding the owner's home directory.
+
+SDK and Gradle archives came from the official distribution endpoints and were
+checked against the published archive sizes and checksums before extraction.
+SDK licenses were accepted with sdkmanager. The exact archive provenance is
+recorded in tools/validation/v30_1_android_toolchain.txt.
+
+Debug APK
+
+  Build output: app/build/outputs/apk/debug/app-debug.apk
+  Package: vip.thatiam.technomatic2105.debug
+  Version: 0.30.1-debug (43)
+  Bytes: 5745150
+  SHA-256:
+  709c41c245e551b91e9bf25248212d8b0374930230b33dd9765ca6f7dfa55028
+
+  apksigner verify --verbose --print-certs: passed.
+  APK Signature Scheme v2: verified; one signer.
+  Debug certificate SHA-256:
+  579708b6c43a9bcc7b01769be396d70145da8edf27eb2f032594e4a9d0b38354
+
+Unsigned release APK
+
+  Build output: app/build/outputs/apk/release/app-release-unsigned.apk
+  Package: vip.thatiam.technomatic2105
+  Version: 0.30.1 (43)
+  Bytes: 5683933
+  SHA-256:
+  28dc79a07e1d8705ccf406bd92f700d293c17b667c5d048cbbf6ad54d78e5235
+
+  Confirmed unsigned: no JAR signature entries or APK signing block.
+  apksigner returns the expected failure for an unsigned archive:
+  DOES NOT VERIFY / ERROR: Missing META-INF/MANIFEST.MF.
+  The owner's release signature is required before installation/distribution.
+
+Package verification
+
+Both APKs have minimum API 26 and target API 33. aapt2 dump badging confirmed
+their package identifiers, version codes and version names. ZIP CRC checks
+passed on every entry. Native ABIs are exactly:
+  arm64-v8a, armeabi-v7a, x86_64.
+
+Each ABI contains libtechnomatic_2105.so, liboboe.so and libc++_shared.so.
+All nine libraries in each APK have the correct ELF machine identifier for
+their ABI and match the corresponding stripped build output byte for byte.
+The per-library sizes and SHA-256 values are in v30_1_android_apks.json.
+
+Neither APK requests INTERNET permission. No packaged audio files, MIDI songs,
+soundfonts or private key files were found in either ZIP archive.
+
+Lint
+
+  0 errors, 20 warnings.
+  DataExtractionRules: 1; GradleDependency: 2; InlinedApi: 1;
+  MonochromeLauncherIcon: 2; ObsoleteSdkInt: 8; OldTargetApi: 1;
+  RtlHardcoded: 2; UnusedAttribute: 1; UnusedResources: 1;
+  WakelockTimeout: 1.
+
+The counts and issue IDs match the v30 build report. This is not a warning-free
+build. Debug and release Java compilation also print a deprecated API note for
+MainActivity; compilation completes successfully.
+
+Production source hashes, captured before and after the final build
+
+  app/src/main/cpp/MusicEngine.cpp:
+  486f0572560776af6a15182cac8341ec8512ec9cc455888cfb1a56f57a6cdc19
+  app/src/main/cpp/MusicEngine.h:
+  e63ff5acfdb4b94874bb7596ff01dfb66b32a1764bddc2eb44c587b789720d78
+  app/src/main/cpp/OutputStage.h:
+  189ad2e1aa317801d7303a81be31300766f91f3f20aaf6082d377fb372b0ceee
+  app/src/main/cpp/AudioEngine.cpp:
+  739f0aa431199dbcf338f4242b24ee3e875ea8434d8f3899865f1035a0935ccd
+  app/src/main/cpp/AudioEngine.h:
+  14e9afa1533a663f215399cb11ab2a2111cf98bfd89d8033a5fecb1157bd2efc
+  app/src/main/cpp/native-lib.cpp:
+  0d864ac101aa5cfc2ea43fdd118875962b57cb940b3644426f6cc5b2cbf1729b
+  app/src/main/java/vip/thatiam/technomatic2105/ExportMetadata.java:
+  629c41cc7061b1da8542ecd9c30374e6bf396fd99b2c9959c8beed25e207b34a
+  app/build.gradle:
+  4a95f53ada77f95f2345be887dc8551a57d3d3cd2b0352ffe53333c1634d93b3
+
+Signing continuity and device scope
+
+The temporary build environment generated a new debug certificate. The earlier
+v30 debug APK used certificate SHA-256:
+  b35e0a972195d9fbe6d47a2e6bca2adcf94b3110aaf27cc8c8a00f0f6ae8837b
+The new downloadable debug APK therefore cannot be installed as a direct update
+over that earlier signed debug APK. A local build with the same key as an
+existing installation is the appropriate path for an in-place update.
+
+The debug keystore is private and is not included in the project or APKs.
+The release APK retains the release application ID and remains unsigned, so
+the owner can use the original release key for an in-place release update.
+
+No physical Android device or emulator was used. This build report verifies
+compilation, packaging, signatures and static lint. It does not measure earbud
+loudness, actual Android volume-key behavior, device audio routing, real-time
+performance or real MediaCodec/MediaStore execution. Native rendering and
+metadata host checks are documented separately. Public Music export requires
+Android 10 or newer; playback supports Android 8 or newer.
+
+Raw evidence
+
+  tools/validation/v30_1_android_build.log
+  tools/validation/v30_1_android_lint.txt
+  tools/validation/v30_1_android_apks.json
+  tools/validation/v30_1_android_sources.json
+  tools/validation/v30_1_android_toolchain.txt
+  tools/validation/v30_1_android_debug_badging.txt
+  tools/validation/v30_1_android_release_badging.txt
+  tools/validation/v30_1_android_debug_signature.txt
+  tools/validation/v30_1_android_release_signature.txt
+
+The APK hashes identify the build outputs even when the delivery files are
+renamed. No signing keys or temporary toolchain caches belong in the delivery.

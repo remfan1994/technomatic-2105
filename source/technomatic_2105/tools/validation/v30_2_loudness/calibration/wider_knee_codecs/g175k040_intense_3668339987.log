@@ -1,0 +1,30 @@
+Input #0, ogg, from '/tmp/tm302-measure/wide-knee-codec-work/g175k040_intense_3668339987.opus':
+  Duration: 00:00:48.01, start: 0.000000, bitrate: 179 kb/s
+  Stream #0:0: Audio: opus, 48000 Hz, stereo, fltp
+    Metadata:
+      encoder         : Lavc60.31.102 libopus
+Stream mapping:
+  Stream #0:0 -> #0:0 (opus (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+[out#0/null @ 0x559aa9c3ad80] video:0kB audio:9000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:00:47.90 bitrate=N/A speed= 113x    
+[Parsed_ebur128_0 @ 0x559aa9c8c3c0] Summary:
+
+  Integrated loudness:
+    I:          -6.4 LUFS
+    Threshold: -16.4 LUFS
+
+  Loudness range:
+    LRA:         2.3 LU
+    Threshold: -26.4 LUFS
+    LRA low:    -7.4 LUFS
+    LRA high:   -5.1 LUFS
+
+  True peak:
+    Peak:        1.4 dBFS

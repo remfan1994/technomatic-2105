@@ -1,0 +1,1 @@
+Larger original instrument catalogue with the same ensemble size. Channels removed. Fixed per-song instrument families, coordinated theme/development exchanges, new musical devices, and tighter slow-music register and cadence handling. Seed/engine metadata stays automatic in OGG and FLAC. NDK pinned to 30.0.14904198. New engine changes older seed playback.

@@ -1,0 +1,101 @@
+TECHNOMATIC 2105 v0.30.1: output revision metadata
+
+Change
+
+Composition snapshots continue to identify engine=30. The v0.30.1 native
+output patch records outputrev=1 so the output processing revision can
+be distinguished from the unchanged composition engine.
+
+ExportMetadata now copies a valid nonnegative outputrev from the captured
+recipe into the physical Vorbis-comment field OUTPUT_MASTER_VERSION.
+Both OGG/Opus and FLAC use that same immutable metadata object. A normal
+v0.30.1 capture therefore includes:
+
+ENGINE_VERSION=30
+OUTPUT_MASTER_VERSION=1
+TECHNOMATIC_SONG_DATA=...;engine=30;...;outputrev=1
+
+The complete recipe is retained verbatim. Arbitrary legacy inputs without
+outputrev do not receive an invented output revision. An absent, negative
+or unparseable revision omits the physical OUTPUT_MASTER_VERSION field.
+The field remains owned by the metadata writer so an old value cannot
+survive from a rewritten input file when the current capture has none.
+
+Automatic Notes still contain only the actual seed and engine identity,
+followed by the same user notes and range in exported comments. The new
+technical field does not change the Notes editor or user-entered text.
+Retired channel tags, dates, intervals, title/artist/album fields, codec
+vendor data and unknown codec-specific comments retain their behavior.
+
+Legacy native recipes are interpreted with the current corrected output
+level; the metadata layer reports the resulting current snapshot rather
+than selecting an output algorithm. This test does not assert that old
+rendered audio is sample-identical to the new output. It checks metadata
+capture and container rewriting using a fixed PCM fixture.
+
+Reproducible test
+
+From the project root, with a JDK and FFmpeg:
+
+JAVA_HOME=/path/to/jdk python3 tools/test_metadata.py --output /tmp/metadata-v30-1-check
+
+The run compiles the production metadata and FLAC helpers for Java 8,
+encodes an eight-second stereo fixture, inserts real OpusTags and inspects
+both formats with ffprobe. The new checks cover:
+
+- OUTPUT_MASTER_VERSION=1 from the current capture.
+- The entire recipe, including outputrev=1, in both the metadata object
+  and actual encoded tags.
+- A later capture with another revision leaving the first job unchanged.
+- Legacy missing revisions, invalid values and field-name boundaries.
+- Physical omission when missing, including removal of a stale input tag.
+- Replacement of an old physical revision without duplicate old values.
+- Identical Notes/comment text with and without the output revision.
+
+Actual result
+
+1,065 Java host checks passed, comprising the existing 1,049 checks and
+16 focused output-revision checks. ffprobe found the expected output
+revision, seed, engine, range, Unicode notes and full recipe in both files.
+
+FLAC decoded to all 1,536,000 source PCM bytes exactly: 384,000 stereo
+frames at 48 kHz. Nine OGG metadata insertion/growth/shrinkage outputs
+decoded identically to the source Opus stream and retained its duration.
+The existing CRC, sequence, lacing, granule, flags, cancellation and large
+comment-boundary tests also passed as part of that suite.
+
+Source/FLAC PCM SHA-256:
+e9ae13bdb7962f149ecfdc46bda654ddfe1b47ec24b47f220e81d6762898c78b
+
+Decoded Opus PCM SHA-256:
+733626367fcadcb68236950455ce3125bc646da07173b9f1012e0157c7316e01
+
+The initial check used Java 17.0.20's compiler module with --release 8
+because its javac launcher was absent. After the full JDK and inspection
+tools were restored, the complete suite was run again with the normal
+javac launcher. All 1,065 checks passed in that final run.
+
+Independent opusinfo, metaflac and MediaInfo checks found the physical
+tags in their respective OGG/FLAC files. flac --test also passed the
+frame CRC and STREAMINFO MD5 checks. No optional inspector was skipped
+in the final run. The report, ffprobe JSON and inspector text are in
+docs/metadata-v30-1-results.
+
+Limits and unchanged behavior
+
+No changes were made to Android media-volume controls, AudioEngine, JNI,
+the Notes UI, export range/cancellation logic or the codecs as part of
+this metadata addition. The tests do not exercise Android MediaCodec,
+MediaStore, actual device playback level or headphone behavior. Output
+loudness validation and Android build results are reported separately.
+
+Primary format references
+
+OpusTags:
+https://www.rfc-editor.org/rfc/rfc7845.html#section-5.2
+
+FLAC Vorbis-comment block:
+https://www.rfc-editor.org/rfc/rfc9639.html#name-vorbis-comment
+
+Vorbis text-comment conventions:
+https://www.xiph.org/vorbis/doc/v-comment.html

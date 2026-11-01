@@ -1,0 +1,5 @@
+seed,intent,codec,bitrate,frame_ms,output_gain_q78_db,lufs,true_peak_dbfs,decoded_sample_peak,decoded_samples,decoded_overfull_samples
+1013904226,slow,host libopus,128000,20,0,-9.9,0.2,1.0236338376998901,4608000,209
+2654435761,groove,host libopus,128000,20,0,-11.3,0.1,1.0128120183944702,4608000,54
+3711502885,driving,host libopus,128000,20,0,-11.7,0.2,1.0221774578094482,4608000,67
+3668339987,intense,host libopus,128000,20,0,-6.4,1.4,1.1724214553833008,4608000,22254

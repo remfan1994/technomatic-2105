@@ -1,0 +1,83 @@
+TECHNOMATIC 2105 v30 - musical source and asset audit
+
+Purpose
+
+The owner reported that some older Velvet Circuit renditions resembled a
+Zelda treasure/secret cue. No seed, recording or time range for that example
+was provided. This audit examined the supplied v28 project, the v29 baseline,
+the current production source and the actual v30 Android packages for imported
+musical content, and reviewed the synthesis/arrangement paths relevant to
+the reported sparkling sound. It is not an audio-similarity search.
+
+Inventories
+
+docs/SOURCE_V28_V29_INVENTORY.json records the archived baselines:
+  v28 source ZIP SHA-256:
+  deba59745239e9db2474d8bf8a36dde6c9325754b4fe2baed36f6753fbd22501
+  v29 source ZIP SHA-256:
+  3c304d543719670ab6e2309f40abad26d9faca39a94e986111ff2f60e67cd484
+
+Neither baseline contains audio recordings, MIDI songs, soundfonts or tracker
+music assets. Neither has files in app assets/res/raw or an INTERNET permission.
+The production source search found no Nintendo/Zelda named references or the
+sample-loading APIs covered by the inventory.
+
+docs/SOURCE_V30_INVENTORY.json records all 33 current production files, their
+SHA-256 values and both built APKs. The same asset and permission checks pass.
+Both APK ZIP CRC checks pass. Their native libraries are the engine, Oboe and
+the C++ runtime for arm64-v8a, armeabi-v7a and x86_64.
+
+The current inventory is reproducible:
+
+  python3 tools/audit_source_assets.py \
+    --apk /absolute/path/technomatic_2105_v30_debug.apk \
+    --apk /absolute/path/technomatic_2105_v30_release_unsigned.apk \
+    --output /tmp/technomatic-source-inventory.json
+
+The automated inventory detects file assets and explicit API/name references.
+It does not establish what an arbitrary encoded data table represents, prove
+the historical authorship of every formula, or compare music perceptually.
+
+Manual music-path review
+
+Pitched audio is synthesized in MusicEngine.cpp from oscillators, envelopes,
+harmonic relationships and generated instrument parameters. Percussion is
+synthesized from short pitched/noise attacks. Scale-degree arrays and tonal
+intervals provide general musical grammar; phrase generation, mutations and
+theme transforms create the note sequences. No imported commercial recording,
+soundfont, MIDI song or transcribed commercial tune was identified.
+
+The native fopen path writes rendered PCM for export; it does not read a sound
+asset. Java export code writes OGG/FLAC and their metadata. Oboe 1.10.0 supplies
+Android audio I/O and is declared in app/build.gradle; it is not a music bank.
+Existing LICENSE and NOTICE attribution is retained. General synthesis and
+music-theory building blocks are used; originality here does not mean claiming
+to have invented scales, oscillator synthesis or all musical relationships.
+
+Changes addressing the reported resemblance
+
+The former Velvet Circuit channel and all other channel profiles are retired.
+Legacy selection preferences and recipe channel fields cannot reactivate them.
+The unrelated internal StyleType name VelvetDrift is an existing synthesis
+starting point, not the removed Velvet Circuit channel.
+
+The older ornament scheduling contained regular high sparkling attacks, such
+as fixed sixteenth positions 3/7/11/15, and recurring bell placements. Old lead
+models also included strongly chiming inharmonic partial relationships. These
+are plausible contributors to the reported resemblance, not confirmation of
+the missing recording's cause.
+
+v30 replaces those repeated ornament lattices with generated, phrase-related
+pitched replies and revises chiming families toward harmonic instrument tones.
+Instrument-family selection stays stable rather than changing with incidental
+color offsets. Foreground exchanges and generated arrivals provide musical
+drama without importing a reward cue or adding a special-effect layer.
+
+Scope of the conclusion
+
+The inspected project contains no identified imported commercial musical
+content. New v30 devices and synthesis families were implemented from the
+project's generated grammar and mathematical synthesis, without fetching or
+transcribing a commercial reference. That finding does not guarantee that no
+short generated phrase can ever resemble existing music. The specific reported
+older output cannot be reproduced or judged without its seed or recording.

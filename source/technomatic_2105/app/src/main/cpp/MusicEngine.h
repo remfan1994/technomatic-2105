@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "OutputStage.h"
+
 namespace rb {
 
 class MusicEngine {
@@ -54,6 +56,19 @@ private:
     static constexpr int kThemeSlots = 8;
     static constexpr int kBoundarySlots = 8;
     static constexpr int kGenreModeCount = 12;
+    static constexpr int kSupportLanes = 16;
+    static constexpr int kLeadModels = 32;
+    static constexpr int kBassModels = 20;
+    static constexpr int kPadModels = 18;
+    static constexpr int kDrumKits = 12;
+    static constexpr std::array<const char*, 40> kSongOverrideKeys{{
+        "style", "tempo", "root", "scale", "density", "swing", "melody", "motif",
+        "drama", "space", "roughness", "brightness", "diversity", "kick", "snare",
+        "hats", "openhat", "perc", "bass", "sub", "chords", "lead", "arp", "counter",
+        "stab", "texture", "drone", "spark", "fx", "echo", "orbit", "bloom", "glyph",
+        "sheen", "pluck", "bell", "pulse", "grain", "comet", "rotor"
+    }};
+
     static constexpr int32_t kIndefinitePieceSteps = 1000000000;
     static constexpr int32_t kDefaultExportSeconds = 180;
     static constexpr float kPi = 3.14159265358979323846f;
@@ -115,14 +130,6 @@ private:
         Count = 32
     };
 
-    enum class TransitionStage : int32_t {
-        None = 0,
-        FadeOut = 1,
-        DeadAir = 2,
-        FadeIn = 3
-    };
-
-
     enum class PhraseType : int32_t {
         Statement = 0,
         Repeat = 1,
@@ -172,6 +179,42 @@ private:
         Ornament = 5
     };
 
+    enum class MusicalDevice : int32_t {
+        None = 0,
+        Counterweight = 1,
+        PocketExchange = 2,
+        HeldQuestion = 3,
+        Confluence = 4,
+        OpenRelease = 5
+    };
+
+    // One phrase plan owns all decisions about recall, response and arrival.
+    // Instrument slots: 0 lead, 1 bass, 2 harmony, 3..18 selected support lanes.
+    struct PhrasePlan {
+        SectionType section = SectionType::Theme;
+        PhraseType role = PhraseType::Statement;
+        MusicalDevice device = MusicalDevice::None;
+        int32_t instrumentSlot = 0;
+        int32_t cycle = 0;
+        int32_t position = 0;
+        int32_t joint = 8;
+        int32_t rhythmShift = 0;
+        int32_t turnPosition = 6;
+        int32_t turnDirection = 1;
+        int32_t cadenceTone = 2;
+        bool resolves = false;
+        float articulation = 1.0f;
+    };
+
+    struct ForegroundNote {
+        bool rest = true;
+        int32_t degree = 0;
+        int32_t instrumentSlot = 0;
+        int32_t octave = 2;
+        float gate = 0.0f;
+        float duration = 1.0f;
+    };
+
     // Tension is a generated musical condition, not a fixed pad rhythm.
     enum class TensionDevice : int32_t {
         None = 0,
@@ -210,6 +253,14 @@ private:
 
     struct StyleProfile {
         StyleType type = StyleType::ConcretePulse;
+        // Intent is selected before candidate search. Continuous coordinates
+        // inside it describe a composition, never a stored tune or riff.
+        int32_t intent = 1;
+        float motion = 0.45f;
+        float noteLength = 0.85f;
+        float leadTarget = 7.0f;
+        float bassTarget = 5.0f;
+        float supportTarget = 3.0f;
         float bpmMin = 82.0f;
         float bpmMax = 96.0f;
         float swingMin = 0.04f;
@@ -287,6 +338,12 @@ private:
         float harmonyEvolution = 0.34f;
         int32_t sectionPhraseLength = 8;
         int32_t hookCycle = 4;
+        uint32_t phrasePlanSeed = 0x3051a71eu;
+        int32_t developmentCycle = 12;
+        int32_t recallPhrases = 2;
+        int32_t harmonicSpan = 1;
+        int32_t deviceRotation = 0;
+        int32_t phraseJoint = 8;
         // Generated boundary grammar. Openings reveal the existing identity in a
         // seed-specific order; finite exports close it over complete phrases.
         uint32_t boundaryGrammarSeed = 0x6a09e667u;
@@ -367,13 +424,13 @@ private:
         int32_t chordArticulation = 0;
         std::array<float, kPhraseSteps> chordGate{};
 
-        // A broad but bounded per-sound instrument grammar. Each generated
-        // sound chooses a related window from these banks rather than using
-        // one universal bass, lead, pad, and drum timbre.
+        // Each song fixes its instrument families from the wider catalogue.
+        // Continuous tone/envelope controls stay within those chosen families.
         int32_t bassModel = 0;
         int32_t leadModel = 0;
         int32_t padModel = 0;
         int32_t drumKit = 0;
+        std::array<int32_t, kSupportLanes> supportModels{};
         int32_t padVoiceCount = 3;
         std::array<int32_t, 4> padIntervals{{0, 2, 4, 6}};
         float bassAttack = 0.45f;
@@ -480,6 +537,8 @@ private:
     };
 
     struct Pattern {
+        uint32_t designSeed = 0x74743239u;
+        int32_t intent = 1;
         std::array<float, kPatternSteps> kick{};
         std::array<float, kPatternSteps> snare{};
         std::array<float, kPatternSteps> hat{};
@@ -489,6 +548,9 @@ private:
         std::array<float, kPatternSteps> chord{};
         std::array<float, kPatternSteps> lead{};
         std::array<float, kPatternSteps> accent{};
+        // Long playback develops around the generated groove. Fixed reference
+        // values prevent clamped random walks from filling every intended rest.
+        std::array<std::array<float, kPatternSteps>, 5> drumReference{};
         std::array<int32_t, kMotifSteps> bassMotif{};
         std::array<int32_t, kMotifSteps> leadMotif{};
         std::array<float, kMotifSteps> leadGate{};
@@ -505,7 +567,6 @@ private:
         float roughness = 0.35f;
         float space = 0.35f;
         float melody = 0.35f;
-        float delay = 0.16f;
         float drive = 0.55f;
         float profileTexture = 0.20f;
         bool profileAmbient = false;
@@ -524,6 +585,8 @@ private:
         float aux = 0.0f;
         int32_t degree = 0;
         int32_t octave = 0;
+        int32_t instrumentSlot = 0;
+        bool foreground = false;
     };
 
     struct DrumVoice {
@@ -571,6 +634,8 @@ private:
 
     struct PadVoice {
         bool active = false;
+        int32_t forcedReleaseSamples = -1;
+        int32_t forcedReleaseTotal = 1;
         float age = 0.0f;
         float dur = 1.0f;
         float amp = 0.0f;
@@ -607,6 +672,7 @@ private:
         float cutoff = 0.08f;
         float color = 0.0f;
         int32_t model = 0;
+        int32_t instrumentSlot = 0;
         float attackShape = 0.42f;
         float releasePoint = 0.70f;
         float glide = 0.20f;
@@ -640,10 +706,8 @@ private:
     int32_t mStyleAgeSteps = 0;
     bool mExportSinglePieceMode = false;
     int64_t mExportStopSamples = 0;
-    // mGenreMask/mGenreBlendMode are the user's selector for the next generated piece.
-    // mActiveGenreMask/mActiveGenreBlendMode are frozen into the currently sounding piece.
-    // Rendering and profile lookup must use the active values, otherwise loading history
-    // while a different selector is active audibly bleeds the new genre into the old track.
+    // Reserved legacy fields: v30 always keeps these zero. No channel selector
+    // participates in generation, rendering, history or exported recipes.
     int32_t mGenreMask = 0;
     int32_t mGenreBlendMode = 0;
     int32_t mGenrePrimary = 0;
@@ -660,12 +724,15 @@ private:
     int32_t mLastLeadStep = -1000;
     int32_t mSilentSteps = 0;
 
-    TransitionStage mTransitionStage = TransitionStage::None;
     uint32_t mCurrentSongSeed = 0x52423934u;
     uint32_t mPendingSongSeed = 0x52423934u;
     int32_t mCurrentCandidateIndex = 0;
     int32_t mForcedCandidateIndex = -1;
     bool mCurrentSongEdited = false;
+    // Preserve exact input controls, including absence, for canonical edited
+    // recipe replay. Rounded display summaries are never reapplied as controls.
+    std::array<int32_t, kSongOverrideKeys.size()> mSongOverrideValues{};
+    std::array<bool, kSongOverrideKeys.size()> mSongOverridePresent{};
     std::atomic<int64_t> mCurrentPieceSamples{0};
     mutable std::mutex mSongDataMutex;
     std::string mCurrentSongData;
@@ -673,27 +740,9 @@ private:
     std::array<std::string, kSongHistoryLimit> mSongHistory{};
     int32_t mSongHistorySize = 0;
     bool mSuppressHistoryRecord = false;
-    int32_t mTransitionSamplesLeft = 0;
-    int32_t mTransitionSamplesTotal = 1;
-    int32_t mDeadAirSamples = 0;
-    float mTransitionGain = 1.0f;
-
-    float mSidechain = 1.0f;
-    float mMaster = 0.74f;
-    float mAgcRms = 0.010f;
-    float mAgcGain = 1.0f;
     float mNovelty = 0.0f;
     float mPocketLate = 0.0f;
-    float mTexturePhaseA = 0.0f;
-    float mTexturePhaseB = 0.0f;
-    float mTextureLp = 0.0f;
-    float mTextureHp = 0.0f;
-    uint32_t mTextureNoise = 0xabcdefu;
 
-    std::vector<float> mDelayL;
-    std::vector<float> mDelayR;
-    int32_t mDelayWrite = 0;
-    int32_t mDelaySamples = 12000;
     float mDcInL = 0.0f;
     float mDcInR = 0.0f;
     float mDcOutL = 0.0f;
@@ -704,13 +753,9 @@ private:
     std::array<uint32_t, kRecentMotifHashes> mRecentMotifHash{};
     int32_t mRecentMotifHashWrite = 0;
 
-    StyleProfile profile(StyleType style, bool includeChannel = true) const;
+    StyleProfile profile(StyleType style, bool = true) const;
+    void applyCompositionIntent(StyleProfile& p) const;
     StyleType randomStyle();
-    int32_t chooseGenreModeFromMask(int32_t genreMask);
-    StyleProfile channelProfile(int32_t mode, const StyleProfile& base) const;
-    void mixProfile(StyleProfile& target, const StyleProfile& source, float amount) const;
-    void applyChannelBias(StyleProfile& p) const;
-    void applyChannelRenditionToCurrent();
     float scoreCurrentComposition() const;
     int32_t pieceStepsFromSeconds(int32_t seconds, float bpm) const;
     void generateSeededSong(uint32_t seed);
@@ -729,9 +774,13 @@ private:
     void generateTensionGrammar(const StyleProfile& p);
     void generateTimbreGrammar(const StyleProfile& p);
     void generateBoundaryGrammar(const StyleProfile& p);
+    void generatePhrasePlan(const StyleProfile& p);
+    void constrainSupportPalette();
+    float supportLaneWeight(int32_t lane) const;
     void deriveRelatedMotifs();
     void writeCompositionToPattern();
     void mutateDrumsOnly();
+    void rememberDrumReference();
     void repairPattern();
     uint32_t patternHash() const;
     bool isHashRecent(uint32_t hash) const;
@@ -746,6 +795,8 @@ private:
                            int32_t totalPhrases, float curve) const;
     SectionType currentSectionType(int32_t step) const;
     PhraseType currentPhraseType(int32_t step) const;
+    PhrasePlan phrasePlanForStep(int32_t step) const;
+    ForegroundNote foregroundNoteForStep(int32_t step, int32_t chordRoot) const;
     int32_t grammarDegree(PhraseType phrase, int32_t phrasePos, int32_t chordRoot, bool& isRest, float& gate, float& dur) const;
     int32_t themeIndexForStep(int32_t step) const;
     int32_t applyThemeTransform(int32_t degree, int32_t step, int32_t phrasePos, int32_t chordRoot, PhraseType phrase) const;
@@ -764,7 +815,6 @@ private:
     float tensionGateForStep(int32_t phraseNumber, int32_t phrasePos) const;
 
     void switchToPendingStyle();
-    void updateTransition();
     void clearVoicesAndEvents();
 
     void onStep();
@@ -774,24 +824,23 @@ private:
     int32_t humanizeSamples(float amount, bool downbeat, bool backbeat);
 
     void scheduleDrum(int32_t offsetSamples, DrumType type, float amp, float pan, float dur, float aux = 0.0f);
-    void scheduleBass(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color);
-    void schedulePad(int32_t offsetSamples, int32_t degree, float amp, float dur, float pan, float color);
-    void scheduleLead(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color);
+    void scheduleBass(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color, bool foreground = false);
+    void schedulePad(int32_t offsetSamples, int32_t degree, float amp, float dur, float pan, float color, bool foreground = false);
+    void scheduleLead(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color, int32_t instrumentSlot = 0, bool foreground = false);
     void scheduleChordGesture(int32_t offsetSamples, int32_t degree, float amp, float dur,
-                              float pan, float color, int32_t articulation);
+                              float pan, float color, int32_t articulation, bool foreground = false);
     bool hasSustainedPad(float remainingSeconds = 0.18f) const;
 
     void triggerDrum(DrumType type, float amp, float pan, float dur, float aux = 0.0f);
     void triggerBass(float freq, float amp, float dur, float pan, float color);
     void triggerPad(int32_t degree, float amp, float dur, float pan, float color);
-    void triggerLead(float freq, float amp, float dur, float pan, float color);
+    void triggerLead(float freq, float amp, float dur, float pan, float color, int32_t instrumentSlot = 0);
 
     float renderDrum(DrumVoice& voice);
     float renderBass(BassVoice& voice);
     float renderPad(PadVoice& voice);
     float renderLead(LeadVoice& voice);
-    float renderTexture();
-    void applyDelayAndMaster(float& left, float& right);
+    void applyMaster(float& left, float& right);
 
     float noise(uint32_t& state);
     float midiToHz(float midi) const;

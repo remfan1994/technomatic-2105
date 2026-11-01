@@ -1,0 +1,168 @@
+{
+  "seeds": 16,
+  "samples": 135168000,
+  "different_samples": 0,
+  "scheduler_identical": true,
+  "rows": [
+    {
+      "seed": 1013904226,
+      "intent": "slow",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "d4b27870ceff8d001bc58ad30413ed82d618a96d69a9107d944bdf7bbc8f087e",
+      "reconstructed_wav_sha256": "d4b27870ceff8d001bc58ad30413ed82d618a96d69a9107d944bdf7bbc8f087e"
+    },
+    {
+      "seed": 2654435761,
+      "intent": "groove",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "b35ad32f65bd02ef267a5f6446be1d245ddb871d8c82f2f399d2f8c448c5d2b0",
+      "reconstructed_wav_sha256": "b35ad32f65bd02ef267a5f6446be1d245ddb871d8c82f2f399d2f8c448c5d2b0"
+    },
+    {
+      "seed": 2027808452,
+      "intent": "driving",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "7db5fdfae1f6278581ebd5e9f736b402e0c5435b54b240df7676cb4159bcff87",
+      "reconstructed_wav_sha256": "7db5fdfae1f6278581ebd5e9f736b402e0c5435b54b240df7676cb4159bcff87"
+    },
+    {
+      "seed": 3668339987,
+      "intent": "intense",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "ad89ac65e1a16e4c6d46b74236f32db203c53d37c994174552da873688b1a7ad",
+      "reconstructed_wav_sha256": "ad89ac65e1a16e4c6d46b74236f32db203c53d37c994174552da873688b1a7ad"
+    },
+    {
+      "seed": 1866542167,
+      "intent": "slow",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "1ab7f9887f83f7b43237731221171b93e42f0128368a0c70bc02fed6351d7cd7",
+      "reconstructed_wav_sha256": "1ab7f9887f83f7b43237731221171b93e42f0128368a0c70bc02fed6351d7cd7"
+    },
+    {
+      "seed": 3267723310,
+      "intent": "slow",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "41116770bfa709efc6bf8b72273ceaf69863a6d93d000fc503a79b2466a8cf3c",
+      "reconstructed_wav_sha256": "41116770bfa709efc6bf8b72273ceaf69863a6d93d000fc503a79b2466a8cf3c"
+    },
+    {
+      "seed": 1775118300,
+      "intent": "slow",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "660fc0e854d67809bafdba0dc2f489e3084ac3b008a83cd5733a589d5d8cea1b",
+      "reconstructed_wav_sha256": "660fc0e854d67809bafdba0dc2f489e3084ac3b008a83cd5733a589d5d8cea1b"
+    },
+    {
+      "seed": 2563011894,
+      "intent": "groove",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "1491bcdb8a1d520ae0192120a014e6894c158ea525795c5fdb3426968f634988",
+      "reconstructed_wav_sha256": "1491bcdb8a1d520ae0192120a014e6894c158ea525795c5fdb3426968f634988"
+    },
+    {
+      "seed": 3394068386,
+      "intent": "groove",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "ab67a8c8cc9c8c3174ab2fec8093fee78dbde26350f61ab05a228cdfdb4c61c3",
+      "reconstructed_wav_sha256": "ab67a8c8cc9c8c3174ab2fec8093fee78dbde26350f61ab05a228cdfdb4c61c3"
+    },
+    {
+      "seed": 543445131,
+      "intent": "groove",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "49b7c76260ddef6840a13588419b64ada8a9e245a1490d23187780c8344f259f",
+      "reconstructed_wav_sha256": "49b7c76260ddef6840a13588419b64ada8a9e245a1490d23187780c8344f259f"
+    },
+    {
+      "seed": 2528090685,
+      "intent": "driving",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "2e3e454696f6d233248f5b89a8905acd1621e70596348e09c352db022fad12cd",
+      "reconstructed_wav_sha256": "2e3e454696f6d233248f5b89a8905acd1621e70596348e09c352db022fad12cd"
+    },
+    {
+      "seed": 2345242951,
+      "intent": "driving",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "1ee07c526d5b2f2d7edf71b578ad8ca27f2cecb66aa47058630fb55edb9d69d3",
+      "reconstructed_wav_sha256": "1ee07c526d5b2f2d7edf71b578ad8ca27f2cecb66aa47058630fb55edb9d69d3"
+    },
+    {
+      "seed": 3711502885,
+      "intent": "driving",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "a89ba1517302304d1cc15f322411cb1e5c033fc258f4655bd617fba5faec0b42",
+      "reconstructed_wav_sha256": "a89ba1517302304d1cc15f322411cb1e5c033fc258f4655bd617fba5faec0b42"
+    },
+    {
+      "seed": 169507974,
+      "intent": "intense",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "390b211cf95bccadea1d117e7626be1acef0b2519e9dd2a760b5602cb564f930",
+      "reconstructed_wav_sha256": "390b211cf95bccadea1d117e7626be1acef0b2519e9dd2a760b5602cb564f930"
+    },
+    {
+      "seed": 2175734977,
+      "intent": "intense",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "44182ed25cb591e3157b91c9e90ef4d008d61536e9cfa17fa293b477d70a01ca",
+      "reconstructed_wav_sha256": "44182ed25cb591e3157b91c9e90ef4d008d61536e9cfa17fa293b477d70a01ca"
+    },
+    {
+      "seed": 3824508201,
+      "intent": "intense",
+      "compared_samples": 8448000,
+      "different_samples": 0,
+      "max_abs_difference": 0.0,
+      "scheduler_identical": true,
+      "baseline_wav_sha256": "be25d27b47667c05a14814f3d346e93826fa0d8866e0bc1ceaf3e76b26c08bf9",
+      "reconstructed_wav_sha256": "be25d27b47667c05a14814f3d346e93826fa0d8866e0bc1ceaf3e76b26c08bf9"
+    }
+  ]
+}

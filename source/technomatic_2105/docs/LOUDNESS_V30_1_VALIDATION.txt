@@ -1,0 +1,259 @@
+TECHNOMATIC 2105 0.30.1 - FIXED OUTPUT VALIDATION
+Date: 2026-10-20
+Authoritative final-candidate report; host measurements, not a device audition.
+
+1. OUTCOME
+
+The final candidate uses fixed unity output gain, permits the full +/-1.0
+sample range, and has no master AGC, sidechain ducking, output gain envelope,
+lookahead limiter, automatic normalization, or whole-mix fade. The existing
+per-song drive and DC-removal filter remain. A stateless smooth curve rounds
+only samples above magnitude 0.80 and approaches magnitude 1.0.
+
+The user also requested removal of coordinated phrase/section volume changes.
+Nine scheduled-amplitude sites now use only a binary part-presence mask in
+place of the former continuous phrase multipliers. The old continuous values
+still determine note probabilities, gates, entrances and exits. Individual
+note envelopes, accents, fixed part balance, selected instrument weights,
+roll/flam accents, music grammar and instrument selection remain.
+
+The 16-seed final sample is substantially louder than delivered v30. On the
+settled 40-88 second excerpts, the median paired increase is 5.85 LU and the
+median RMS increase is 6.08 dB. Paired loudness increases range from 4.0 to
+7.2 LU. Median integrated loudness changes from -19.65 to -14.05 LUFS. The
+median of paired changes is intentionally distinguished from subtracting
+the two population medians.
+
+The complete 88-second renders gain a median 5.95 LU; startup windows gain a
+median 6.0 LU. No extra gain was added beyond removing the former attenuation
+and volume modulation. The quietest settled seed in this declared sample,
+3711502885, improves from -21.2 to -16.4 LUFS.
+
+All native float samples are finite and within full scale. The largest
+observed sample is 0.99839127 (-0.01398 dBFS). Reconstructed true peaks are a
+separate matter: FFmpeg estimates up to +0.4 dBTP across full renders, and
+host Opus decoding reaches +0.7 dBTP in the intense audition. This release
+therefore does not claim universal reconstructed-peak or codec clipping-free
+output. The requested full-scale ceiling has not been reduced to create
+additional headroom.
+
+2. FINAL SOURCE IDENTITY
+
+Composition serialization remains engine=30 and records outputrev=1. Initial
+recipe fields match the corresponding delivered-v30 recipes except outputrev.
+Final measured and tested native SHA-256 values:
+
+486f0572560776af6a15182cac8341ec8512ec9cc455888cfb1a56f57a6cdc19  MusicEngine.cpp
+e63ff5acfdb4b94874bb7596ff01dfb66b32a1764bddc2eb44c587b789720d78  MusicEngine.h
+189ad2e1aa317801d7303a81be31300766f91f3f20aaf6082d377fb372b0ceee  OutputStage.h
+
+The archived delivered-v30 baseline native hashes are:
+759885caecfaaa12dc07e83977e94948f17d853b1a69284ab1dd7adfcfe58496  MusicEngine.cpp
+8acddec9294a13dc4a5854503b1f0c30e3f3c3e05ea731577d4e1170427ee18b  MusicEngine.h
+
+The former v30 master had a 0.105 RMS AGC target, a 0.94 instantaneous peak
+scale, and final tanh output at master=0.82. That last combination capped
+possible native output at 0.93*tanh(0.94*0.82*1.10) = 0.64166309, approximately
+-3.854 dBFS. This was a real app-output restriction, independent of a phone's
+system volume setting. Device amplifier power or headphone loudness was not
+measured here.
+
+3. MEASUREMENT METHOD AND SAMPLE SELECTION
+
+A portable C++17 observer was compiled against the exact archived v30 source
+and the final source with g++ -O2 -Wall -Wextra -Werror. Each of 16 fixed seeds
+was rendered for 88 actual live seconds from time zero, at 48,000Hz stereo.
+The observer writes unnormalized 32-bit float WAV without clipping or codec
+conversion. Complete RIFF/file size is checked before every measurement;
+new outputs are renamed from a temporary path only after successful close
+and size verification.
+
+Each version therefore supplies 1,408 generated seconds and 135,168,000 float
+channel samples. The full 0-88s, startup 0-10s and settled 40-88s windows were
+metered separately. RMS is the square root of mean squared values across both
+channels and includes musical rests. Sample peak is the largest absolute
+float sample. Integrated loudness and estimated true peak use the installed
+FFmpeg ebur128 filter with peak=true. Its reported loudness/true-peak values
+are rounded to 0.1 unit; sample peak and RMS are also measured directly from
+the float files. The FFmpeg version and complete meter logs are retained.
+
+The selection was fixed before loudness metering: the first known
+representative of each of four intents plus three lower-primary-note-density
+candidates per intent from the previous v30 development audit. Those twelve
+candidates are a useful sparse-case stress sample, not a claim to be the
+quietest possible seeds. This is a finite sample, not an exhaustive bound on
+all seeds, edited recipes, devices or codecs.
+
+Final settled measurements, all on exactly [40,88) seconds:
+
+Seed        Intent    BPM     v30 LUFS  v30.1 LUFS  Change LU  v30.1 dBTP
+1013904226  slow       77.02     -20.1       -14.4        5.7        -1.9
+2654435761  groove    106.81     -20.5       -16.0        4.5        -1.8
+2027808452  driving   114.64     -20.3       -14.3        6.0        -0.3
+3668339987  intense   168.52     -17.3       -10.1        7.2         0.3
+1866542167  slow       71.47     -18.6       -13.0        5.6        -1.3
+3267723310  slow       69.65     -20.0       -16.0        4.0        -1.5
+1775118300  slow       58.98     -19.6       -14.8        4.8        -1.2
+2563011894  groove    104.84     -19.7       -15.1        4.6        -0.7
+3394068386  groove     91.41     -20.1       -14.9        5.2        -1.0
+543445131   groove     92.29     -17.9       -11.7        6.2        -0.2
+2528090685  driving   137.81     -20.2       -13.8        6.4        -0.4
+2345242951  driving   122.62     -18.5       -11.7        6.8        -0.1
+3711502885  driving   116.11     -21.2       -16.4        4.8        -1.8
+169507974   intense   155.98     -18.6       -11.6        7.0        -0.0
+2175734977  intense   174.90     -18.2       -11.6        6.6        -0.1
+3824508201  intense   159.19     -18.1       -11.1        7.0         0.3
+
+The new final curve is exactly linear at unity gain for magnitudes <=0.80.
+Across each complete 88-second final render, the fraction of samples above
+that knee has median 0.0271%, minimum 0.000237% and maximum 0.9235%. Thus even
+the most affected sampled tune keeps over 99.07% of samples in this curve's
+linear region. This describes the new final curve, not equality of final
+PCM to the old release: the removed AGC/ducking and phrase-volume macros
+intentionally change the audio level.
+
+4. FIXED-OUTPUT AND COMPATIBILITY CHECKS
+
+All final checks below passed against the source hashes in section 2.
+
+- 58 focused native checks, plus a source absence check for retired AGC,
+  master attenuation, ducking and fade fields. The final stage is an empty
+  stateless type. A 200,001-value sweep verifies bounded, monotonic, symmetric
+  transfer; low-level input retains exact unity gain; the knee joins with a
+  continuous first derivative. Earlier loud samples and opposite-channel
+  peaks do not alter the transfer for a later sample.
+- A direct quiet/loud/quiet input test verifies there is no slow gain
+  recovery after a loud input. Only the existing DC-filter memory remains.
+- Four intent representatives render identically in blocks of 1, 257, 1024
+  and 4093 frames. Reset and saved-recipe reconstruction are sample-exact.
+  Fully muted voices remain exact zero. Host 8kHz, 44.1kHz and 96kHz runs
+  also remain finite and bounded.
+- Both public next() and the app's forceNewPiece() path switch immediately,
+  reset elapsed time, and match the new displayed recipe's fresh first two
+  seconds sample-for-sample. This found and fixed an inherited stale timing
+  value: mPocketLate could carry over from the prior song. A seed-local RNG
+  now recreates reset's timing draw without consuming performance RNG.
+- Four finite range exports of [3,12) seconds have the exact requested frame
+  count. Every PCM16 sample, including the final 50ms, matches an independent
+  render configured with the same finite-export arrangement. Repeated
+  exports are byte-identical. There is no additional export fade. A finite
+  export still has its musical ending, so its later arrangement is not
+  asserted to equal the endless live arrangement.
+- 10,124 controlled-accent kick and foreground-lead events keep constant
+  positive amplitude within each seed across Intro, Hook, Shadow,
+  OpenRelease and both conclusive/dissolving Outro modes. The actual
+  scheduler continues to choose probability, entrances, exits and roles.
+- The existing v30 native regression gate passes 64 checks, including its
+  three-minute live render, bounded drum mutation, channels' retired API
+  behavior, recipe/history behavior, fixed palette and finite export.
+  Only the obsolete transition-state assertion was replaced by direct
+  no-automatic-ending and immediate-next behavior checks.
+- AudioEngine control regression: 93 checks passed with host Oboe/log stubs.
+- Edited-recipe regression: 12,582 checks passed; 48 cases, 144 successive
+  reloads, all 40 override fields, and 23,040,000 exactly equal float samples.
+  These are exact replay claims within this final host build, not a claim
+  that the old release's quieter mixed waveform is preserved.
+
+5. MUSICAL IDENTITY CHECK
+
+For all 16 seeds, a separate bounded scheduler observer compares 64 phrases
+against archived v30. All 20,247 scheduled events retain onset offset, event
+kind, pitch/frequency, duration, pan, color, foreground/owner fields and
+instrument slot. Both performance and development RNG states are included
+after each step. All 16 score/RNG signatures match exactly. Full-event hashes
+that include amplitude differ for all 16, as intended by the requested
+removal of coordinated phrase-volume changes.
+
+The observer drains events/voices each step. It is a structural scheduler
+check and does not simulate every live voice interaction. The separate
+88-second renders exercise real PCM synthesis. The source diff was also
+reviewed by the engine and root agents. No claim of mathematically exhaustive
+musical identity across all possible inputs is made from this finite probe.
+
+6. LOSSLESS AUDITIONS AND CODEC QUALIFICATION
+
+Four matched before/after pairs are supplied, eight FLAC files total. They
+use slow seed 1013904226, groove 2654435761, quiet driving 3711502885 and
+intense 3668339987. Every file is an exact [40,88) second excerpt, 48kHz
+stereo PCM16, with the same explicit float-to-PCM16 conversion on both sides.
+There is no normalization, added fade, ReplayGain tag or gain metadata.
+FLAC decode was verified byte-for-byte against the supplied PCM for all
+eight files (36,864,000 PCM16 channel samples). The manifest records recipe,
+seed, BPM, exact excerpt boundary, file/PCM hashes and measured levels.
+
+The four final excerpts were also encoded once with host libopus at 128000
+bits/s and 20ms frames, matching the app's requested bitrate and frame size.
+OpusHead output gain is zero in all four. This checks a host implementation;
+it is not Android MediaCodec validation and cannot predict every device's
+encoder/decoder. Final host Opus results:
+
+Seed        Intent    LUFS   dBTP   Decoded peak   Samples >1.0
+1013904226  slow      -14.4   -1.6     0.83614576              0
+2654435761  groove    -16.0   -1.6     0.82799828              0
+3711502885  driving   -16.4   -1.4     0.85475469              0
+3668339987  intense   -10.1    0.7     1.06832206            803
+
+The intense host Opus excerpt has 803 of 4,608,000 decoded float channel
+samples above 1.0 (0.0174%), with sample peak 1.068322 and estimated true peak
++0.7 dBTP. Native input PCM was bounded. A playback path that converts these
+decoded values directly to integer full scale can clip such overshoots.
+The user explicitly requested full digital scale, so no automatic reduction
+of the app ceiling or adaptive controller was added to mask that result.
+
+7. REPRODUCTION AND EVIDENCE
+
+Run commands from the project root. The original delivered-v30 project is
+needed for the matching baseline; its hashes are specified in section 2.
+Large WAV/PCM files and compiled host executables are kept outside source.
+
+Current renderer and fixed-seed measurement:
+  python3 tools/build_loudness_probe.py --engine-root . --output /tmp/tm301-probe
+  python3 tools/measure_loudness.py --renderer /tmp/tm301-probe --audio /tmp/tm301-audio --output /tmp/tm301-results --label v301
+
+Baseline, using the exact original project:
+  python3 tools/build_loudness_probe.py --engine-root /path/to/original_v30 --output /tmp/tm30-probe
+  python3 tools/measure_loudness.py --renderer /tmp/tm30-probe --audio /tmp/tm30-audio --output /tmp/tm30-results --label v30
+
+Paired score/RNG and level comparison (amplitude change is intentional):
+  python3 tools/compare_loudness.py --baseline /tmp/tm30-results --current /tmp/tm301-results --current-audio /tmp/tm301-audio --output /tmp/tm301-comparison --amplitude-revision
+
+Focused and compatibility checks:
+  python3 tools/test_fixed_output.py --output /tmp/tm301-fixed
+  python3 tools/test_audio_controls.py --output /tmp/tm301-controls
+  python3 tools/test_edited_snapshots.py --output /tmp/tm301-edited
+  g++ -std=c++17 -O2 -Wall -Wextra -Werror tools/validate_v30.cpp app/src/main/cpp/MusicEngine.cpp -o /tmp/tm301-native
+  /tmp/tm301-native
+
+Audition/codec command and all flags:
+  python3 tools/make_loudness_auditions.py --before-audio /tmp/tm30-audio --after-audio /tmp/tm301-audio --before-metadata /tmp/tm30-results --after-metadata /tmp/tm301-results --output /tmp/tm301-auditions --evidence /tmp/tm301-codecs --work /tmp/tm301-codec-work
+
+Authoritative evidence directory: tools/validation/v30_1_loudness/
+  final_source_sha256.txt: final source identity
+  baseline/: delivered-v30 float measurements, logs and score signatures
+  final/: final-candidate float measurements, recipes and logs
+  comparison/paired_levels.csv: per-seed, per-window paired measurements
+  comparison/identity.csv: score/RNG identity and peak-curve fractions
+  comparison/comparison_summary.json: final aggregate values
+  fixed_output/fixed-output-test-report.txt: focused checks
+  native_gate.log: 64-check existing native gate
+  audio-control-test-report.txt: 93 control checks
+  edited-snapshot-test-report.txt: 12,582 edited-recipe checks
+  codecs/: FLAC/Opus measurements, logs and audition manifest
+
+Earlier raw/ and calibration_fullscale/ work directories were marked
+SUPERSEDED CALIBRATION. They describe calibration before the final requested
+phrase-amplitude change and are excluded from the source release archive.
+They are not final release performance. The dynamic limiter prototype was
+discarded and is not in this release.
+
+8. PRACTICAL LIMITS
+
+No claim of ears-on listening, Android hardware output level, street-noise
+intelligibility, a particular headphone sound pressure, or subjective audio
+quality is made here. Android build/package checks are documented separately.
+System volume limits/settings are not bypassed or changed by these host tests.
+
+Fixed unity gain does not make every song, note or rest equally loud. Different
+instruments, pitches, note envelopes, densities and arrangements retain their
+natural signal differences. Those musical differences are separate from the
+removed automatic gain and coordinated phrase-volume controls.

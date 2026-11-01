@@ -1,0 +1,6 @@
+AudioEngine v30 control checks passed: 93
+Retired APIs have no effect; legacy recipes retain seed/candidate with zero channel fields. Pending load, playback continuity, close/start ordering, stale error and failure cleanup passed.
+Host test compiles production AudioEngine and MusicEngine with test-only Oboe/log stubs.
+It verifies control ordering and identity; it does not emulate a real Android audio backend.
+Oboe guarantees the stream is stopped and closed before onErrorAfterClose:
+https://google.github.io/oboe/classoboe_1_1_audio_stream_error_callback.html

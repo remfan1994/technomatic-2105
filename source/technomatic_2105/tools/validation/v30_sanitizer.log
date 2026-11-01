@@ -1,0 +1,80 @@
+PASS 512 seed recipes serialize engine 30 and a valid musical intent
+PASS texture, grain and special-effect lanes remain disabled across 512 seeds
+PASS every sampled composition retains primary melody and bass foundation
+PASS selected supporting-role count remains between 1 and 6 for every seed
+PASS support-level controls stay bounded relative to foreground
+PASS candidate selection covers at least 24 original design families
+PASS slow and intense tempo regions each occur in at least 20 percent of seeds
+PASS available instrument choices exceed every v29 model catalogue without extra ensemble roles
+PASS intent coverage is at least 15 percent for intent 0
+PASS tempo range spans at least 15 BPM for intent 0
+PASS at least 12 design families remain reachable for intent 0
+PASS initial lead note/rest identities vary across seeds for intent 0
+PASS foundation/verse/answer bass grammar varies across seeds for intent 0
+INFO intent=0 n=136 bpm_min=57.0524 bpm_max=81.9349 bpm_mean=69.3657 lead_hits=5.38971 hat_hits=22.2941 support_mean=2.41912 designs=31 lead_models=18 bass_models=12 pad_models=8 representative=1013904226
+PASS intent coverage is at least 15 percent for intent 1
+PASS tempo range spans at least 15 BPM for intent 1
+PASS at least 12 design families remain reachable for intent 1
+PASS initial lead note/rest identities vary across seeds for intent 1
+PASS foundation/verse/answer bass grammar varies across seeds for intent 1
+INFO intent=1 n=122 bpm_min=85.7474 bpm_max=110.379 bpm_mean=98.8999 lead_hits=6.95082 hat_hits=29.3115 support_mean=2.82787 designs=31 lead_models=30 bass_models=20 pad_models=18 representative=2654435761
+PASS intent coverage is at least 15 percent for intent 2
+PASS tempo range spans at least 15 BPM for intent 2
+PASS at least 12 design families remain reachable for intent 2
+PASS initial lead note/rest identities vary across seeds for intent 2
+PASS foundation/verse/answer bass grammar varies across seeds for intent 2
+INFO intent=2 n=129 bpm_min=113.466 bpm_max=143.456 bpm_mean=128.978 lead_hits=8.62791 hat_hits=37.5194 support_mean=3.35659 designs=32 lead_models=32 bass_models=20 pad_models=18 representative=2027808452
+PASS intent coverage is at least 15 percent for intent 3
+PASS tempo range spans at least 15 BPM for intent 3
+PASS at least 12 design families remain reachable for intent 3
+PASS initial lead note/rest identities vary across seeds for intent 3
+PASS foundation/verse/answer bass grammar varies across seeds for intent 3
+INFO intent=3 n=125 bpm_min=145.306 bpm_max=178.984 bpm_mean=162.692 lead_hits=10.384 hat_hits=46.4 support_mean=3.952 designs=30 lead_models=32 bass_models=20 pad_models=18 representative=3668339987
+PASS slow lead grammar leaves substantially more space than intense grammar
+PASS slow percussion leaves substantially more space than intense percussion
+PASS paired v29 primary and triggered-palette evidence is present
+PASS all 256 matched seeds preserve their v29 supporting-role count
+PASS expanded catalogues do not increase mean or maximum instruments used per song
+PASS every observed foreground/support role keeps one fixed synthesis family
+PASS every sampled tune balances recurring theme, exploration and foreground handoffs
+PASS primary development has at least 16 rest patterns and avoids long repeated-phrase runs
+PASS primary-note and rhythm development improves independently of timbre and instrumentation
+PASS all planned slow primary notes stay inside MIDI 52 to 78 after every device
+INFO paired_palette old_mean=5.99609 new_mean=4.83594 old_max=9 new_max=6 old_median_primary_unique_ratio=0.287109 new_median_primary_unique_ratio=0.867769 old_median_rhythms=7 new_median_rhythms=167 min_new_rhythms=54 old_max_top4=187 new_max_top4=95 max_primary_repeat_run=2
+PASS 16384 scheduled phrases assign each foreground answer to its selected instrument
+PASS scheduled foreground stays tonal, bounded and free of special-effect events
+PASS recall phrases preserve their one or two characteristic theme rhythms
+PASS scheduled slow music has fewer foreground attacks and longer melody articulations than intense music
+PASS foreground harmony replaces an existing pad within 10 ms without overlapping pads
+PASS muting primary lead preserves an existing bass when it owns the answer
+PASS muted bass stays silent through convergence and phrase ownership
+PASS muted harmony stays silent through convergence and phrase ownership
+PASS edited root extremes and octave stress keep final slow notes and actual harmony voices in range
+INFO register_stress foreground_notes=20346 triggered_pad_components=156
+PASS fully muted finite export remains silent through arrivals, recovery and final cadence
+PASS 160 legacy selector combinations produce identical neutral recipes
+PASS legacy channel selections produce sample-exact identical playback
+PASS legacy rerender calls preserve playback position, history and audio continuity
+INFO pcm intent=0 seconds=30 peak=0.368997 rms=0.088573
+INFO pcm intent=1 seconds=30 peak=0.548175 rms=0.0841736
+INFO pcm intent=2 seconds=30 peak=0.539614 rms=0.0905833
+INFO pcm intent=3 seconds=30 peak=0.51511 rms=0.130644
+PASS all four intent snapshots reconstruct 12 seconds sample exactly
+PASS four 30-second musical excerpts are finite, bounded and non-silent
+PASS history retains prior tune and listened duration when a new tune begins
+PASS native history is capped at 20 tunes
+PASS finite 30-second range export completes
+PASS range export length matches requested duration exactly
+PASS finite opening/ending path stays bounded and non-silent
+INFO drum_mutation intent=0 initial=6.46373 min=6.46373 max=7.59485 initial_hits=16 max_hits=16
+INFO drum_mutation intent=1 initial=15.7448 min=15.2109 max=17.3441 initial_hits=32 max_hits=32
+INFO drum_mutation intent=2 initial=20.3141 min=19.5864 max=22.6938 initial_hits=40 max_hits=40
+INFO drum_mutation intent=3 initial=29.4048 min=28.0074 max=32.0077 initial_hits=48 max_hits=48
+PASS 800000 accelerated drum mutations retain rests and bounded density
+PASS three-minute live playback continues the same seed without an automatic ending
+PASS three-minute live PCM remains finite, bounded and non-silent
+PASS full three-minute PCM retains fixed role families within the six-family palette bound
+INFO live_pcm seconds=180 host_wall_seconds=11.5609 peak=0.641663 rms=0.0858786
+PASS all 48 quality-search candidates remain enabled
+INFO catalogue lead=32 bass=20 pad=18 drum=12 styles=32 slow_le90=154 fast_ge135=161 support_histogram=0:0,1:0,2:107,3:248,4:142,5:15,6:0,
+PASS v30 validation checks=63

@@ -20,10 +20,15 @@ public final class AudioService extends Service {
     public static final String ACTION_STOP = "vip.thatiam.technomatic2105.STOP";
     public static final String ACTION_NEXT = "vip.thatiam.technomatic2105.NEXT";
     public static final String ACTION_LOAD_SOUND = "vip.thatiam.technomatic2105.LOAD_SOUND";
+    // Retained for callers compiled against older versions; v30 ignores these extras.
+    @Deprecated
     public static final String EXTRA_GENRE_MASK = "vip.thatiam.technomatic2105.GENRE_MASK";
+    @Deprecated
     public static final String EXTRA_GENRE_BLEND_MODE = "vip.thatiam.technomatic2105.GENRE_BLEND_MODE";
+    @Deprecated
     public static final String EXTRA_GENRE_PRIMARY = "vip.thatiam.technomatic2105.GENRE_PRIMARY";
     public static final String EXTRA_SONG_DATA = "vip.thatiam.technomatic2105.SONG_DATA";
+    @Deprecated
     public static final String EXTRA_RERENDER_CURRENT = "vip.thatiam.technomatic2105.RERENDER_CURRENT";
 
     private static final String CHANNEL_ID = "technomatic_2105_playback";
@@ -58,23 +63,11 @@ public final class AudioService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : ACTION_START;
-        applyIntentGeneratorState(intent);
 
         if (ACTION_STOP.equals(action)) {
             stopPlayback();
             stopSelf();
             return START_NOT_STICKY;
-        }
-
-        if (intent != null && intent.getBooleanExtra(EXTRA_RERENDER_CURRENT, false)) {
-            int mask = intent.getIntExtra(EXTRA_GENRE_MASK, NativeAudio.currentGenreMask());
-            int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, NativeAudio.currentGenreBlendMode());
-            int primary = intent.getIntExtra(EXTRA_GENRE_PRIMARY, NativeAudio.currentGenrePrimary());
-            NativeAudio.setGenreStateAndRerenderCurrent(mask, mode, primary);
-            if (!NativeAudio.isPlaying()) {
-                startPlayback();
-            }
-            return START_STICKY;
         }
 
         if (ACTION_LOAD_SOUND.equals(action)) {
@@ -107,21 +100,6 @@ public final class AudioService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
-
-    private void applyIntentGeneratorState(Intent intent) {
-        if (intent != null && intent.hasExtra(EXTRA_GENRE_BLEND_MODE)) {
-            int mode = intent.getIntExtra(EXTRA_GENRE_BLEND_MODE, 0);
-            NativeAudio.setGenreBlendMode(mode);
-        }
-        if (intent != null && intent.hasExtra(EXTRA_GENRE_MASK)) {
-            int mask = intent.getIntExtra(EXTRA_GENRE_MASK, 0);
-            NativeAudio.setGenreMask(mask);
-        }
-        if (intent != null && intent.hasExtra(EXTRA_GENRE_PRIMARY)) {
-            int primary = intent.getIntExtra(EXTRA_GENRE_PRIMARY, 0);
-            NativeAudio.setGenrePrimary(primary);
-        }
     }
 
     private void startPlayback() {

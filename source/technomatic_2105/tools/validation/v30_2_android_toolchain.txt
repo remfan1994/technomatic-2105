@@ -1,0 +1,63 @@
+TECHNOMATIC 2105 v30.2 Android toolchain restoration
+
+Recorded: 2026-10-20T21:38:27.711117+00:00
+Official Android index: https://dl.google.com/android/repository/repository2-1.xml
+SDK archives checked against sizes and SHA-1 values in the downloaded official index.
+Gradle archive checked against the SHA-256 pinned in gradle-wrapper.properties.
+OpenJDK Ubuntu packages checked against the sizes and SHA-256 values in the official package index:
+https://archive.ubuntu.com/ubuntu/dists/noble-updates/main/binary-amd64/Packages.gz
+
+Environment script: /tmp/technomatic-v30-2-toolchain/build-env.sh
+JDK: OpenJDK 17.0.20.1+1-1-24.04-Ubuntu
+Gradle: 8.9
+SDK licenses accepted through sdkmanager --licenses.
+No source pin or toolchain version workaround was applied.
+NDK source.properties is preserved: Pkg.Revision=30.0.14904198-beta1; Pkg.BaseRevision=30.0.14904198.
+Local SDK package metadata for NDK, CMake and command-line tools was copied from their exact official index entries.
+NDK revision includes preview=1 and is displayed by sdkmanager as 30.0.14904198 rc1.
+All toolchain files, caches, private debug keys and environment configuration stay outside the source deliverable.
+
+platforms;android-33
+https://dl.google.com/android/repository/platform-33-ext3_r03.zip
+bytes=67334237
+sha1=394bc86d8d3452aa4d419b67743025a6fb2cd9d0
+
+ndk;30.0.14904198
+https://dl.google.com/android/repository/android-ndk-r30-beta1-linux.zip
+bytes=713550176
+sha1=26b746e5a1e7ac3371f2a862a2f52a7c0740aa8a
+
+build-tools;34.0.0
+https://dl.google.com/android/repository/build-tools_r34-linux.zip
+bytes=61224257
+sha1=d6d58e0c6925a9e4d9a541e84cd1f405c2f9d2a9
+
+cmdline-tools;19.0
+https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+bytes=164760899
+sha1=5fdcc763663eefb86a5b8879697aa6088b041e70
+
+cmake;3.22.1
+https://dl.google.com/android/repository/cmake-3.22.1-linux.zip
+bytes=22308647
+sha1=fd0a48b4a758310df8c7aa51f59840ed48fe7ed8
+
+platform-tools
+https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip
+bytes=9054187
+sha1=477254aa5f903c15cf51001717bdf347fb6b53e0
+
+gradle;8.9
+https://downloads.gradle.org/distributions/gradle-8.9-bin.zip
+bytes=136114148
+sha256=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab
+
+openjdk-17-jdk-headless 17.0.20.1+1-1~24.04
+https://archive.ubuntu.com/ubuntu/pool/main/o/openjdk-17/openjdk-17-jdk-headless_17.0.20.1+1-1~24.04_amd64.deb
+bytes=71575242
+sha256=d699266aec4348543e4cfa9ef46e4f5bcbd42d8b20f52c713a4208d4755498c8
+
+openjdk-17-jre-headless 17.0.20.1+1-1~24.04
+https://archive.ubuntu.com/ubuntu/pool/main/o/openjdk-17/openjdk-17-jre-headless_17.0.20.1+1-1~24.04_amd64.deb
+bytes=48100670
+sha256=3b84d1e08916b8dd3349c8f50c611df3cd70e5da09fe01d94491333076b68895

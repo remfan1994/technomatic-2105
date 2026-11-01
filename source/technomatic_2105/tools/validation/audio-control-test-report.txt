@@ -1,0 +1,6 @@
+AudioEngine control checks passed: 71
+Stopped selection updates actual snapshot without playback; close/control ordering, pending load, playing callback, stale error and failed-start cleanup passed.
+Host test compiles production AudioEngine and MusicEngine with test-only Oboe/log stubs.
+It verifies control ordering and identity; it does not emulate a real Android audio backend.
+Oboe guarantees the stream is stopped and closed before onErrorAfterClose:
+https://google.github.io/oboe/classoboe_1_1_audio_stream_error_callback.html

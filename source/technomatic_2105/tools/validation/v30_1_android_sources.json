@@ -1,0 +1,25 @@
+{
+  "build_started_utc": "2026-10-20T00:45:00.183193+00:00",
+  "verification_utc": "2026-10-20T00:46:29.516474+00:00",
+  "matched_before_after": true,
+  "sha256_before": {
+    "app/src/main/cpp/MusicEngine.cpp": "486f0572560776af6a15182cac8341ec8512ec9cc455888cfb1a56f57a6cdc19",
+    "app/src/main/cpp/MusicEngine.h": "e63ff5acfdb4b94874bb7596ff01dfb66b32a1764bddc2eb44c587b789720d78",
+    "app/src/main/cpp/OutputStage.h": "189ad2e1aa317801d7303a81be31300766f91f3f20aaf6082d377fb372b0ceee",
+    "app/src/main/cpp/AudioEngine.cpp": "739f0aa431199dbcf338f4242b24ee3e875ea8434d8f3899865f1035a0935ccd",
+    "app/src/main/cpp/AudioEngine.h": "14e9afa1533a663f215399cb11ab2a2111cf98bfd89d8033a5fecb1157bd2efc",
+    "app/src/main/cpp/native-lib.cpp": "0d864ac101aa5cfc2ea43fdd118875962b57cb940b3644426f6cc5b2cbf1729b",
+    "app/src/main/java/vip/thatiam/technomatic2105/ExportMetadata.java": "629c41cc7061b1da8542ecd9c30374e6bf396fd99b2c9959c8beed25e207b34a",
+    "app/build.gradle": "4a95f53ada77f95f2345be887dc8551a57d3d3cd2b0352ffe53333c1634d93b3"
+  },
+  "sha256_after": {
+    "app/src/main/cpp/MusicEngine.cpp": "486f0572560776af6a15182cac8341ec8512ec9cc455888cfb1a56f57a6cdc19",
+    "app/src/main/cpp/MusicEngine.h": "e63ff5acfdb4b94874bb7596ff01dfb66b32a1764bddc2eb44c587b789720d78",
+    "app/src/main/cpp/OutputStage.h": "189ad2e1aa317801d7303a81be31300766f91f3f20aaf6082d377fb372b0ceee",
+    "app/src/main/cpp/AudioEngine.cpp": "739f0aa431199dbcf338f4242b24ee3e875ea8434d8f3899865f1035a0935ccd",
+    "app/src/main/cpp/AudioEngine.h": "14e9afa1533a663f215399cb11ab2a2111cf98bfd89d8033a5fecb1157bd2efc",
+    "app/src/main/cpp/native-lib.cpp": "0d864ac101aa5cfc2ea43fdd118875962b57cb940b3644426f6cc5b2cbf1729b",
+    "app/src/main/java/vip/thatiam/technomatic2105/ExportMetadata.java": "629c41cc7061b1da8542ecd9c30374e6bf396fd99b2c9959c8beed25e207b34a",
+    "app/build.gradle": "4a95f53ada77f95f2345be887dc8551a57d3d3cd2b0352ffe53333c1634d93b3"
+  }
+}

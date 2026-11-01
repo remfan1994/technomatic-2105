@@ -1,16 +1,20 @@
-Technomatic 2105 generates synthetic electronic music directly on your Android device.
+Technomatic 2105 generates original synthetic music directly on your Android device.
 
-The default is No Channel and one indefinitely evolving sound. No Channel leaves the generator unrestricted. The current seed remains fixed until the listener explicitly presses Next or loads another seed/history entry. There is no automatic sound replacement or live duration boundary.
+Version 30.2 increases average output loudness with a stronger fixed calibration, shared by live playback and exports. Android media volume remains the listener's control. The app adds no automatic gain riding, whole-mix ducking, volume fades or coordinated part-volume swells and dips.
 
-Named Channels provide optional predictable character without loading stored music. Changing Channels reinterprets the current seed and restarts the same composition from 0:00; it does not create a new seed. Each Channel mixes approximately 50 percent Channel character with 50 percent unrestricted generation: Chrome Pulse, Velvet Circuit, Glass Trap, Dust Machine, Liquid Grid, Neon Drift, Broken Speaker, Deep Magnet, Pixel Ritual, Soft Voltage, Heavy Orbit, and Cold Arcade. Hybrid Channels can combine several, with the first selected Channel remaining dominant.
+One composition develops indefinitely until you explicitly choose another seed. Recognizable themes, complementary statements and answers, rhythmic variation and generated arrivals keep the music related as it develops. Slow, relaxed, driving and intense music all come from the same generator.
 
-All pitched layers are generated from symbolic musical grammar rather than selected as finished note sequences. Each sound receives newly generated harmony, lead, hook, verse, bass statement and answer, counter-line, arpeggio, pulse, and ornament material. Composition memory preserves recognizable returns while bounded development gradually changes the sound.
+Version 30 expands the available instrument vocabulary while preserving version 29's ensemble roles and per-song support-count rule. A fixed instrument palette is chosen for each composition from a larger catalogue of bass, lead, harmony and percussion synthesis families. No sound files, sample packs or commercial patches are loaded.
 
-Tension is generated per sound rather than imposed through one universal pad rhythm. The engine uses seed-specific omission, convergence, hinge, shadow, afterimage, and rare short pad-breath devices.
+Channels are discontinued. The full generator is available without a named-channel selector. Old channel preferences cannot narrow the music or reactivate a retired profile.
 
-A generated timbre grammar selects among broad electronic bass, lead, pad, drum, articulation, and pad-voicing families for each sound. The result remains seed-stable and musically related while giving different sounds a wider performed identity.
+Phrase planning coordinates theme recall, development, foreground exchanges and arrivals. New musical devices alter relationships between existing voices and phrases. Slow compositions receive attention to register, phrase continuity and cadence spacing. The engine retains v29's intentional rests and bounded drum development.
 
-The main player includes Start/Stop, Channel selection, elapsed time, Previous/Restart/Next, and a latest-20 listing with Channel, seed, and listened duration. Advanced provides seed loading, Start/End timeline export to OGG or FLAC, and a separate metadata editor. Export is independent of indefinite live playback.
+The main player includes Start/Stop, elapsed time, Previous/Restart/Next, and a latest-20 listing with seed and listened duration. Advanced provides seed loading, Start/End timeline export to OGG or FLAC, and a separate metadata editor. Export is independent of live playback.
+
+OGG and FLAC embed metadata inside the actual audio file, including the seed, engine version, user notes, export interval and full regeneration recipe. The automatic seed identity is ready when the Metadata Editor opens. Existing user metadata remains editable.
+
+Public Music export requires Android 10 or newer; playback supports Android 8 or newer.
 
 Privacy and freedom properties:
 
@@ -21,4 +25,5 @@ Privacy and freedom properties:
 * no trackers
 * no external sound assets
 * no sample packs
-* all sound synthesized locally
+* all music synthesized locally
+* no background hiss beds, noise/zap effects or delay processing

@@ -20,7 +20,26 @@ final class OggExporter {
     private OggExporter() {
     }
 
-    static void encodeRawPcm16ToOgg(File rawPcm, File output, ExportCancellationToken token) throws IOException {
+    static void encodeRawPcm16ToOgg(File rawPcm, File output, ExportMetadata metadata,
+                                    ExportCancellationToken token) throws IOException {
+        if (output == null || metadata == null) throw new IOException("Missing export file or metadata.");
+        File muxed = File.createTempFile("technomatic_opus_", ".ogg", output.getAbsoluteFile().getParentFile());
+        boolean completed = false;
+        try {
+            encodeRawPcm16ToMuxedOgg(rawPcm, muxed, token);
+            checkCancelled(token);
+            // Android's Ogg muxer writes an empty OpusTags packet. MediaStore
+            // catalog values do not embed tags; put the snapshot in the file.
+            OggMetadataWriter.write(muxed, output, metadata, token);
+            completed = true;
+        } finally {
+            if (muxed.exists() && !muxed.delete()) muxed.deleteOnExit();
+            if (!completed && output.exists() && !output.delete()) output.deleteOnExit();
+        }
+    }
+
+    private static void encodeRawPcm16ToMuxedOgg(File rawPcm, File output,
+                                                ExportCancellationToken token) throws IOException {
         if (rawPcm == null || output == null) throw new IOException("Missing export file.");
         if (!rawPcm.exists() || rawPcm.length() <= 0L) throw new IOException("Missing rendered PCM data.");
         if ((rawPcm.length() % BYTES_PER_FRAME) != 0L) throw new IOException("Rendered PCM data is not frame-aligned.");
@@ -30,6 +49,7 @@ final class OggExporter {
         FileInputStream input = null;
         boolean muxerStarted = false;
         boolean encoderStarted = false;
+        boolean encodingCompleted = false;
         int trackIndex = -1;
         long submittedFrames = 0L;
         long lastProgressMs = System.currentTimeMillis();
@@ -118,6 +138,7 @@ final class OggExporter {
                     throw new IOException("OGG encoder stopped making progress.");
                 }
             }
+            encodingCompleted = true;
         } finally {
             if (input != null) {
                 try { input.close(); } catch (IOException ignored) {}
@@ -127,8 +148,15 @@ final class OggExporter {
                 try { encoder.release(); } catch (Exception ignored) {}
             }
             if (muxer != null) {
-                try { if (muxerStarted) muxer.stop(); } catch (Exception ignored) {}
-                try { muxer.release(); } catch (Exception ignored) {}
+                IOException finishError = null;
+                try {
+                    if (muxerStarted) muxer.stop();
+                } catch (Exception ex) {
+                    if (encodingCompleted) finishError = new IOException("Could not finish OGG container.", ex);
+                } finally {
+                    try { muxer.release(); } catch (Exception ignored) {}
+                }
+                if (finishError != null) throw finishError;
             }
         }
     }

@@ -1,0 +1,81 @@
+{
+  "seeds": 16,
+  "scheduled_events": 20247,
+  "float_samples_compared": 0,
+  "different_samples": null,
+  "legacy_mixed_pcm_identity_asserted": false,
+  "score_and_rng_equal_seeds": 16,
+  "amplitude_changed_seeds": 16,
+  "peak_curve_fraction": {
+    "min": 2.3674242424242424e-06,
+    "median": 0.00027112926136363635,
+    "max": 0.009234730113636364
+  },
+  "failures": [],
+  "startup": {
+    "change_lufs": {
+      "min": 3.400000000000002,
+      "median": 5.999999999999999,
+      "max": 7.300000000000001
+    },
+    "change_rms_dbfs": {
+      "min": 4.484084304847549,
+      "median": 6.512581369654534,
+      "max": 7.964470050216216
+    },
+    "after_lufs": {
+      "min": -17.1,
+      "median": -14.850000000000001,
+      "max": -10.5
+    },
+    "after_true_peak_dbfs": {
+      "min": -5.4,
+      "median": -1.4,
+      "max": -0.0
+    }
+  },
+  "settled": {
+    "change_lufs": {
+      "min": 4.0,
+      "median": 5.8500000000000005,
+      "max": 7.200000000000001
+    },
+    "change_rms_dbfs": {
+      "min": 4.591989430056714,
+      "median": 6.07999364369115,
+      "max": 7.216243831898252
+    },
+    "after_lufs": {
+      "min": -16.4,
+      "median": -14.05,
+      "max": -10.1
+    },
+    "after_true_peak_dbfs": {
+      "min": -1.9,
+      "median": -0.55,
+      "max": 0.3
+    }
+  },
+  "full": {
+    "change_lufs": {
+      "min": 4.0,
+      "median": 5.949999999999999,
+      "max": 7.299999999999999
+    },
+    "change_rms_dbfs": {
+      "min": 4.62759408493514,
+      "median": 6.249251882036172,
+      "max": 7.229856467824185
+    },
+    "after_lufs": {
+      "min": -16.5,
+      "median": -14.2,
+      "max": -10.1
+    },
+    "after_true_peak_dbfs": {
+      "min": -1.9,
+      "median": -0.55,
+      "max": 0.4
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "seed": 2563011894,
+  "intent": 1,
+  "bpm": 104.843734741,
+  "pattern_drive": 0.51287984848,
+  "sample_rate": 48000,
+  "channels": 2,
+  "start_seconds": 0,
+  "duration_seconds": 88,
+  "frames": 4224000,
+  "next_at_seconds": -1,
+  "called_next": false,
+  "sample_peak": 0.924540996552,
+  "rms": 0.15024237919,
+  "nonfinite_samples": 0,
+  "fullscale_samples": 0,
+  "pcm_fnv1a": "4d9a8877e3065a47",
+  "scheduler_fnv1a": "2ca4d449c8f1b9b1",
+  "score_fnv1a": "beac23c6dc9aa3fc",
+  "amplitude_fnv1a": "bade8c5ae5e25a26",
+  "scheduled_events": 1001,
+  "initial_recipe": "technomatic2105-v1;seed=2563011894;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=43;engine=30;outputrev=1;intent=1;planseed=2636787516;planbars=10;recallbars=2;harmonicspan=2;devicerotation=4;phrasejoint=10;leadmodel=24;bassmodel=2;harmonymodel=13;drumkit=9;support0=12;support1=-1;support2=-1;support3=-1;support4=23;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=31;support12=-1;support13=-1;support14=-1;support15=-1;style=9;tempo=105;root=38;scale=0;density=35;swing=23;melody=98;motif=100;drama=47;space=71;roughness=23;brightness=24;diversity=9;kick=97;snare=66;hats=42;openhat=0;perc=59;bass=100;sub=0;chords=66;lead=100;arp=45;counter=0;stab=0;texture=0;drone=0;spark=40;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=35;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=0",
+  "final_recipe": "technomatic2105-v1;seed=2563011894;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=43;engine=30;outputrev=1;intent=1;planseed=2636787516;planbars=10;recallbars=2;harmonicspan=2;devicerotation=4;phrasejoint=10;leadmodel=24;bassmodel=2;harmonymodel=13;drumkit=9;support0=12;support1=-1;support2=-1;support3=-1;support4=23;support5=-1;support6=-1;support7=-1;support8=-1;support9=-1;support10=-1;support11=31;support12=-1;support13=-1;support14=-1;support15=-1;style=9;tempo=105;root=38;scale=0;density=35;swing=23;melody=98;motif=100;drama=47;space=71;roughness=23;brightness=24;diversity=9;kick=97;snare=66;hats=42;openhat=0;perc=59;bass=100;sub=0;chords=66;lead=100;arp=45;counter=0;stab=0;texture=0;drone=0;spark=40;fx=0;echo=0;orbit=0;bloom=0;glyph=0;sheen=0;pluck=35;bell=0;pulse=0;grain=0;comet=0;rotor=0;listened=88",
+  "render_command": [
+    "/workspace/scratch/93254bfec215/loudness_work/probe_v301",
+    "/workspace/scratch/93254bfec215/loudness_work/v301_float/v301_groove_2563011894.partial.wav",
+    "2563011894",
+    "88"
+  ],
+  "selection_reason": "sparse primary candidate"
+}

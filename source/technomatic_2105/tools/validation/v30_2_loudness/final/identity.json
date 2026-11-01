@@ -1,0 +1,114 @@
+[
+  {
+    "seed": 1013904226,
+    "scheduler_fnv1a": "b271601eb779c1a1",
+    "score_fnv1a": "084a4649f9c1c5db",
+    "amplitude_fnv1a": "efe80c4d50f65568",
+    "scheduled_events": 760
+  },
+  {
+    "seed": 2654435761,
+    "scheduler_fnv1a": "f3d7d6355a8329ce",
+    "score_fnv1a": "0814fd5e943f0f91",
+    "amplitude_fnv1a": "45abcdcdca26dc3c",
+    "scheduled_events": 1254
+  },
+  {
+    "seed": 2027808452,
+    "scheduler_fnv1a": "b8074b5cae375ea9",
+    "score_fnv1a": "a6c5e5a528f1de95",
+    "amplitude_fnv1a": "a6121ca4cb96671d",
+    "scheduled_events": 1440
+  },
+  {
+    "seed": 3668339987,
+    "scheduler_fnv1a": "a4f6023cf41c0915",
+    "score_fnv1a": "ceae339362477ad8",
+    "amplitude_fnv1a": "536d9a8b0f3522cb",
+    "scheduled_events": 2309
+  },
+  {
+    "seed": 1866542167,
+    "scheduler_fnv1a": "1e0091e9c3317c4c",
+    "score_fnv1a": "0c364348dfd24a16",
+    "amplitude_fnv1a": "e0fc5a259f002be1",
+    "scheduled_events": 793
+  },
+  {
+    "seed": 3267723310,
+    "scheduler_fnv1a": "873726fe491fc87b",
+    "score_fnv1a": "d6592e73c4207c11",
+    "amplitude_fnv1a": "612a0e8aad2699e4",
+    "scheduled_events": 678
+  },
+  {
+    "seed": 1775118300,
+    "scheduler_fnv1a": "d13051424526e964",
+    "score_fnv1a": "62a80f5712b51539",
+    "amplitude_fnv1a": "80395a984322526a",
+    "scheduled_events": 976
+  },
+  {
+    "seed": 2563011894,
+    "scheduler_fnv1a": "2ca4d449c8f1b9b1",
+    "score_fnv1a": "beac23c6dc9aa3fc",
+    "amplitude_fnv1a": "bade8c5ae5e25a26",
+    "scheduled_events": 1001
+  },
+  {
+    "seed": 3394068386,
+    "scheduler_fnv1a": "8d988fff43f8b916",
+    "score_fnv1a": "a09e9cd06480d84d",
+    "amplitude_fnv1a": "35ee30f91a618a9f",
+    "scheduled_events": 964
+  },
+  {
+    "seed": 543445131,
+    "scheduler_fnv1a": "c77fcd25e7fa2f81",
+    "score_fnv1a": "ad71f1c224579b26",
+    "amplitude_fnv1a": "66cde0ec884bf37e",
+    "scheduled_events": 1041
+  },
+  {
+    "seed": 2528090685,
+    "scheduler_fnv1a": "53a9e92156ef4875",
+    "score_fnv1a": "70de99260aafd0c7",
+    "amplitude_fnv1a": "b9c11c87365ce421",
+    "scheduled_events": 1226
+  },
+  {
+    "seed": 2345242951,
+    "scheduler_fnv1a": "5eb000e379a41c0a",
+    "score_fnv1a": "1c77a5e58224c6a8",
+    "amplitude_fnv1a": "c8e4911d1995dd63",
+    "scheduled_events": 1496
+  },
+  {
+    "seed": 3711502885,
+    "scheduler_fnv1a": "3ae2d0f0788cf304",
+    "score_fnv1a": "5bbf67ed1adc7e47",
+    "amplitude_fnv1a": "0301fd54162ea171",
+    "scheduled_events": 1457
+  },
+  {
+    "seed": 169507974,
+    "scheduler_fnv1a": "373d165a1d727739",
+    "score_fnv1a": "89c8248351762ccb",
+    "amplitude_fnv1a": "d2ba0e7b6f704f50",
+    "scheduled_events": 1837
+  },
+  {
+    "seed": 2175734977,
+    "scheduler_fnv1a": "72e7a56c224b007b",
+    "score_fnv1a": "ba2761dd9f39f8d6",
+    "amplitude_fnv1a": "6059851d0b786e54",
+    "scheduled_events": 1493
+  },
+  {
+    "seed": 3824508201,
+    "scheduler_fnv1a": "132fa175fbf8bc21",
+    "score_fnv1a": "b7f6cd36fcb3f5b0",
+    "amplitude_fnv1a": "da6784157cbf91a6",
+    "scheduled_events": 1522
+  }
+]

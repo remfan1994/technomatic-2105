@@ -1,0 +1,30 @@
+Input #0, ogg, from '/workspace/scratch/93254bfec215/loudness_work/codec_work/04_intense_3668339987_B_v30_1_128k.opus':
+  Duration: 00:00:48.01, start: 0.000000, bitrate: 176 kb/s
+  Stream #0:0: Audio: opus, 48000 Hz, stereo, fltp
+    Metadata:
+      encoder         : Lavc60.31.102 libopus
+Stream mapping:
+  Stream #0:0 -> #0:0 (opus (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+[out#0/null @ 0x55d287e93e00] video:0kB audio:9000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:00:47.90 bitrate=N/A speed=92.2x    
+[Parsed_ebur128_0 @ 0x55d287ee5280] Summary:
+
+  Integrated loudness:
+    I:         -10.1 LUFS
+    Threshold: -20.1 LUFS
+
+  Loudness range:
+    LRA:         2.5 LU
+    Threshold: -30.2 LUFS
+    LRA low:   -11.3 LUFS
+    LRA high:   -8.7 LUFS
+
+  True peak:
+    Peak:        0.7 dBFS

@@ -1,0 +1,67 @@
+PASS retired AGC, master attenuation, ducking and fade state absent from native source
+PASS output transfer has no persistent state
+PASS output permits 100 percent digital full scale
+PASS fixed output gain does not attenuate the app master
+PASS zero input remains exact silence
+PASS small signals retain exact fixed linear gain below the peak knee
+PASS peak curve is symmetric and monotonic
+PASS 200001 tested inputs stay finite and inside full scale
+PASS curve joins the linear region with a continuous first derivative
+PASS loud earlier samples never change the gain of a later sample
+PASS an opposite-channel peak does not impose a changing gain on this channel
+PASS nonfinite injected stage inputs cannot escape as nonfinite output
+PASS quiet output recovers only the short DC-filter tail, with no slow gain recovery
+PASS recipe preserves composition engine 30 and records output revision 2 seed=1013904226
+PASS six-second output is finite, bounded and non-silent seed=1013904226
+PASS render block sizes 1,257,1024,4093 preserve every float sample seed=1013904226
+PASS reset after playback restores exact output seed=1013904226
+PASS saved recipe restores exact output without inherited gain state seed=1013904226
+PASS v30.1 recipe uses current louder output with identical music and replay seed=1013904226
+PASS legacy next switches immediately to exact fresh output with no master fade seed=1013904226
+PASS app next starts immediately with sample-exact fresh-recipe output seed=1013904226
+PASS fully muted voices remain exact silence without gain pumping seed=1013904226
+PASS range export writes the exact requested stereo frame count seed=1013904226
+PASS every exported sample including the tail matches finite render at fixed gain seed=1013904226
+PASS repeated export is byte-identical seed=1013904226
+PASS recipe preserves composition engine 30 and records output revision 2 seed=2654435761
+PASS six-second output is finite, bounded and non-silent seed=2654435761
+PASS render block sizes 1,257,1024,4093 preserve every float sample seed=2654435761
+PASS reset after playback restores exact output seed=2654435761
+PASS saved recipe restores exact output without inherited gain state seed=2654435761
+PASS v30.1 recipe uses current louder output with identical music and replay seed=2654435761
+PASS legacy next switches immediately to exact fresh output with no master fade seed=2654435761
+PASS app next starts immediately with sample-exact fresh-recipe output seed=2654435761
+PASS fully muted voices remain exact silence without gain pumping seed=2654435761
+PASS range export writes the exact requested stereo frame count seed=2654435761
+PASS every exported sample including the tail matches finite render at fixed gain seed=2654435761
+PASS repeated export is byte-identical seed=2654435761
+PASS recipe preserves composition engine 30 and records output revision 2 seed=2027808452
+PASS six-second output is finite, bounded and non-silent seed=2027808452
+PASS render block sizes 1,257,1024,4093 preserve every float sample seed=2027808452
+PASS reset after playback restores exact output seed=2027808452
+PASS saved recipe restores exact output without inherited gain state seed=2027808452
+PASS v30.1 recipe uses current louder output with identical music and replay seed=2027808452
+PASS legacy next switches immediately to exact fresh output with no master fade seed=2027808452
+PASS app next starts immediately with sample-exact fresh-recipe output seed=2027808452
+PASS fully muted voices remain exact silence without gain pumping seed=2027808452
+PASS range export writes the exact requested stereo frame count seed=2027808452
+PASS every exported sample including the tail matches finite render at fixed gain seed=2027808452
+PASS repeated export is byte-identical seed=2027808452
+PASS recipe preserves composition engine 30 and records output revision 2 seed=3668339987
+PASS six-second output is finite, bounded and non-silent seed=3668339987
+PASS render block sizes 1,257,1024,4093 preserve every float sample seed=3668339987
+PASS reset after playback restores exact output seed=3668339987
+PASS saved recipe restores exact output without inherited gain state seed=3668339987
+PASS v30.1 recipe uses current louder output with identical music and replay seed=3668339987
+PASS legacy next switches immediately to exact fresh output with no master fade seed=3668339987
+PASS app next starts immediately with sample-exact fresh-recipe output seed=3668339987
+PASS fully muted voices remain exact silence without gain pumping seed=3668339987
+PASS range export writes the exact requested stereo frame count seed=3668339987
+PASS every exported sample including the tail matches finite render at fixed gain seed=3668339987
+PASS repeated export is byte-identical seed=3668339987
+PASS fixed-accent kick/foreground-lead amplitudes stay constant across Intro,Hook,Shadow,OpenRelease and both Outro modes
+INFO controlled_phrase_amplitude_events=10124
+PASS 8000,44100,96000Hz host renders remain finite and bounded
+INFO fixed_gain=1.75 knee=0.4 ceiling=1
+PASS fixed-output checks=62 failures=0
+Host result only; this does not measure an Android device, headphone output or subjective listening quality.

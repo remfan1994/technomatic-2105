@@ -1,0 +1,34 @@
+Input #0, flac, from '/workspace/scratch/93254bfec215/loudness_work/auditions_v30_1/03_driving_quiet_case_3711502885_A_v30.flac':
+  Metadata:
+    title           : TECHNOMATIC 2105 before driving_quiet_case seed 3711502885
+    comment         : Seed 3711502885; driving; host live excerpt [40,88) seconds; original signal level; no normalization
+    encoder         : Lavf60.16.100
+  Duration: 00:00:48.00, start: 0.000000, bitrate: 327 kb/s
+  Stream #0:0: Audio: flac, 48000 Hz, stereo, s16
+Stream mapping:
+  Stream #0:0 -> #0:0 (flac (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    title           : TECHNOMATIC 2105 before driving_quiet_case seed 3711502885
+    comment         : Seed 3711502885; driving; host live excerpt [40,88) seconds; original signal level; no normalization
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+[out#0/null @ 0x565444424f00] video:0kB audio:9000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:00:47.90 bitrate=N/A speed= 142x    
+[Parsed_ebur128_0 @ 0x5654444b7680] Summary:
+
+  Integrated loudness:
+    I:         -21.2 LUFS
+    Threshold: -31.3 LUFS
+
+  Loudness range:
+    LRA:         2.6 LU
+    Threshold: -41.3 LUFS
+    LRA low:   -22.3 LUFS
+    LRA high:  -19.6 LUFS
+
+  True peak:
+    Peak:       -3.8 dBFS

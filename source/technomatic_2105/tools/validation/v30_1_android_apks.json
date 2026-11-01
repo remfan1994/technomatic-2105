@@ -1,0 +1,176 @@
+{
+  "debug": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "bytes": 5745150,
+    "sha256": "709c41c245e551b91e9bf25248212d8b0374930230b33dd9765ca6f7dfa55028",
+    "package": "vip.thatiam.technomatic2105.debug",
+    "version_name": "0.30.1-debug",
+    "version_code": 43,
+    "min_sdk": 26,
+    "target_sdk": 33,
+    "zip_crc_passed": true,
+    "signer_exit_code": 0,
+    "certificate_sha256": "579708b6c43a9bcc7b01769be396d70145da8edf27eb2f032594e4a9d0b38354",
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "native_libraries": {
+      "lib/arm64-v8a/libc++_shared.so": {
+        "bytes": 1423696,
+        "sha256": "8fed70ee5cf18534beebe28b525af8e422d08de3a241ccd3db7856f47048eda0",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/arm64-v8a/liboboe.so": {
+        "bytes": 327456,
+        "sha256": "2696179a9e302f4047ce04146de39f64930bdfaa75d51da63bc7af1a228b8d73",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/arm64-v8a/libtechnomatic_2105.so": {
+        "bytes": 255864,
+        "sha256": "ae0dd0a94fe26920bf6e1fe93a40d7c21b4c5f36e98ebc03ab443cb07cb19d32",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/libc++_shared.so": {
+        "bytes": 994772,
+        "sha256": "44db2afe9b91374c47f11be28c53bf2041f51524de4bc99a2a3774de6b4956c1",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/liboboe.so": {
+        "bytes": 212928,
+        "sha256": "6eebcff8923f11f79d10bd3404afccab9c8d9ba629709334fc76663894b0e914",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/libtechnomatic_2105.so": {
+        "bytes": 198028,
+        "sha256": "862c46b592f6bb3cae42c00c10bfbcab2d320dab89450544afbc19097f09cb8a",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/libc++_shared.so": {
+        "bytes": 1390752,
+        "sha256": "27495e9d65a0ccac832b2fa37ce8374d5799cd353a6e6c3563f7b37072b49921",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/liboboe.so": {
+        "bytes": 323712,
+        "sha256": "f1168819d87b8571bb7c8147176854a2e5783bae6e35d2a420d99dc19692db94",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/libtechnomatic_2105.so": {
+        "bytes": 282000,
+        "sha256": "8c736edbd7d7e05bdb6162b35636597faa148b84b26fbd15ddb30fd01e0013bf",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      }
+    },
+    "bundled_audio_assets": [],
+    "private_key_files": [],
+    "internet_permission": false
+  },
+  "release": {
+    "path": "app/build/outputs/apk/release/app-release-unsigned.apk",
+    "bytes": 5683933,
+    "sha256": "28dc79a07e1d8705ccf406bd92f700d293c17b667c5d048cbbf6ad54d78e5235",
+    "package": "vip.thatiam.technomatic2105",
+    "version_name": "0.30.1",
+    "version_code": 43,
+    "min_sdk": 26,
+    "target_sdk": 33,
+    "zip_crc_passed": true,
+    "signer_exit_code": 1,
+    "certificate_sha256": null,
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "native_libraries": {
+      "lib/arm64-v8a/libc++_shared.so": {
+        "bytes": 1423696,
+        "sha256": "8fed70ee5cf18534beebe28b525af8e422d08de3a241ccd3db7856f47048eda0",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/arm64-v8a/liboboe.so": {
+        "bytes": 327456,
+        "sha256": "2696179a9e302f4047ce04146de39f64930bdfaa75d51da63bc7af1a228b8d73",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/arm64-v8a/libtechnomatic_2105.so": {
+        "bytes": 234248,
+        "sha256": "9a64a1737ed550d5dccc8ce5660589d4a60ac3074a33758704c9905129fcb1eb",
+        "elf_machine": 183,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/libc++_shared.so": {
+        "bytes": 994772,
+        "sha256": "44db2afe9b91374c47f11be28c53bf2041f51524de4bc99a2a3774de6b4956c1",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/liboboe.so": {
+        "bytes": 212928,
+        "sha256": "6eebcff8923f11f79d10bd3404afccab9c8d9ba629709334fc76663894b0e914",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/armeabi-v7a/libtechnomatic_2105.so": {
+        "bytes": 187936,
+        "sha256": "85c32ed91eba5ad4353dbc88620d1589aa525b001b58dab9dc7a6cd363b898c2",
+        "elf_machine": 40,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/libc++_shared.so": {
+        "bytes": 1390752,
+        "sha256": "27495e9d65a0ccac832b2fa37ce8374d5799cd353a6e6c3563f7b37072b49921",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/liboboe.so": {
+        "bytes": 323712,
+        "sha256": "f1168819d87b8571bb7c8147176854a2e5783bae6e35d2a420d99dc19692db94",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      },
+      "lib/x86_64/libtechnomatic_2105.so": {
+        "bytes": 261008,
+        "sha256": "17c66a3a787d172e7818a45c8637a31d934a1d0de7916aedc694a88d53a67665",
+        "elf_machine": 62,
+        "matches_stripped_build_output": true
+      }
+    },
+    "bundled_audio_assets": [],
+    "private_key_files": [],
+    "internet_permission": false
+  },
+  "lint": {
+    "severity_counts": {
+      "Warning": 20
+    },
+    "issue_counts": {
+      "DataExtractionRules": 1,
+      "GradleDependency": 2,
+      "InlinedApi": 1,
+      "MonochromeLauncherIcon": 2,
+      "ObsoleteSdkInt": 8,
+      "OldTargetApi": 1,
+      "RtlHardcoded": 2,
+      "UnusedAttribute": 1,
+      "UnusedResources": 1,
+      "WakelockTimeout": 1
+    }
+  },
+  "source_hashes_matched_before_after": true,
+  "old_v30_debug_certificate_sha256": "b35e0a972195d9fbe6d47a2e6bca2adcf94b3110aaf27cc8c8a00f0f6ae8837b",
+  "debug_certificate_matches_old_v30": false
+}

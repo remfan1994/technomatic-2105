@@ -1,0 +1,252 @@
+TECHNOMATIC 2105 v29
+Version 0.29.0, build 41
+Completed from technomatic_2105_android_project_v28.zip
+2026-10-18 UTC
+
+PURPOSE
+
+This revision keeps TECHNOMATIC 2105 centered on original generated music:
+recognizable themes, related answers, harmony, rests, continuing development,
+and a much wider range between mellow and intense. It does not import songs,
+radio material or samples. It removes the background hiss/effect paths that
+worked against the requested music-only direction.
+
+1. METADATA: THE OGG PROBLEM WAS REAL
+
+The v28 OGG exporter saved title, artist, album and genre in Android's local
+MediaStore catalog, but did not embed the editor's notes in the OGG file.
+The muxer's OpusTags packet contained its vendor and no user comments. This
+explains why metadata disappeared when the file itself was inspected or
+copied elsewhere. FLAC already had basic embedded tags, but lacked the full
+selected-channel identity and a single consistent metadata snapshot.
+
+V29 embeds metadata in both OGG/Opus and FLAC. The editor automatically shows
+the actual sound's seed, selected channels and dominant hybrid channel in
+the Notes section. The requested example is:
+
+  141414419 all channels neon drift dominant
+
+The generated line appears above the optional editable notes. It is derived
+from the current sound each time, so an old seed is not saved as a stale
+preference. Save Metadata stores the user-editable fields. Unsaved drafts
+survive an orientation redraw; Back discards them. Changing channels while
+stopped now updates the actual sound snapshot without starting playback.
+
+Every export captures its metadata before rendering starts. Editing fields
+or selecting another sound later cannot silently retag an in-progress job.
+
+The physical file tags include TITLE, ARTIST, ALBUMARTIST, ALBUM, GENRE, DATE,
+COMMENT, DESCRIPTION, SEED, CHANNELS, CHANNEL_MASK, CHANNEL_BLEND,
+CHANNEL_PRIMARY, CHANNEL_PRIMARY_ID, EXPORT_START_SECONDS,
+EXPORT_END_SECONDS, ENGINE_VERSION, COMPOSITION_INTENT,
+COMPOSITION_INTENT_ID, TECHNOMATIC_SONG_DATA and ENCODER.
+
+COMMENT and DESCRIPTION contain the automatic identity, optional notes and
+export interval. Explicit fields make the seed/channel values easier to
+inspect. The complete regeneration recipe is also embedded.
+
+The OGG tag writer changes header metadata without re-encoding the audio.
+It handles large tags and page boundaries, retains audio payload and timing,
+checks page CRCs, and rejects damaged/truncated streams. Cancelled or failed
+exports remove partial output. FLAC uses the same captured metadata while
+retaining its existing lossless PCM encoding.
+
+Inspect an actual copied phone export with:
+
+  opusinfo track.ogg
+  mediainfo track.ogg
+  ffprobe -v error -show_entries stream_tags:format_tags -of json track.ogg
+  metaflac --export-tags-to=- track.flac
+  mediainfo track.flac
+  flac --test track.flac
+
+ffprobe can present DESCRIPTION as comment. That alias does not mean the
+physical DESCRIPTION field is absent. opusinfo and metaflac expose the tags.
+
+2. WHY THE RANGE WAS TOO NARROW
+
+The v28 candidate scorer rewarded busier music. Its arrangement also imposed
+a large minimum active-instrument count. These mechanisms favored dense
+results even when the generator contained alternatives. Channel averaging
+compressed tempo character further. Multi-channel Single mode additionally
+consumed the composition random stream, accidentally changing the selected
+composition when it should have been changing its rendition.
+
+V29 selects a listening intent from the seed before evaluating 48 composition
+candidates. The four intents have equal selection probability:
+
+  Slow:          56..84 BPM
+  Relaxed groove:84..112 BPM
+  Driving:      112..144 BPM
+  Intense:      144..180 BPM
+
+These are broad parameter ranges, not four saved arrangements or riff banks.
+Within them, tempo, activity, syncopation, warmth, harmonic movement, bass
+weight, articulation and ensemble vary continuously. Candidate scoring now
+rewards agreement with the intended musical character. Adding more notes
+does not automatically improve the score.
+
+Slow pieces have fewer lead attacks, longer articulation and more rests.
+Intense pieces have greater rhythmic activity and tighter note spacing.
+The difference therefore extends beyond playing the same material at a
+different BPM. The lead, bass and harmony remain the foundation; a generated
+ensemble of 1..6 supporting lanes preferentially answers in the lead's gaps.
+The former minimum of 12/15 active lanes has been removed.
+
+Fixed drum DNA tables and the 32-way drum-pattern switch have been replaced
+with generated rhythmic sentences and related answers. Bass still develops
+through generated base, verse and answer grammars. The code does not select
+finished basslines from a six-item library.
+
+Tonal vocabulary now includes natural minor, Dorian, Phrygian, harmonic minor,
+minor pentatonic, major, Lydian, Mixolydian and major pentatonic. These supply
+pitch relationships for generated compositions, not borrowed melodies.
+
+Continuous texture hiss, noise/zap effects, delay processing and noise mixed
+into pitched lead voices have been removed. Musical synthesized percussion
+remains. Stronger fundamentals, harmonic FM relationships and octave-related
+bass sub-oscillators support clearer pitched relationships.
+
+3. CHANNELS REMAIN OPTIONAL
+
+No Channel is now labeled Auto (full range). It uses the full unrestricted
+generator. Existing channel preferences are retained.
+
+All channels is available as a single button. Holding a selected channel
+makes it dominant. Single mode chooses one selected channel. Hybrid mode
+retains the dominant channel and selects a weaker secondary color from the
+selected set for the seed/candidate. It no longer averages every secondary
+into a middle character.
+
+Channels preserve the seed's listening intent and its tempo band. Channel
+selection uses an independent random stream, keeping the composition core
+stable while changing its rendition. Changing channels restarts that
+rendition at the beginning; Next remains the new-seed operation.
+
+4. MEASURED RANGE
+
+The comparison uses the same 512 independent seeds in fresh engine instances
+at 48 kHz: uint32_t(i * 2654435761), i = 1..512. It is a reproducible finite
+sample, not a prediction for every individual listening session.
+
+Auto / previously No Channel:
+  v28 tempo range: 82.39..169.39 BPM.
+  v29 tempo range: 57.05..178.98 BPM.
+  At or below 90 BPM: 22/512 (4.3%) -> 154/512 (30.1%).
+  At or above 135 BPM: 156/512 (30.5%) -> 161/512 (31.4%).
+  Winning internal style families: 14/32 -> 32/32.
+
+All channels, Neon Drift dominant:
+  v28 tempo range: 90.74..155.11 BPM.
+  v29 tempo range: 58.15..179.84 BPM.
+  At or below 90 BPM: 0/512 -> 151/512 (29.5%).
+  At or above 135 BPM: 98/512 (19.1%) -> 167/512 (32.6%).
+
+V29 intent counts were 136 slow, 122 groove, 129 driving and 125 intense.
+Mean lead attacks per 16 steps were 5.39, 6.95, 8.63 and 10.38 respectively.
+All-channel Single and Neon Hybrid preserved candidate, style and intent
+for all 512 comparisons with Auto. V28 all-channel Single changed the winning
+candidate for 469/512 seeds in its separately documented primary=5 baseline.
+
+These measurements show greater range and different musical behavior. They
+do not establish that every listener will prefer every generated result.
+
+5. CONTINUING DEVELOPMENT AND RECOGNIZABLE THEMES
+
+The song keeps its identity and develops while playback continues. It does
+not automatically switch seeds or terminate. Theme returns, motif answers,
+phrase roles, harmony and long-form development remain.
+
+A confirmed long-playback bug gradually filled intended drum rests. Bounded
+variations around the generated reference rhythm now prevent that density
+creep. Four representative intents retained their original active hat counts
+through 200,000 accelerated drum mutations each, 800,000 in total.
+
+Across 3,072 scheduled phrases, no complete pitched phrase repeated within
+the previous 32 phrases. Nine of twelve 256-phrase cases had 256 distinct
+phrases; three had 255. This is a finite scheduling audit. It does not prove
+that complete sequences remain unique forever, and recurring short motives
+are part of the intended musical identity.
+
+Sparse slow bass anchor cells sometimes coincide. Their complete generated
+base+verse+answer grammars were distinct for 135/136 slow seeds, 122/122
+groove seeds, 129/129 driving seeds and 125/125 intense seeds. The test does
+not count gain, timbre, seed labels or root transposition as melodic novelty.
+
+6. VALIDATION AND BUILDS
+
+Completed checks:
+  - 68 native assertions, including the unchanged v28 regression checks.
+  - 12 sample-exact v29 snapshot reloads, covering all four intents and
+    three channel configurations.
+  - 128 additional channel-core comparisons.
+  - Export interval and finite-ending regression checks.
+  - A 180-second full stereo render with finite, non-silent output and
+    unchanged seed; peak 0.641663, RMS 0.090526.
+  - AddressSanitizer and UndefinedBehaviorSanitizer smoke checks.
+  - 1,035 Java metadata checks, compiled for Java 8.
+  - Real ffprobe, MediaInfo, opusinfo, metaflac and flac verification.
+  - Exact FLAC recovery of all 1,536,000 source PCM bytes.
+  - Nine OGG tag rewrite cases with unchanged decoded PCM and duration.
+  - 71 production AudioEngine control checks using host Oboe/log stubs.
+  - Final Android debug and unsigned release builds for arm64-v8a,
+    armeabi-v7a and x86_64.
+  - Debug APK signature verification and both APK manifest/ZIP checks.
+  - Android lint: zero errors, 21 warnings.
+
+LeakSanitizer was disabled because of the host's process-inspection limits;
+the sanitizer run is not a leak-free certification. Android lint warnings
+are enumerated in BUILD_V29_VALIDATION.txt.
+
+No Android device or emulator was used. Device audio performance, subjective
+musical quality, MediaCodec behavior, MediaStore publishing, UI keyboard and
+rotation behavior, and hardware disconnects still need real-device use.
+The code has been built and host-tested; those limits are stated explicitly.
+
+The debug APK is installable and uses vip.thatiam.technomatic2105.debug, a
+separate application ID from the release app. The unsigned release APK
+requires signing; updating an existing release installation requires its
+original signing key. Public Music export requires Android 10 or newer;
+playback supports Android 8 or newer.
+
+V29 changes the interpretation of seeds. V28 recipes can be loaded, but do
+not recreate the v28 waveform sample-for-sample in the new engine. Keep old
+recordings and the v28 source when exact historical playback is needed.
+Current-version full snapshots were verified to reconstruct exactly.
+
+7. LISTENING SAMPLES
+
+The audition ZIP contains three 48-second excerpts from live seconds 40..88,
+after the generated openings, with Auto selected:
+
+  slow_1013904226.opus:   seed 1013904226, 77.018539 BPM.
+  groove_2654435761.opus: seed 2654435761, 106.813927 BPM.
+  hyper_3668339987.opus:  seed 3668339987, 168.518158 BPM.
+
+They were rendered by the native host engine and encoded with FFmpeg as
+stereo Opus. They are listening examples, separate from Android export-path
+testing. They were selected from the validation sequence by intent, without
+subjective cherry-picking. Their snapshots and reproduction commands are
+included. These are slices of indefinite live development, so the excerpt
+boundaries do not use the finite export's composed ending.
+
+SOURCE EVIDENCE AND REPRODUCTION
+
+The updated project contains:
+  docs/V29_VALIDATION.md
+  docs/METADATA_V29_VALIDATION.txt
+  docs/AUDIO_CONTROL_V29_VALIDATION.txt
+  docs/BUILD_V29_VALIDATION.txt
+  tools/validation/ with native logs, metadata/control summaries and CSVs.
+
+From the extracted project, run:
+
+  g++ -std=c++17 -O2 -Wall -Wextra -Werror app/src/main/cpp/MusicEngine.cpp tools/validate_v29.cpp -Iapp/src/main/cpp -o /tmp/technomatic-validate-v29
+  /tmp/technomatic-validate-v29
+  python3 tools/test_audio_controls.py --output /tmp/technomatic-controls-validation
+  python3 tools/test_metadata.py --output /tmp/technomatic-metadata-validation
+  ./gradlew --no-daemon assembleDebug assembleRelease lintDebug
+
+Build requirements and signing instructions are in README.md and
+docs/RELEASE.md. The automated CI workflow runs the native, playback-control
+and metadata checks before producing the Android packages.

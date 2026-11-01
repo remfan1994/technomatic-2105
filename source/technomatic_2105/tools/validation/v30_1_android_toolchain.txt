@@ -1,0 +1,47 @@
+TECHNOMATIC 2105 Android toolchain restored 2026-10-20
+All archives downloaded from official Android/Gradle distribution URLs and verified before extraction.
+Official Android index: https://dl.google.com/android/repository/repository2-1.xml
+The restored toolchain completed the final assembleDebug, assembleRelease and lintDebug run.
+Build environment script: /tmp/technomatic-v30-toolchain/build-env.sh.
+Gradle binary: /tmp/technomatic-v30-toolchain/gradle-8.9/bin/gradle
+SDK licenses: accepted through sdkmanager --licenses.
+ANDROID_USER_HOME points inside /tmp. Debug signing key material is private and excluded from the project.
+
+cmdline-tools;19.0
+https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+bytes=164760899
+sha1=5fdcc763663eefb86a5b8879697aa6088b041e70
+
+ndk;30.0.14904198
+https://dl.google.com/android/repository/android-ndk-r30-beta1-linux.zip
+bytes=713550176
+sha1=26b746e5a1e7ac3371f2a862a2f52a7c0740aa8a
+
+build-tools;34.0.0
+https://dl.google.com/android/repository/build-tools_r34-linux.zip
+bytes=61224257
+sha1=d6d58e0c6925a9e4d9a541e84cd1f405c2f9d2a9
+
+platforms;android-33
+https://dl.google.com/android/repository/platform-33-ext3_r03.zip
+bytes=67334237
+sha1=394bc86d8d3452aa4d419b67743025a6fb2cd9d0
+
+cmake;3.22.1
+https://dl.google.com/android/repository/cmake-3.22.1-linux.zip
+bytes=22308647
+sha1=fd0a48b4a758310df8c7aa51f59840ed48fe7ed8
+
+platform-tools
+https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip
+bytes=9054187
+sha1=477254aa5f903c15cf51001717bdf347fb6b53e0
+
+gradle;8.9
+https://services.gradle.org/distributions/gradle-8.9-bin.zip
+bytes=136114148
+sha256=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab
+
+NDK source.properties is unmodified: Pkg.Revision=30.0.14904198-beta1, Pkg.BaseRevision=30.0.14904198.
+NDK package.xml copies the official index revision including preview=1; sdkmanager displays rc1.
+No NDK version or project source pin was changed.

@@ -1,0 +1,83 @@
+{
+  "seeds": 16,
+  "scheduled_events": 20247,
+  "float_samples_compared": 135168000,
+  "different_samples": 0,
+  "legacy_mixed_pcm_identity_asserted": false,
+  "scheduled_amplitude_identity_asserted": true,
+  "independent_output_reconstruction_asserted": true,
+  "score_and_rng_equal_seeds": 16,
+  "amplitude_changed_seeds": 0,
+  "peak_curve_fraction": {
+    "min": 0.1157265625,
+    "median": 0.20304646070075758,
+    "max": 0.3892097537878788
+  },
+  "failures": [],
+  "startup": {
+    "change_lufs": {
+      "min": 3.8,
+      "median": 4.5,
+      "max": 4.800000000000001
+    },
+    "change_rms_dbfs": {
+      "min": 3.8863693521508216,
+      "median": 4.509087146620763,
+      "max": 4.7716726488743095
+    },
+    "after_lufs": {
+      "min": -12.5,
+      "median": -10.3,
+      "max": -6.7
+    },
+    "after_true_peak_dbfs": {
+      "min": -1.6,
+      "median": -0.25,
+      "max": 1.4
+    }
+  },
+  "settled": {
+    "change_lufs": {
+      "min": 3.6999999999999993,
+      "median": 4.5,
+      "max": 4.700000000000001
+    },
+    "change_rms_dbfs": {
+      "min": 3.7898564955056226,
+      "median": 4.519056489662942,
+      "max": 4.709162647085044
+    },
+    "after_lufs": {
+      "min": -11.7,
+      "median": -9.600000000000001,
+      "max": -6.4
+    },
+    "after_true_peak_dbfs": {
+      "min": -0.4,
+      "median": 0.05,
+      "max": 1.3
+    }
+  },
+  "full": {
+    "change_lufs": {
+      "min": 3.6999999999999993,
+      "median": 4.45,
+      "max": 4.700000000000001
+    },
+    "change_rms_dbfs": {
+      "min": 3.800674353193715,
+      "median": 4.517601357935111,
+      "max": 4.7362164331680745
+    },
+    "after_lufs": {
+      "min": -11.9,
+      "median": -9.7,
+      "max": -6.4
+    },
+    "after_true_peak_dbfs": {
+      "min": -0.4,
+      "median": 0.25,
+      "max": 1.4
+    }
+  }
+}

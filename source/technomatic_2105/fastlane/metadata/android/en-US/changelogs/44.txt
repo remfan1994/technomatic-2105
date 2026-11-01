@@ -1,0 +1,1 @@
+Louder fixed output: 1.75x calibration for playback and exports, with full digital scale and smooth peak rounding. Preserves v30.1 music, controls and both earlier volume fixes. No gain riding, ducking, fades or coordinated part-volume changes. Recipes and audio metadata identify output revision 2. NDK remains 30.0.14904198.

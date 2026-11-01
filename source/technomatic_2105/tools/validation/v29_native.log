@@ -1,0 +1,91 @@
+PASS single Channel retains the seed's winning candidate
+PASS Hybrid Channels retain the seed's winning candidate
+PASS single Channel preserves motifs, harmony, bass grammar, form, and boundaries
+PASS Hybrid Channels preserve the same composition core
+PASS Channel changes the rendition rather than doing nothing
+PASS same seed is audibly reinterpreted by a Channel
+PASS Channel selection keeps the visible seed
+PASS Channel selection keeps the candidate
+PASS Channel selection reloads the same musical identity
+PASS Channel selection restarts the same composition at zero
+PASS history keeps separate same-seed Channel renditions
+PASS history freezes listened duration for the old rendition
+PASS history updates listened duration for the current rendition
+PASS native history remains capped at the latest 20 renditions
+PASS generated opening and ending lengths stay in bounds
+PASS all generated opening geometries are reachable
+PASS all generated ending geometries are reachable
+PASS opening lengths have broad phrase diversity
+PASS ending lengths have broad phrase diversity
+PASS opening and ending grammars are seed-specific
+PASS conclusive and dissolving endings are both common enough to matter
+PASS same-seed Channel snapshot reloads
+PASS Channel snapshot reconstruction is sample exact
+PASS start-end offline export completes
+PASS start-end export writes exact requested duration
+PASS finite boundary test snapshot loads
+PASS generated opening and ending remain finite
+PASS generated opening and ending remain unclipped
+PASS all 48 composition candidates remain in the search
+PASS all generated snapshots identify engine 29 and a valid listening intent
+PASS texture noise, special-effect and grain lanes are off across 512 seeds
+PASS every sampled tune has a lead and a bass foundation
+PASS candidate selection retains broad style-family coverage
+PASS slow and intense tempos each reach at least one fifth of independent seeds
+PASS support-lane control weights stay bounded relative to the musical foreground
+PASS listening intent has meaningful generation coverage for intent 0
+PASS tempo varies within the listening intent for intent 0
+PASS style families vary within the listening intent for intent 0
+PASS lead note/rest identities vary across seeds for intent 0
+PASS bass foundation/verse/answer note-rest grammars vary across seeds for intent 0
+INFO intent=0 n=136 bpm=57.0524..81.9349 mean=69.3657 lead_hits=5.38971 hat_hits=22.2941 styles=31 unique_lead=133 unique_bass_base=87 unique_bass_development=135 representative_seed=1013904226
+PASS listening intent has meaningful generation coverage for intent 1
+PASS tempo varies within the listening intent for intent 1
+PASS style families vary within the listening intent for intent 1
+PASS lead note/rest identities vary across seeds for intent 1
+PASS bass foundation/verse/answer note-rest grammars vary across seeds for intent 1
+INFO intent=1 n=122 bpm=85.7474..110.379 mean=98.8999 lead_hits=6.95082 hat_hits=29.3115 styles=31 unique_lead=122 unique_bass_base=106 unique_bass_development=122 representative_seed=2654435761
+PASS listening intent has meaningful generation coverage for intent 2
+PASS tempo varies within the listening intent for intent 2
+PASS style families vary within the listening intent for intent 2
+PASS lead note/rest identities vary across seeds for intent 2
+PASS bass foundation/verse/answer note-rest grammars vary across seeds for intent 2
+INFO intent=2 n=129 bpm=113.466..143.456 mean=128.978 lead_hits=8.62791 hat_hits=37.5194 styles=32 unique_lead=129 unique_bass_base=125 unique_bass_development=129 representative_seed=2027808452
+PASS listening intent has meaningful generation coverage for intent 3
+PASS tempo varies within the listening intent for intent 3
+PASS style families vary within the listening intent for intent 3
+PASS lead note/rest identities vary across seeds for intent 3
+PASS bass foundation/verse/answer note-rest grammars vary across seeds for intent 3
+INFO intent=3 n=125 bpm=145.306..178.984 mean=162.692 lead_hits=10.384 hat_hits=46.4 styles=30 unique_lead=125 unique_bass_base=123 unique_bass_development=125 representative_seed=3668339987
+PASS slow compositions leave materially more lead-note space than intense compositions
+PASS slow compositions use materially fewer hat attacks than intense compositions
+PASS 128 selected-channel comparisons preserve candidate, melody, bass, harmony and form
+PASS selected channels retain the seed's intended tempo band, including all-channel Neon Drift
+INFO phrase_audit intent=0 mask=0 blend=0 seed=1013904226 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=3.94369 hat_events_per_second=0.0701992 mean_lead_duration=0.325004
+INFO phrase_audit intent=0 mask=4095 blend=0 seed=1013904226 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=3.90806 hat_events_per_second=0.0660272 mean_lead_duration=0.327776
+INFO phrase_audit intent=0 mask=4095 blend=1 seed=1013904226 distinct=255/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=4.01092 hat_events_per_second=0.064529 mean_lead_duration=0.318061
+INFO phrase_audit intent=1 mask=0 blend=0 seed=2654435761 distinct=255/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=7.27392 hat_events_per_second=0.462443 mean_lead_duration=0.165948
+INFO phrase_audit intent=1 mask=4095 blend=0 seed=2654435761 distinct=255/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=6.73871 hat_events_per_second=0.504692 mean_lead_duration=0.163719
+INFO phrase_audit intent=1 mask=4095 blend=1 seed=2654435761 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=7.11649 hat_events_per_second=0.44899 mean_lead_duration=0.166753
+INFO phrase_audit intent=2 mask=0 blend=0 seed=2027808452 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=10.1632 hat_events_per_second=0.806043 mean_lead_duration=0.108781
+INFO phrase_audit intent=2 mask=4095 blend=0 seed=2027808452 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=10.1808 hat_events_per_second=0.839852 mean_lead_duration=0.105922
+INFO phrase_audit intent=2 mask=4095 blend=1 seed=2027808452 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=10.2005 hat_events_per_second=0.779884 mean_lead_duration=0.108978
+INFO phrase_audit intent=3 mask=0 blend=0 seed=3668339987 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=17.0191 hat_events_per_second=4.83283 mean_lead_duration=0.0634953
+INFO phrase_audit intent=3 mask=4095 blend=0 seed=3668339987 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=16.6868 hat_events_per_second=5.00716 mean_lead_duration=0.0618132
+INFO phrase_audit intent=3 mask=4095 blend=1 seed=3668339987 distinct=256/256 recent32_repeats=0 adjacent_repeats=0 special_effect_events=0 lead_events_per_second=17.1976 hat_events_per_second=5.09394 mean_lead_duration=0.0628308
+PASS 12 snapshots across every intent and channel modes reconstruct six seconds sample exactly
+PASS 3,072 scheduled phrases contain no unpitched Zap or Noise special effects
+PASS pitched note/onset phrases remain diverse with no adjacent complete-phrase repeats in the sampled development
+PASS slow performance schedules fewer pitched upper-voice events per second than intense performance
+PASS slow performance schedules fewer hat events per second than intense performance
+PASS slow performance uses longer pitched upper-voice articulations than intense performance
+INFO drum_development intent=0 mutations=200000 initial_hat_mass=6.46373 min_mass=6.46373 max_mass=7.59485 initial_hits=16 max_hits=16
+INFO drum_development intent=1 mutations=200000 initial_hat_mass=15.7448 min_mass=15.2109 max_mass=17.3441 initial_hits=32 max_hits=32
+INFO drum_development intent=2 mutations=200000 initial_hat_mass=20.3141 min_mass=19.5864 max_mass=22.6938 initial_hits=40 max_hits=40
+INFO drum_development intent=3 mutations=200000 initial_hat_mass=29.4048 min_mass=28.0074 max_mass=32.0077 initial_hits=48 max_hits=48
+PASS 800,000 accelerated drum mutations preserve rests and bounded rhythmic density
+PASS three-minute live playback keeps the same seed developing without an automatic ending
+PASS three-minute audio render is finite, bounded and non-silent
+INFO live_render_seconds=180 host_wall_seconds=8.15659 peak=0.641663 rms=0.0905258
+INFO total_seed_count=512 slow_le90=154 fast_ge135=161 winning_styles=32 tempo_min=57.0524 tempo_median=110.216 tempo_max=178.984 max_auxiliary_to_foreground_weight=1.13145 channel_comparisons=128
+PASS v29 validation

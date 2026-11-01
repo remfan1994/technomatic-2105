@@ -12,6 +12,15 @@ static bool parseUnsignedField(const std::string& data, const char* key, uint32_
 static bool parseSignedField(const std::string& data, const char* key, int32_t& out);
 static int32_t clampInt32(int32_t value, int32_t lo, int32_t hi);
 
+static uint32_t mixSeed(uint32_t seed) {
+    seed ^= seed >> 16u;
+    seed *= 0x7feb352du;
+    seed ^= seed >> 15u;
+    seed *= 0x846ca68bu;
+    seed ^= seed >> 16u;
+    return seed;
+}
+
 uint32_t MusicEngine::Rng::nextU32() {
     uint32_t x = state;
     x ^= x << 13u;
@@ -53,11 +62,6 @@ void MusicEngine::prepare(double sampleRate) {
     if (sampleRate < 8000.0) sampleRate = 48000.0;
     mSampleRate = sampleRate;
 
-    const int32_t delaySize = std::max(4096, static_cast<int32_t>(mSampleRate * 1.70));
-    mDelayL.assign(static_cast<size_t>(delaySize), 0.0f);
-    mDelayR.assign(static_cast<size_t>(delaySize), 0.0f);
-    mDelayWrite = 0;
-    mDelaySamples = std::max(1, static_cast<int32_t>(mSampleRate * 0.315));
     mPrepared = true;
 }
 
@@ -78,19 +82,8 @@ void MusicEngine::reset(uint32_t seed) {
     mLastBassStep = -1000;
     mLastLeadStep = -1000;
     mSilentSteps = 0;
-    mTransitionStage = TransitionStage::None;
-    mTransitionGain = 1.0f;
-    mSidechain = 1.0f;
-    mMaster = 0.82f;
-    mAgcRms = 0.010f;
-    mAgcGain = 1.0f;
     mNovelty = 0.0f;
     mPocketLate = 0.0015f + mRng.uni() * 0.0120f;
-    mTexturePhaseA = 0.0f;
-    mTexturePhaseB = 0.0f;
-    mTextureLp = 0.0f;
-    mTextureHp = 0.0f;
-    mTextureNoise = mRng.nextU32();
     mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
     mRecentHash.fill(0u);
     mRecentHashWrite = 0;
@@ -102,22 +95,14 @@ void MusicEngine::reset(uint32_t seed) {
     mPendingSongSeed = safeSeed;
     generateSeededSong(safeSeed);
 
-    if (!mDelayL.empty()) std::fill(mDelayL.begin(), mDelayL.end(), 0.0f);
-    if (!mDelayR.empty()) std::fill(mDelayR.begin(), mDelayR.end(), 0.0f);
 }
 
 
 void MusicEngine::next() {
-    if (mTransitionStage != TransitionStage::None) {
-        mPendingSongSeed = mDevelopmentRng.nextU32();
-        return;
-    }
+    // Legacy callers get the same full-level replacement as the current app's
+    // Next path. No whole-mix fade, dead-air timer or gain state is introduced.
     mPendingSongSeed = mDevelopmentRng.nextU32();
-    const float fadeSeconds = 0.12f + 0.20f * mDevelopmentRng.uni();
-    mTransitionSamplesTotal = std::max(1, static_cast<int32_t>(fadeSeconds * static_cast<float>(mSampleRate)));
-    mTransitionSamplesLeft = mTransitionSamplesTotal;
-    mDeadAirSamples = static_cast<int32_t>((0.05f + 0.20f * mDevelopmentRng.uni()) * static_cast<float>(mSampleRate));
-    mTransitionStage = TransitionStage::FadeOut;
+    switchToPendingStyle();
 }
 
 
@@ -134,23 +119,10 @@ void MusicEngine::forceNewPiece() {
     mLastBassStep = -1000;
     mLastLeadStep = -1000;
     mSilentSteps = 0;
-    mTransitionStage = TransitionStage::None;
-    mTransitionGain = 1.0f;
-    mSidechain = 1.0f;
-    mAgcRms = 0.010f;
-    mAgcGain = 1.0f;
     mNovelty = 0.0f;
     mBpm = 0.0f;
     mBpmTarget = 92.0f;
-    if (!mDelayL.empty()) std::fill(mDelayL.begin(), mDelayL.end(), 0.0f);
-    if (!mDelayR.empty()) std::fill(mDelayR.begin(), mDelayR.end(), 0.0f);
-    mDelayWrite = 0;
     mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
-    mTextureLp = 0.0f;
-    mTextureHp = 0.0f;
-    mTexturePhaseA = 0.0f;
-    mTexturePhaseB = 0.0f;
-    mTextureNoise = mRng.nextU32();
 
     uint32_t seed = mDevelopmentRng.nextU32();
     seed ^= static_cast<uint32_t>(currentGenreMask() + 1) * 0x9e3779b9u;
@@ -161,90 +133,16 @@ void MusicEngine::forceNewPiece() {
 }
 
 
-void MusicEngine::rerenderCurrentWithChannel(int32_t mask, int32_t mode, int32_t primary) {
-    mask = clampInt32(mask, 0, (1 << kGenreModeCount) - 1);
-    mode = (mode == 1 && mask != 0) ? 1 : 0;
-    primary = clampInt32(primary, 0, kGenreModeCount);
-    if (mask == 0) primary = 0;
-    if (mask != 0 && (primary <= 0 || (mask & (1 << (primary - 1))) == 0)) {
-        primary = 0;
-        for (int32_t i = 0; i < kGenreModeCount; ++i) {
-            if ((mask & (1 << i)) != 0) { primary = i + 1; break; }
-        }
-    }
-
-    finalizeCurrentHistoryEntry();
-    const uint32_t seed = mCurrentSongSeed ? mCurrentSongSeed : 0x52423934u;
-    const int32_t candidate = clampInt32(mCurrentCandidateIndex, 0, 47);
-    const auto recentPatterns = mRecentHash;
-    const int32_t recentPatternWrite = mRecentHashWrite;
-    const auto recentMotifs = mRecentMotifHash;
-    const int32_t recentMotifWrite = mRecentMotifHashWrite;
-
-    mGenreMask = mask;
-    mGenreBlendMode = mode;
-    mGenrePrimary = primary;
-    mForcedCandidateIndex = candidate;
-    const bool oldSuppress = mSuppressHistoryRecord;
-    mSuppressHistoryRecord = true;
-    reset(seed);
-    mSuppressHistoryRecord = oldSuppress;
-    mForcedCandidateIndex = -1;
-
-    // A rendition change is not a new composition and must not erase the
-    // session's anti-repetition memory.
-    mRecentHash = recentPatterns;
-    mRecentHashWrite = recentPatternWrite;
-    mRecentMotifHash = recentMotifs;
-    mRecentMotifHashWrite = recentMotifWrite;
-    updateCurrentSongData();
-    recordCurrentSongDataToHistory();
-}
-
-
-
-void MusicEngine::setGenreMask(int32_t mask) {
-    const int32_t maxMask = (1 << kGenreModeCount) - 1;
-    if (mask < 0) mask = 0;
-    if (mask > maxMask) mask = maxMask;
-    mGenreMask = mask;
-}
-
-int32_t MusicEngine::currentGenreMask() const {
-    const int32_t maxMask = (1 << kGenreModeCount) - 1;
-    int32_t mask = mGenreMask;
-    if (mask < 0) mask = 0;
-    if (mask > maxMask) mask = maxMask;
-    return mask;
-}
-
-void MusicEngine::setGenreBlendMode(int32_t mode) {
-    if (mode < 0) mode = 0;
-    if (mode > 1) mode = 1;
-    mGenreBlendMode = mode;
-}
-
-int32_t MusicEngine::currentGenreBlendMode() const {
-    int32_t mode = mGenreBlendMode;
-    if (mode < 0) mode = 0;
-    if (mode > 1) mode = 1;
-    return mode;
-}
-
-void MusicEngine::setGenrePrimary(int32_t mode) {
-    mGenrePrimary = std::max(0, std::min(kGenreModeCount, mode));
-}
-
-int32_t MusicEngine::currentGenrePrimary() const {
-    return std::max(0, std::min(kGenreModeCount, mGenrePrimary));
-}
-
-int32_t MusicEngine::currentGenreMode() const {
-    int32_t mode = mCurrentGenreMode.load(std::memory_order_acquire);
-    if (mode < 0) mode = 0;
-    if (mode > kGenreModeCount) mode = kGenreModeCount;
-    return mode;
-}
+// Retained only so older Java/JNI clients can link. Channels have no state,
+// no audio influence and no ability to restart the currently playing piece.
+void MusicEngine::rerenderCurrentWithChannel(int32_t, int32_t, int32_t) {}
+void MusicEngine::setGenreMask(int32_t) {}
+void MusicEngine::setGenreBlendMode(int32_t) {}
+void MusicEngine::setGenrePrimary(int32_t) {}
+int32_t MusicEngine::currentGenreMask() const { return 0; }
+int32_t MusicEngine::currentGenreBlendMode() const { return 0; }
+int32_t MusicEngine::currentGenrePrimary() const { return 0; }
+int32_t MusicEngine::currentGenreMode() const { return 0; }
 
 int32_t MusicEngine::pieceStepsFromSeconds(int32_t seconds, float bpm) const {
     const double safeBpm = std::max(40.0, std::min(220.0, static_cast<double>(bpm)));
@@ -273,7 +171,7 @@ std::string MusicEngine::currentSongData() const {
     {
         std::lock_guard<std::mutex> guard(mSongDataMutex);
         data = mCurrentSongData.empty()
-            ? std::string("technomatic2105-v1;seed=1379932468;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=0")
+            ? std::string("technomatic2105-v1;seed=1379932468;seconds=180;edited=0;gmask=0;gblend=0;gprimary=0;gmode=0;cand=0;engine=30;outputrev=2")
             : mCurrentSongData;
     }
     const int32_t listened = static_cast<int32_t>(std::min<double>(2147483647.0, std::floor(currentElapsedSeconds())));
@@ -441,13 +339,6 @@ bool MusicEngine::exportPcm16RangeFile(const std::string& data,
     std::vector<float> floats(static_cast<size_t>(kFramesPerChunk * kChannels), 0.0f);
     std::vector<int16_t> pcm(static_cast<size_t>(kFramesPerChunk * kChannels), 0);
 
-    // Do not manufacture a long fade over a generated conclusion. A short file
-    // edge ramp merely prevents a click when the generated cadence or dissolve
-    // has a non-zero final sample.
-    const int64_t fadeFrames = std::max<int64_t>(1, std::min<int64_t>(
-        static_cast<int64_t>(kSampleRate) / 20, outputFrames / 80));
-    const int64_t fadeStart = std::max<int64_t>(startFrame, endFrame - fadeFrames);
-
     int64_t timelineFrame = 0;
     int64_t writtenFrames = 0;
     bool ok = true;
@@ -469,18 +360,11 @@ bool MusicEngine::exportPcm16RangeFile(const std::string& data,
             const int32_t first = static_cast<int32_t>(writeStart - chunkStart);
             const int32_t count = static_cast<int32_t>(writeEnd - writeStart);
             for (int32_t frame = 0; frame < count; ++frame) {
-                const int64_t absoluteFrame = writeStart + frame;
-                float tailGain = 1.0f;
-                if (absoluteFrame >= fadeStart && fadeFrames > 0) {
-                    const float remain = static_cast<float>(endFrame - absoluteFrame) /
-                                         static_cast<float>(fadeFrames);
-                    tailGain = engine.clamp(remain * remain, 0.0f, 1.0f);
-                }
                 for (int32_t ch = 0; ch < kChannels; ++ch) {
                     const int32_t sourceIndex = (first + frame) * kChannels + ch;
                     const int32_t destIndex = frame * kChannels + ch;
                     const float v = engine.clamp(
-                        floats[static_cast<size_t>(sourceIndex)] * tailGain,
+                        floats[static_cast<size_t>(sourceIndex)],
                         -1.0f, 1.0f);
                     pcm[static_cast<size_t>(destIndex)] =
                         static_cast<int16_t>(std::lrint(v * 32767.0f));
@@ -503,34 +387,17 @@ bool MusicEngine::exportPcm16RangeFile(const std::string& data,
 }
 
 bool MusicEngine::loadSongData(const std::string& data) {
+    // outputrev records delivery processing, not musical identity. Legacy and
+    // current recipes both use the current fixed output transfer.
     uint32_t seed = 0;
     int32_t legacySeconds = kDefaultExportSeconds;
     if (!decodeSongData(data, seed, legacySeconds)) return false;
 
-    const int32_t oldMask = mGenreMask;
-    const int32_t oldBlend = mGenreBlendMode;
-    const int32_t oldPrimary = mGenrePrimary;
-    int32_t savedMask = 0;
-    int32_t savedBlend = 0;
-    int32_t savedPrimary = 0;
+    int32_t ignoredMask = 0;
     int32_t savedCandidate = -1;
-    const bool hasSavedMask = parseSignedField(data, "gmask", savedMask);
-    const bool hasSavedBlend = parseSignedField(data, "gblend", savedBlend);
-    const bool hasSavedPrimary = parseSignedField(data, "gprimary", savedPrimary);
+    const bool hasSavedMask = parseSignedField(data, "gmask", ignoredMask);
     const bool hasSavedCandidate = parseSignedField(data, "cand", savedCandidate);
-
-    // v15-v22 used bit 12 as a special No Genre value. No Channel is mask 0.
-    if (hasSavedMask && savedMask == (1 << 12)) savedMask = 0;
-    if (hasSavedMask) mGenreMask = clampInt32(savedMask, 0, (1 << kGenreModeCount) - 1);
-    if (hasSavedBlend) mGenreBlendMode = clampInt32(savedBlend, 0, 1);
-    if (hasSavedPrimary) {
-        mGenrePrimary = clampInt32(savedPrimary, 0, kGenreModeCount);
-    } else if (hasSavedMask && savedMask != 0) {
-        mGenrePrimary = 0;
-        for (int32_t i = 0; i < kGenreModeCount; ++i) {
-            if ((savedMask & (1 << i)) != 0) { mGenrePrimary = i + 1; break; }
-        }
-    }
+    mGenreMask = mGenreBlendMode = mGenrePrimary = 0;
     mForcedCandidateIndex = hasSavedCandidate ? clampInt32(savedCandidate, 0, 47) : -1;
 
     const bool oldSuppressHistory = mSuppressHistoryRecord;
@@ -538,12 +405,6 @@ bool MusicEngine::loadSongData(const std::string& data) {
     reset(seed);
     mSuppressHistoryRecord = oldSuppressHistory;
     mForcedCandidateIndex = -1;
-
-    // The loaded sound freezes its saved channel identity. The selector for a
-    // later manually generated sound remains unchanged.
-    if (hasSavedMask) mGenreMask = oldMask;
-    if (hasSavedBlend) mGenreBlendMode = oldBlend;
-    if (hasSavedPrimary || hasSavedMask) mGenrePrimary = oldPrimary;
 
     int32_t edited = 0;
     const bool hasExtendedGeneratorData = data.find(";style=") != std::string::npos ||
@@ -559,7 +420,7 @@ bool MusicEngine::loadSongData(const std::string& data) {
 
 void MusicEngine::updateCurrentSongData() {
     auto appendField = [](std::string& out, const char* key, int32_t value) {
-        char buffer[48];
+        char buffer[96];
         std::snprintf(buffer, sizeof(buffer), ";%s=%d", key, value);
         out += buffer;
     };
@@ -568,16 +429,49 @@ void MusicEngine::updateCurrentSongData() {
     std::snprintf(header, sizeof(header), "technomatic2105-v1;seed=%u;seconds=%d", mCurrentSongSeed, kDefaultExportSeconds);
     std::string out(header);
     appendField(out, "edited", mCurrentSongEdited ? 1 : 0);
+    if (mCurrentSongEdited) {
+        appendField(out, "editrecipe", 1);
+        for (size_t i = 0; i < kSongOverrideKeys.size(); ++i) {
+            if (!mSongOverridePresent[i]) continue;
+            char key[48];
+            std::snprintf(key, sizeof(key), "edit_%s", kSongOverrideKeys[i]);
+            appendField(out, key, mSongOverrideValues[i]);
+        }
+    }
     appendField(out, "gmask", clampInt32(mActiveGenreMask, 0, (1 << kGenreModeCount) - 1));
     appendField(out, "gblend", clampInt32(mActiveGenreBlendMode, 0, 1));
     appendField(out, "gprimary", clampInt32(mActiveGenrePrimary, 0, kGenreModeCount));
     appendField(out, "gmode", currentGenreMode());
     appendField(out, "cand", clampInt32(mCurrentCandidateIndex, 0, 47));
+    appendField(out, "engine", 30);
+    appendField(out, "outputrev", 2);
+    appendField(out, "intent", mPattern.intent);
+    char planSeed[48];
+    std::snprintf(planSeed, sizeof(planSeed), ";planseed=%u", mComposition.phrasePlanSeed);
+    out += planSeed;
+    appendField(out, "planbars", mComposition.developmentCycle);
+    appendField(out, "recallbars", mComposition.recallPhrases);
+    appendField(out, "harmonicspan", mComposition.harmonicSpan);
+    appendField(out, "devicerotation", mComposition.deviceRotation);
+    appendField(out, "phrasejoint", mComposition.phraseJoint);
+    appendField(out, "leadmodel", mComposition.leadModel);
+    appendField(out, "bassmodel", mComposition.bassModel);
+    appendField(out, "harmonymodel", mComposition.padModel);
+    appendField(out, "drumkit", mComposition.drumKit);
+    for (int32_t lane = 0; lane < kSupportLanes; ++lane) {
+        char key[16];
+        std::snprintf(key, sizeof(key), "support%d", lane);
+        const bool harmonic = lane == 2 || lane == 3 || lane == 7 || lane == 15;
+        const int32_t model = harmonic ? mComposition.padModel :
+            (lane == 9 ? mComposition.bassModel : mComposition.supportModels[lane]);
+        appendField(out, key, supportLaneWeight(lane) > 0.02f ? model : -1);
+    }
+
 
     appendField(out, "style", clampInt32(static_cast<int32_t>(mPattern.style), 0, static_cast<int32_t>(StyleType::Count) - 1));
     appendField(out, "tempo", clampInt32(static_cast<int32_t>(std::lround(mBpmTarget)), 40, 220));
     appendField(out, "root", clampInt32(mPattern.rootMidi, 24, 60));
-    appendField(out, "scale", clampInt32(mPattern.scaleMode, 0, 4));
+    appendField(out, "scale", clampInt32(mPattern.scaleMode, 0, 8));
     appendField(out, "density", q100(mPattern.density));
     appendField(out, "swing", qSwing(mPattern.swing));
     appendField(out, "melody", q100(mPattern.melody));
@@ -693,8 +587,19 @@ void MusicEngine::finalizeCurrentHistoryEntry() {
 
 void MusicEngine::applySongDataOverrides(const std::string& data) {
     mCurrentSongEdited = true;
+    int32_t editRecipe = 0;
+    const bool canonical = parseSignedField(data, "editrecipe", editRecipe) && editRecipe == 1;
+    auto readOverride = [&](const char* key, int32_t& result) {
+        if (!canonical) return parseSignedField(data, key, result);
+        char exactKey[48];
+        std::snprintf(exactKey, sizeof(exactKey), "edit_%s", key);
+        return parseSignedField(data, exactKey, result);
+    };
+    for (size_t i = 0; i < kSongOverrideKeys.size(); ++i) {
+        mSongOverridePresent[i] = readOverride(kSongOverrideKeys[i], mSongOverrideValues[i]);
+    }
     int32_t value = 0;
-    if (parseSignedField(data, "style", value)) {
+    if (readOverride("style", value)) {
         value = clampInt32(value, 0, static_cast<int32_t>(StyleType::Count) - 1);
         const StyleType requestedStyle = static_cast<StyleType>(value);
         if (requestedStyle != mPattern.style) {
@@ -703,42 +608,42 @@ void MusicEngine::applySongDataOverrides(const std::string& data) {
         }
     }
 
-    if (parseSignedField(data, "tempo", value)) {
+    if (readOverride("tempo", value)) {
         mBpmTarget = static_cast<float>(clampInt32(value, 40, 220));
         mBpm = mBpmTarget;
     }
-    if (parseSignedField(data, "root", value)) mPattern.rootMidi = clampInt32(value, 24, 60);
-    if (parseSignedField(data, "scale", value)) mPattern.scaleMode = clampInt32(value, 0, 4);
-    if (parseSignedField(data, "density", value)) {
+    if (readOverride("root", value)) mPattern.rootMidi = clampInt32(value, 24, 60);
+    if (readOverride("scale", value)) mPattern.scaleMode = clampInt32(value, 0, 8);
+    if (readOverride("density", value)) {
         mPattern.density = clamp01(static_cast<float>(clampInt32(value, 0, 100)) / 100.0f);
         mPattern.energy = clamp(0.28f + mPattern.density * 0.62f, 0.10f, 0.98f);
     }
-    if (parseSignedField(data, "swing", value)) mPattern.swing = static_cast<float>(clampInt32(value, 0, 100)) / 500.0f;
-    if (parseSignedField(data, "melody", value)) {
+    if (readOverride("swing", value)) mPattern.swing = static_cast<float>(clampInt32(value, 0, 100)) / 500.0f;
+    if (readOverride("melody", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         mPattern.melody = clamp01(x);
         mComposition.useLead = std::max(mComposition.useLead, laneFromValue(value, 1.10f));
         mComposition.useCounter = std::max(mComposition.useCounter, laneFromValue(static_cast<int32_t>(value * 0.72f), 0.88f));
         mComposition.useArp = std::max(mComposition.useArp, laneFromValue(static_cast<int32_t>(value * 0.68f), 0.88f));
     }
-    if (parseSignedField(data, "motif", value)) {
+    if (readOverride("motif", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         mComposition.motifGain = clamp(0.55f + 1.75f * x, 0.45f, 2.35f);
         mComposition.hookEmphasis = clamp(0.72f + 1.40f * x, 0.70f, 2.20f);
     }
-    if (parseSignedField(data, "drama", value)) {
+    if (readOverride("drama", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         mComposition.drama = clamp01(x);
         mComposition.deviceDepth = clamp(0.16f + 0.84f * x, 0.12f, 1.05f);
         mComposition.surgeLift = clamp(0.82f + 1.20f * x, 0.70f, 2.20f);
     }
-    if (parseSignedField(data, "space", value)) mPattern.space = clamp01(static_cast<float>(clampInt32(value, 0, 100)) / 100.0f);
-    if (parseSignedField(data, "roughness", value)) {
+    if (readOverride("space", value)) mPattern.space = clamp01(static_cast<float>(clampInt32(value, 0, 100)) / 100.0f);
+    if (readOverride("roughness", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         mPattern.roughness = clamp01(x);
         mPattern.drive = clamp(0.22f + 0.72f * x, 0.12f, 1.05f);
     }
-    if (parseSignedField(data, "brightness", value)) {
+    if (readOverride("brightness", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         mComposition.leadTone = clamp01(0.20f + 0.78f * x);
         mComposition.arpTone = clamp01(0.18f + 0.80f * x);
@@ -746,7 +651,7 @@ void MusicEngine::applySongDataOverrides(const std::string& data) {
         mComposition.sheenTone = clamp01(0.26f + 0.72f * x);
         mComposition.hatTone = clamp01(0.16f + 0.80f * x);
     }
-    if (parseSignedField(data, "diversity", value)) {
+    if (readOverride("diversity", value)) {
         const float x = static_cast<float>(clampInt32(value, 0, 100)) / 100.0f;
         if (x < 0.35f) {
             mComposition.useArp *= 0.45f; mComposition.useCounter *= 0.45f; mComposition.useStab *= 0.55f;
@@ -779,7 +684,7 @@ void MusicEngine::applySongDataOverrides(const std::string& data) {
 
     auto lane = [&](const char* key, float& target, float high) {
         int32_t v = 0;
-        if (parseSignedField(data, key, v)) target = laneFromValue(v, high);
+        if (readOverride(key, v)) target = laneFromValue(v, high);
     };
     lane("kick", mComposition.useKick, 1.10f);
     lane("snare", mComposition.useSnare, 1.10f);
@@ -809,27 +714,34 @@ void MusicEngine::applySongDataOverrides(const std::string& data) {
     lane("comet", mComposition.useComet, 0.84f);
     lane("rotor", mComposition.useRotor, 0.88f);
 
+    // Legacy recipes may still contain these controls. A music-only rendition
+    // never restores the retired background hiss, zap, or noise-effect lanes.
+    mComposition.useTexture = 0.0f;
+    mComposition.useFx = 0.0f;
+    mComposition.useGrain = 0.0f;
+
+    constrainSupportPalette();
     repairPattern();
+    rememberDrumReference();
     mCurrentPieceSamples.store(0, std::memory_order_release);
 }
 
 void MusicEngine::generateSeededSong(uint32_t seed) {
     const uint32_t requestedSeed = seed ? seed : 0x52423934u;
-    mActiveGenreMask = currentGenreMask();
-    mActiveGenreBlendMode = currentGenreBlendMode();
-    mActiveGenrePrimary = currentGenrePrimary();
-    if (mActiveGenreMask == 0) {
-        mActiveGenreBlendMode = 0;
-        mActiveGenrePrimary = 0;
-    } else if (mActiveGenrePrimary <= 0 ||
-               (mActiveGenreMask & (1 << (mActiveGenrePrimary - 1))) == 0) {
-        mActiveGenrePrimary = 0;
-        for (int32_t i = 0; i < kGenreModeCount; ++i) {
-            if ((mActiveGenreMask & (1 << i)) != 0) { mActiveGenrePrimary = i + 1; break; }
-        }
-    }
+    // Use reset's original timing draws for every entry path. A direct Next
+    // must not inherit the previous song's backbeat delay. This separate RNG
+    // leaves candidate selection and subsequent note improvisation unchanged.
+    Rng timingRng(requestedSeed ^ 0xa511e9b3u);
+    mPhraseSeed = timingRng.rangeInt(0, 4095);
+    mPocketLate = 0.0015f + timingRng.uni() * 0.0120f;
+    mGenreMask = mGenreBlendMode = mGenrePrimary = 0;
+    mActiveGenreMask = mActiveGenreBlendMode = mActiveGenrePrimary = 0;
+    mWorkingGenreMode = 0;
+    mCurrentGenreMode.store(0, std::memory_order_release);
     mCurrentSongSeed = requestedSeed;
     mCurrentSongEdited = false;
+    mSongOverridePresent.fill(false);
+    mSongOverrideValues.fill(0);
     mCurrentPieceSamples.store(0, std::memory_order_release);
     mDevelopmentRng = Rng(requestedSeed ^ 0x63d83595u);
 
@@ -873,7 +785,7 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
         generatePattern(initial);
         const uint32_t candidatePatternHash = patternHash();
         const uint32_t candidateMotifHash = motifSignatureHash();
-        float score = scoreCurrentComposition() + 0.010f * static_cast<float>(mRng.rangeInt(0, 100));
+        float score = scoreCurrentComposition() + 0.0016f * static_cast<float>(mRng.rangeInt(0, 100));
         if (forcedCandidateIndex < 0) {
             if (inRecentPatternCopy(candidatePatternHash)) score -= 1.10f;
             if (inRecentMotifCopy(candidateMotifHash)) score -= 1.95f;
@@ -910,7 +822,7 @@ void MusicEngine::generateSeededSong(uint32_t seed) {
     const uint32_t mh = motifSignatureHash();
     mRecentMotifHash[mRecentMotifHashWrite] = mh;
     mRecentMotifHashWrite = (mRecentMotifHashWrite + 1) % kRecentMotifHashes;
-    applyChannelRenditionToCurrent();
+    rememberDrumReference();
     updateCurrentSongData();
     recordCurrentSongDataToHistory();
 }
@@ -990,44 +902,50 @@ float MusicEngine::scoreCurrentComposition() const {
             mComposition.useBell + mComposition.usePulse + mComposition.useGrain + mComposition.useComet +
             mComposition.useRotor;
 
-    const float melodic = clamp(static_cast<float>(leadHits) / 8.0f, 0.0f, 1.6f) +
-            0.35f * clamp(static_cast<float>(answerHits) / 8.0f, 0.0f, 1.6f) +
-            0.28f * clamp(static_cast<float>(hookHits) / 7.0f, 0.0f, 1.5f) +
-            0.18f * clamp(static_cast<float>(verseHits) / 8.0f, 0.0f, 1.5f) +
-            0.24f * clamp(static_cast<float>(uniqueDegrees) / 5.0f, 0.0f, 1.5f) +
-            0.24f * clamp(static_cast<float>(span) / 7.0f, 0.0f, 1.5f);
-    const float foundation = 0.60f * clamp(static_cast<float>(bassHits) / 4.0f, 0.0f, 1.4f) +
-            0.20f * clamp(static_cast<float>(bassDevelopmentHits) / 7.0f, 0.0f, 1.4f) +
-            0.28f * clamp(static_cast<float>(chordHits) / 2.0f, 0.0f, 1.2f);
+    const StyleProfile target = profile(mPattern.style, false);
+    auto fit = [&](float value, float desired, float width) {
+        const float distance = (value - desired) / std::max(1.0f, width);
+        return 1.0f / (1.0f + distance * distance);
+    };
+    // A slow phrase earns its score by saying something with fewer notes.
+    // Neither note count nor a large interval span is an intrinsic quality bonus.
+    const float melodic = 1.10f * fit(static_cast<float>(leadHits), target.leadTarget, 1.7f) +
+            0.30f * fit(static_cast<float>(answerHits), target.leadTarget * 1.35f, 3.0f) +
+            0.34f * fit(static_cast<float>(hookHits), target.leadTarget, 2.3f) +
+            0.24f * fit(static_cast<float>(verseHits), target.leadTarget + 1.0f, 2.8f) +
+            0.30f * fit(static_cast<float>(uniqueDegrees), 3.0f + 3.0f * target.motion, 2.0f) +
+            0.28f * fit(static_cast<float>(span), 4.0f + 3.0f * target.motion, 2.8f);
+    const float foundation = 0.68f * fit(static_cast<float>(bassHits), target.bassTarget, 1.6f) +
+            0.22f * fit(static_cast<float>(bassDevelopmentHits), target.bassTarget * 1.5f, 3.0f) +
+            0.28f * fit(static_cast<float>(chordHits), 1.4f + target.chord, 1.4f);
     const float phraseLogic = 0.18f * clamp(static_cast<float>(repeatedCells) / 3.0f, 0.0f, 1.4f) +
             0.18f * clamp(static_cast<float>(directionChanges) / 3.0f, 0.0f, 1.4f) +
             0.14f * clamp(static_cast<float>(strongAnchors) / 3.0f, 0.0f, 1.3f) +
             0.12f * clamp(static_cast<float>(answerContrast) / 4.0f, 0.0f, 1.3f) +
             0.10f * clamp(static_cast<float>(rhythmicCells) / 5.0f, 0.0f, 1.2f) +
-            0.10f * clamp(static_cast<float>(secondaryHits) / 8.0f, 0.0f, 1.3f);
-    const float layerTarget = mPattern.space > 0.70f ? 7.0f : 11.0f;
-    const float layerPenalty = std::fabs(lanes - layerTarget) * 0.055f;
+            0.10f * fit(static_cast<float>(secondaryHits), target.leadTarget + 2.0f, 3.0f);
+    const float layerTarget = 3.8f + 0.75f * target.supportTarget + 1.10f * target.motion;
+    const float layerPenalty = std::max(0.0f, lanes - layerTarget) * 0.16f;
     const float grammar = 0.38f * mComposition.longMemory +
             0.34f * mComposition.callResponse +
             0.26f * mComposition.counterpoint +
             0.22f * mComposition.melodicGravity;
 
     float score = melodic + foundation + grammar + phraseLogic - layerPenalty;
-    if (leadHits < 4) score -= 1.20f;
+    if (leadHits < 3) score -= 1.20f;
     if (hookHits < 3) score -= 0.55f;
     if (bassHits < 2) score -= 0.65f;
     if (span <= 1 && mPattern.melody > 0.45f) score -= 0.55f;
     if (uniqueDegrees < 3 && mPattern.melody > 0.45f) score -= 0.42f;
     if (directionalMoves > 0 && directionChanges == 0 && mPattern.melody > 0.50f) score -= 0.30f;
     if (largeLeaps > 3) score -= 0.26f;
-    if (lanes < 5.0f) score -= 0.80f;
-    if (lanes > 18.0f && mPattern.space < 0.40f) score -= 0.35f;
+    if (mComposition.useLead < 0.55f || mComposition.useBass < 0.55f) score -= 0.80f;
     if (mComposition.hookStability < 0.76f) score -= 0.18f;
     if (mComposition.verseFreedom < 0.30f) score -= 0.12f;
     return score;
 }
 
-MusicEngine::StyleProfile MusicEngine::profile(StyleType style, bool includeChannel) const {
+MusicEngine::StyleProfile MusicEngine::profile(StyleType style, bool) const {
     StyleProfile p;
     p.type = style;
 
@@ -1312,263 +1230,88 @@ MusicEngine::StyleProfile MusicEngine::profile(StyleType style, bool includeChan
             break;
     }
 
-    if (includeChannel) applyChannelBias(p);
+    applyCompositionIntent(p);
     return p;
 }
 
-int32_t MusicEngine::chooseGenreModeFromMask(int32_t genreMask) {
-    genreMask &= ((1 << kGenreModeCount) - 1);
-    if (genreMask == 0) return 0;
-    int32_t selected[kGenreModeCount] = {};
-    int32_t count = 0;
-    for (int32_t i = 0; i < kGenreModeCount; ++i) {
-        if ((genreMask & (1 << i)) != 0) selected[count++] = i + 1;
-    }
-    return count > 0 ? selected[mRng.rangeInt(0, count - 1)] : 0;
-}
+void MusicEngine::applyCompositionIntent(StyleProfile& p) const {
+    // All 48 candidates compete within the SAME listening intention. A busy
+    // candidate cannot win a quiet seed merely by having more notes or layers.
+    // The macro coordinates are seed-only; candidates explore musical solutions
+    // around them. The complete intent range is available to every new song.
+    Rng design(mixSeed(mCurrentSongSeed ^ 0x2905d17au));
+    Rng detail(mixSeed(mPattern.designSeed ^ 0x51ed270bu));
+    p.intent = design.rangeInt(0, 3);
+    const float pace = design.uni();
+    const float movement = design.uni();
+    const float sync = design.uni();
+    const float warmth = design.uni();
+    const float harmony = design.uni();
+    const float bassWeight = design.uni();
+    const float legato = design.uni();
+    const float ensemble = design.uni();
 
-MusicEngine::StyleProfile MusicEngine::channelProfile(int32_t mode, const StyleProfile& base) const {
-    StyleProfile c = base;
-    auto set = [&](float lo, float hi, float swLo, float swHi,
-                   float den, float dr, float ba, float mel, float ch,
-                   float tex, float ro, float sp, float sy, float dra, float bright) {
-        c.bpmMin = lo; c.bpmMax = hi; c.swingMin = swLo; c.swingMax = swHi;
-        c.density = den; c.drum = dr; c.bass = ba; c.melody = mel; c.chord = ch;
-        c.texture = tex; c.rough = ro; c.space = sp; c.sync = sy;
-        c.drama = dra; c.brightness = bright;
-        c.hatRoll = clamp01(0.08f + 0.50f * sy);
-        c.melodyRun = clamp01(0.12f + 0.72f * mel);
-        c.transitionSilence = clamp01(0.12f + 0.42f * sp);
-        c.palette = clamp01(0.40f + 0.42f * (mel + tex) * 0.5f);
-        c.fourOnFloor = c.halfTime = c.breakbeat = c.trapHats = c.ambient = false;
-    };
+    static constexpr float tempoLo[] = {56.0f, 84.0f, 112.0f, 144.0f};
+    static constexpr float tempoHi[] = {84.0f, 112.0f, 144.0f, 180.0f};
+    static constexpr float motionLo[] = {0.16f, 0.34f, 0.53f, 0.74f};
+    static constexpr float motionSpan[] = {0.19f, 0.20f, 0.20f, 0.22f};
+    const float center = tempoLo[p.intent] + 2.0f +
+        pace * (tempoHi[p.intent] - tempoLo[p.intent] - 4.0f);
+    p.bpmMin = center - 2.0f;
+    p.bpmMax = center + 2.0f;
+    p.motion = motionLo[p.intent] + movement * motionSpan[p.intent];
+    p.density = clamp(p.motion + 0.08f * (p.density - 0.50f) +
+                      0.022f * detail.bipolar(), 0.12f, 0.98f);
+    p.drum = clamp(0.25f + 0.62f * p.motion + 0.10f * p.drum +
+                   0.055f * detail.bipolar(), 0.28f, 0.98f);
+    p.bass = clamp(0.47f + 0.37f * bassWeight + 0.08f * p.bass, 0.45f, 0.96f);
+    p.melody = clamp(0.62f + 0.20f * detail.uni() + 0.12f * p.melody, 0.60f, 0.96f);
+    p.chord = clamp(0.32f + 0.48f * harmony + 0.12f * p.chord, 0.30f, 0.96f);
+    p.sync = clamp(0.12f + 0.69f * sync + 0.10f * p.sync, 0.08f, 0.95f);
+    p.space = clamp(0.91f - 0.63f * p.motion + 0.065f * detail.bipolar(), 0.16f, 0.88f);
+    p.rough = clamp(0.05f + 0.55f * p.motion + 0.18f * p.rough +
+                    0.085f * detail.bipolar(), 0.02f, 0.86f);
+    p.brightness = clamp(0.14f + 0.58f * warmth + 0.14f * p.brightness +
+                         0.08f * detail.bipolar(), 0.12f, 0.96f);
+    // Texture now means harmonic body only. There is no noise/atmosphere lane.
+    p.texture = clamp(0.16f + 0.45f * harmony + 0.12f * p.texture, 0.12f, 0.80f);
+    p.melodyRun = clamp(0.04f + 0.71f * p.motion + 0.09f * detail.uni(), 0.06f, 0.86f);
+    p.hatRoll = clamp(0.36f * p.motion * p.motion + 0.045f * sync, 0.0f, 0.42f);
+    p.drama = clamp(0.20f + 0.50f * p.motion + 0.12f * detail.uni(), 0.20f, 0.86f);
+    p.palette = clamp(0.48f + 0.30f * ensemble + 0.12f * p.palette, 0.42f, 0.94f);
+    p.transitionSilence = 0.18f + 0.42f * p.space;
+    p.swingMin = clamp(0.015f + 0.10f * sync * (1.12f - 0.70f * p.motion), 0.0f, 0.14f);
+    p.swingMax = p.swingMin + 0.025f + 0.028f * detail.uni();
+    p.noteLength = clamp(0.92f - 0.36f * p.motion + 0.20f * legato, 0.48f, 1.06f);
+    p.leadTarget = 3.5f + 8.1f * p.motion;
+    p.bassTarget = 2.0f + 6.8f * p.motion + 0.55f * bassWeight;
+    p.supportTarget = 1.0f + 2.7f * p.motion + 1.4f * ensemble;
 
-    switch (std::max(0, std::min(kGenreModeCount, mode))) {
-        case 1: set(80,124,.02f,.12f,.58f,.70f,.62f,.44f,.28f,.22f,.44f,.34f,.60f,.44f,.42f); c.fourOnFloor=true; break;
-        case 2: set(62,106,.03f,.14f,.38f,.38f,.52f,.72f,.70f,.62f,.12f,.72f,.34f,.42f,.50f); c.ambient=true; break;
-        case 3: set(120,156,.00f,.08f,.60f,.66f,.78f,.55f,.26f,.32f,.42f,.44f,.58f,.58f,.62f); c.halfTime=true; c.trapHats=true; break;
-        case 4: set(88,150,.00f,.10f,.70f,.80f,.66f,.44f,.24f,.42f,.78f,.30f,.84f,.70f,.46f); c.breakbeat=true; break;
-        case 5: set(84,136,.00f,.08f,.56f,.58f,.62f,.78f,.68f,.38f,.16f,.44f,.44f,.54f,.76f); c.fourOnFloor=true; break;
-        case 6: set(96,148,.00f,.08f,.58f,.58f,.56f,.86f,.62f,.38f,.16f,.42f,.48f,.60f,.86f); break;
-        case 7: set(90,168,.00f,.08f,.76f,.88f,.68f,.44f,.20f,.46f,.86f,.28f,.90f,.76f,.52f); c.breakbeat=true; break;
-        case 8: set(76,128,.01f,.10f,.42f,.48f,.98f,.34f,.28f,.48f,.46f,.62f,.44f,.74f,.28f); c.halfTime=true; break;
-        case 9: set(104,146,.00f,.05f,.58f,.64f,.48f,.42f,.38f,.34f,.36f,.44f,.42f,.42f,.72f); c.fourOnFloor=true; break;
-        case 10:set(58,98,.02f,.13f,.34f,.30f,.44f,.84f,.78f,.68f,.10f,.78f,.30f,.44f,.66f); c.ambient=true; break;
-        case 11:set(88,142,.00f,.09f,.54f,.60f,.96f,.36f,.32f,.50f,.42f,.62f,.48f,.70f,.32f); c.halfTime=true; break;
-        case 12:set(104,148,.00f,.05f,.60f,.66f,.54f,.54f,.42f,.30f,.22f,.38f,.46f,.50f,.86f); c.fourOnFloor=true; break;
-        default: break;
-    }
-    return c;
-}
-
-void MusicEngine::mixProfile(StyleProfile& target, const StyleProfile& source, float amount) const {
-    amount = clamp01(amount);
-    const float keep = 1.0f - amount;
-    auto mix = [&](float& a, float b) { a = a * keep + b * amount; };
-    mix(target.bpmMin, source.bpmMin); mix(target.bpmMax, source.bpmMax);
-    mix(target.swingMin, source.swingMin); mix(target.swingMax, source.swingMax);
-    mix(target.density, source.density); mix(target.drum, source.drum);
-    mix(target.bass, source.bass); mix(target.melody, source.melody);
-    mix(target.chord, source.chord); mix(target.texture, source.texture);
-    mix(target.rough, source.rough); mix(target.space, source.space);
-    mix(target.sync, source.sync); mix(target.hatRoll, source.hatRoll);
-    mix(target.melodyRun, source.melodyRun); mix(target.transitionSilence, source.transitionSilence);
-    mix(target.drama, source.drama); mix(target.palette, source.palette);
-    mix(target.brightness, source.brightness);
-
-    auto blendFlag = [&](bool base, bool incoming, uint32_t salt) {
-        if (base == incoming) return base;
-        // Profile construction happens before the candidate Composition exists.
-        // Do not consult mComposition here: that would let the previous candidate
-        // or previously playing sound contaminate the next candidate. The current
-        // candidate RNG state is already a pure function of seed and candidate.
-        uint32_t h = mCurrentSongSeed ^ mRng.state ^ salt;
-        h ^= h >> 16u; h *= 0x7feb352du; h ^= h >> 15u;
-        const float u = static_cast<float>(h & 0xffffu) / 65535.0f;
-        return u < amount ? incoming : base;
-    };
-    target.fourOnFloor = blendFlag(target.fourOnFloor, source.fourOnFloor, 0x11u);
-    target.halfTime = blendFlag(target.halfTime, source.halfTime, 0x23u);
-    target.breakbeat = blendFlag(target.breakbeat, source.breakbeat, 0x47u);
-    target.trapHats = blendFlag(target.trapHats, source.trapHats, 0x89u);
-    target.ambient = blendFlag(target.ambient, source.ambient, 0x101u);
-}
-
-void MusicEngine::applyChannelBias(StyleProfile& p) const {
-    const int32_t mask = mActiveGenreMask & ((1 << kGenreModeCount) - 1);
-    if (mask == 0) return; // No Channel: unrestricted engine.
-
-    int32_t primary = std::max(1, std::min(kGenreModeCount, mActiveGenrePrimary));
-    if ((mask & (1 << (primary - 1))) == 0) {
-        primary = 0;
-        for (int32_t i = 0; i < kGenreModeCount; ++i) {
-            if ((mask & (1 << i)) != 0) { primary = i + 1; break; }
-        }
-    }
-    if (primary <= 0) return;
-
-    StyleProfile channelTarget = channelProfile(primary, p);
-    const bool hybrid = mActiveGenreBlendMode == 1 && (mask & (mask - 1)) != 0;
-    if (hybrid) {
-        StyleProfile secondaryAverage = p;
-        bool haveSecondary = false;
-        int32_t count = 0;
-        for (int32_t i = 0; i < kGenreModeCount; ++i) {
-            const int32_t mode = i + 1;
-            if (mode == primary || (mask & (1 << i)) == 0) continue;
-            const StyleProfile c = channelProfile(mode, p);
-            if (!haveSecondary) {
-                secondaryAverage = c;
-                haveSecondary = true;
-                count = 1;
-            } else {
-                ++count;
-                mixProfile(secondaryAverage, c, 1.0f / static_cast<float>(count));
-            }
-        }
-        if (haveSecondary) {
-            // Primary identity is 70 percent of the channel half; secondaries color it.
-            mixProfile(channelTarget, secondaryAverage, 0.30f);
-        }
-    }
-
-    // Named channels are always half unrestricted generator and half channel character.
-    mixProfile(p, channelTarget, 0.50f);
-}
-
-
-void MusicEngine::applyChannelRenditionToCurrent() {
-    const StyleProfile base = profile(mPattern.style, false);
-    const StyleProfile rendered = profile(mPattern.style, true);
-
-    auto safeRatio = [](float target, float source, float lo, float hi) {
-        if (source < 0.001f) return 1.0f;
-        const float r = target / source;
-        return r < lo ? lo : (r > hi ? hi : r);
-    };
-    auto shift = [&](float value, float from, float to, float lo, float hi) {
-        return clamp(value + (to - from), lo, hi);
-    };
-
-    // Preserve the seed's relative tempo position while remapping it into the
-    // selected Channel's range. This changes character without changing form.
-    const float baseRange = std::max(1.0f, base.bpmMax - base.bpmMin);
-    const float tempoPosition = clamp01((mBpmTarget - base.bpmMin) / baseRange);
-    mBpmTarget = rendered.bpmMin + tempoPosition * std::max(1.0f, rendered.bpmMax - rendered.bpmMin);
-    mBpm = mBpmTarget;
-
-    mPattern.swing = shift(mPattern.swing,
-                           0.5f * (base.swingMin + base.swingMax),
-                           0.5f * (rendered.swingMin + rendered.swingMax), 0.0f, 0.24f);
-    mPattern.density = shift(mPattern.density, base.density, rendered.density, 0.08f, 0.98f);
-    mPattern.energy = shift(mPattern.energy, base.density, rendered.density, 0.10f, 0.98f);
-    mPattern.syncopation = shift(mPattern.syncopation, base.sync, rendered.sync, 0.03f, 0.98f);
-    mPattern.texture = shift(mPattern.texture, base.texture, rendered.texture, 0.0f, 0.98f);
-    mPattern.roughness = shift(mPattern.roughness, base.rough, rendered.rough, 0.0f, 0.98f);
-    mPattern.space = shift(mPattern.space, base.space, rendered.space, 0.02f, 0.96f);
-    mPattern.melody = shift(mPattern.melody, base.melody, rendered.melody, 0.12f, 0.99f);
-    mPattern.delay = clamp(mPattern.delay + 0.24f * (rendered.space - base.space) +
-                           0.10f * (rendered.texture - base.texture), 0.01f, 0.48f);
-    mPattern.drive = clamp(mPattern.drive + 0.50f * (rendered.rough - base.rough), 0.12f, 0.98f);
-    mPattern.profileTexture = rendered.texture;
-    mPattern.profileAmbient = rendered.ambient;
-    mPattern.profileBreakbeat = rendered.breakbeat;
-
-    const float drumRatio = safeRatio(rendered.drum, base.drum, 0.52f, 1.60f);
-    const float bassRatio = safeRatio(rendered.bass, base.bass, 0.55f, 1.55f);
-    const float melodyRatio = safeRatio(rendered.melody, base.melody, 0.52f, 1.62f);
-    const float chordRatio = safeRatio(rendered.chord, base.chord, 0.50f, 1.65f);
-    const float textureRatio = safeRatio(rendered.texture + 0.12f, base.texture + 0.12f, 0.52f, 1.62f);
-
-    auto scaleArray = [&](auto& values, float ratio, float hi) {
-        const float softened = 0.38f + 0.62f * ratio;
-        for (float& v : values) v = clamp(v * softened, 0.0f, hi);
-    };
-    scaleArray(mPattern.kick, drumRatio, 0.98f);
-    scaleArray(mPattern.snare, drumRatio, 0.98f);
-    scaleArray(mPattern.hat, safeRatio(rendered.density, base.density, 0.55f, 1.55f), 0.98f);
-    scaleArray(mPattern.openHat, safeRatio(rendered.density + rendered.hatRoll, base.density + base.hatRoll, 0.52f, 1.60f), 0.72f);
-    scaleArray(mPattern.perc, safeRatio(rendered.sync + rendered.drum, base.sync + base.drum, 0.52f, 1.60f), 0.90f);
-    scaleArray(mPattern.bass, bassRatio, 0.98f);
-    scaleArray(mPattern.chord, chordRatio, 0.78f);
-    scaleArray(mPattern.lead, melodyRatio, 0.90f);
-
-    auto scaleLane = [&](float& lane, float ratio, float hi) {
-        lane = clamp(lane * (0.42f + 0.58f * ratio), 0.0f, hi);
-    };
-    scaleLane(mComposition.useKick, drumRatio, 1.16f);
-    scaleLane(mComposition.useSnare, drumRatio, 1.16f);
-    scaleLane(mComposition.useHat, safeRatio(rendered.density, base.density, 0.55f, 1.55f), 1.16f);
-    scaleLane(mComposition.useOpenHat, safeRatio(rendered.hatRoll + 0.08f, base.hatRoll + 0.08f, 0.52f, 1.60f), 1.04f);
-    scaleLane(mComposition.usePerc, safeRatio(rendered.sync + rendered.drum, base.sync + base.drum, 0.52f, 1.60f), 1.10f);
-    scaleLane(mComposition.useBass, bassRatio, 1.18f);
-    scaleLane(mComposition.useSub, bassRatio, 1.08f);
-    scaleLane(mComposition.useChord, chordRatio, 1.12f);
-    scaleLane(mComposition.useLead, melodyRatio, 1.18f);
-    scaleLane(mComposition.useArp, melodyRatio, 1.08f);
-    scaleLane(mComposition.useCounter, melodyRatio, 1.02f);
-    scaleLane(mComposition.useTexture, textureRatio, 1.08f);
-    scaleLane(mComposition.useDrone, textureRatio, 0.96f);
-    scaleLane(mComposition.useBloom, chordRatio, 1.00f);
-    scaleLane(mComposition.useStab, chordRatio, 1.00f);
-    scaleLane(mComposition.useSpark, safeRatio(rendered.brightness + 0.15f, base.brightness + 0.15f, 0.55f, 1.55f), 1.00f);
-    scaleLane(mComposition.useSheen, safeRatio(rendered.brightness + 0.15f, base.brightness + 0.15f, 0.55f, 1.55f), 0.98f);
-    scaleLane(mComposition.useGrain, safeRatio(rendered.rough + 0.15f, base.rough + 0.15f, 0.55f, 1.55f), 0.96f);
-
-    const float brightDelta = rendered.brightness - base.brightness;
-    const float roughDelta = rendered.rough - base.rough;
-    const float spaceDelta = rendered.space - base.space;
-    auto toneShift = [&](float& tone, float amount) { tone = clamp01(tone + amount); };
-    toneShift(mComposition.leadTone, 0.44f * brightDelta - 0.08f * roughDelta);
-    toneShift(mComposition.arpTone, 0.46f * brightDelta);
-    toneShift(mComposition.sparkTone, 0.56f * brightDelta);
-    toneShift(mComposition.sheenTone, 0.58f * brightDelta);
-    toneShift(mComposition.hatTone, 0.38f * brightDelta + 0.10f * roughDelta);
-    toneShift(mComposition.bassTone, -0.18f * brightDelta + 0.24f * roughDelta);
-    toneShift(mComposition.padTone, 0.28f * brightDelta - 0.12f * roughDelta);
-    toneShift(mComposition.textureTone, 0.24f * brightDelta + 0.28f * roughDelta);
-    mComposition.padAttack = clamp(mComposition.padAttack + 0.20f * spaceDelta, 0.12f, 0.94f);
-    mComposition.padRelease = clamp(mComposition.padRelease + 0.24f * spaceDelta, 0.42f, 0.98f);
-    mComposition.leadRelease = clamp(mComposition.leadRelease + 0.14f * spaceDelta, 0.38f, 0.96f);
-
-    // Channel-specific model offsets change electronic coloration, not notes.
-    if (mActiveGenreMask != 0) {
-        uint32_t h = mCurrentSongSeed ^ static_cast<uint32_t>(mCurrentCandidateIndex + 1) * 0x9e3779b9u;
-        h ^= static_cast<uint32_t>(mActiveGenreMask) * 0x85ebca6bu;
-        h ^= static_cast<uint32_t>(mActiveGenrePrimary + 1) * 0xc2b2ae35u;
-        h ^= h >> 16u; h *= 0x7feb352du; h ^= h >> 15u; h *= 0x846ca68bu; h ^= h >> 16u;
-        mComposition.bassModel = (mComposition.bassModel + static_cast<int32_t>(h % 12u)) % 12;
-        mComposition.leadModel = (mComposition.leadModel + static_cast<int32_t>((h >> 5u) % 16u)) % 16;
-        mComposition.padModel = (mComposition.padModel + static_cast<int32_t>((h >> 11u) % 10u)) % 10;
-        mComposition.drumKit = (mComposition.drumKit + static_cast<int32_t>((h >> 17u) % 8u)) % 8;
-    }
-
-    // The Channel may affect the performance profile, but the composition core
-    // (root, scale, harmony, motifs, bass grammar, form, and memory) is untouched.
-    repairPattern();
+    // These are musical relationships selected per seed, not genre presets.
+    // Sparse slow pieces still have a pulse; intense pieces retain space for
+    // their motif instead of requiring constant sixteenth-note hats.
+    p.ambient = p.intent == 0 && design.chance(0.24f);
+    p.halfTime = p.intent == 0 ? design.chance(0.48f) :
+        (p.intent == 3 ? design.chance(0.14f) : design.chance(0.24f));
+    p.fourOnFloor = !p.ambient && !p.halfTime &&
+        design.chance(0.12f + 0.30f * p.motion);
+    p.breakbeat = !p.ambient && design.chance(0.12f + 0.40f * sync * p.motion);
+    p.trapHats = p.intent >= 2 && design.chance(0.18f + 0.22f * sync);
 }
 
 MusicEngine::StyleType MusicEngine::randomStyle() {
-    const int32_t mask = mActiveGenreMask & ((1 << kGenreModeCount) - 1);
-    if (mask == 0) {
-        mWorkingGenreMode = 0;
-    } else if (mActiveGenreBlendMode == 1 && (mask & (mask - 1)) != 0) {
-        int32_t primary = std::max(1, std::min(kGenreModeCount, mActiveGenrePrimary));
-        if ((mask & (1 << (primary - 1))) == 0) primary = chooseGenreModeFromMask(mask);
-        mWorkingGenreMode = primary;
-    } else {
-        mWorkingGenreMode = chooseGenreModeFromMask(mask);
-    }
+    mWorkingGenreMode = 0;
     return static_cast<StyleType>(mRng.rangeInt(0, static_cast<int32_t>(StyleType::Count) - 1));
 }
 
 void MusicEngine::generatePattern(StyleType style) {
+    const uint32_t designSeed = mixSeed(mCurrentSongSeed ^ mRng.state ^ 0x29c0de51u);
     mPattern = Pattern{};
+    mPattern.designSeed = designSeed;
     mPattern.style = style;
-    // The seed/candidate creates a channel-independent composition core.
-    // A Channel is applied afterward as a rendition, so changing Channels can
-    // preserve the seed, candidate, motifs, harmony, and rhythmic identity.
+    // The seed and candidate create the complete composition directly.
     const StyleProfile p = profile(style, false);
+    mPattern.intent = p.intent;
     mPattern.profileTexture = p.texture;
     mPattern.profileAmbient = p.ambient;
     mPattern.profileBreakbeat = p.breakbeat;
@@ -1578,497 +1321,118 @@ void MusicEngine::generatePattern(StyleType style) {
     if (style == StyleType::GlassNoir || style == StyleType::SubOrbit || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::StrangeHarbor || style == StyleType::ObsidianBloom || style == StyleType::NightLatch || style == StyleType::StaticCathedral) mPattern.rootMidi -= 2;
     if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::IonGarden || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun || style == StyleType::VoltageMoth || style == StyleType::QuartzTide || style == StyleType::CopperChord || style == StyleType::MercuryThread) mPattern.rootMidi += 2;
 
-    if (style == StyleType::VelvetDrift || style == StyleType::SoftVoltage || style == StyleType::PulseGarden || style == StyleType::IonGarden || style == StyleType::StrangeHarbor || style == StyleType::QuartzTide || style == StyleType::CopperChord) mPattern.scaleMode = mRng.chance(0.55f) ? 1 : 4;
-    else if (style == StyleType::GlassNoir || style == StyleType::DeepMagnet || style == StyleType::MarbleBass || style == StyleType::BitFog || style == StyleType::CarbonRain || style == StyleType::ObsidianBloom || style == StyleType::NightLatch || style == StyleType::StaticCathedral) mPattern.scaleMode = mRng.chance(0.55f) ? 2 : 0;
-    else if (style == StyleType::PrismCruise || style == StyleType::ChromeBloom || style == StyleType::SolarFold || style == StyleType::WarmCurrent || style == StyleType::EchoCrown || style == StyleType::MagentaWell || style == StyleType::LatticeSun || style == StyleType::VoltageMoth || style == StyleType::MercuryThread || style == StyleType::GhostMeter) mPattern.scaleMode = mRng.chance(0.50f) ? 0 : 3;
-    else mPattern.scaleMode = mRng.rangeInt(0, 4);
+    Rng tonality(mixSeed(mCurrentSongSeed ^ 0x6d61726bu));
+    mPattern.scaleMode = tonality.rangeInt(0, 8);
 
     mPattern.swing = p.swingMin + mRng.uni() * (p.swingMax - p.swingMin);
     mPattern.humanize = clamp(0.12f + mRng.uni() * 0.62f + (p.swingMax * 1.1f), 0.06f, 0.95f);
-    mPattern.energy = clamp(0.32f + p.density * 0.44f + mRng.bipolar() * 0.16f, 0.12f, 0.96f);
-    mPattern.density = clamp(p.density + mRng.bipolar() * 0.12f, 0.10f, 0.96f);
+    mPattern.energy = clamp(0.15f + p.motion * 0.78f + mRng.bipolar() * 0.045f, 0.12f, 0.96f);
+    mPattern.density = clamp(p.density + mRng.bipolar() * 0.045f, 0.10f, 0.98f);
     mPattern.syncopation = clamp(p.sync + mRng.bipolar() * 0.13f, 0.05f, 0.96f);
     mPattern.texture = clamp(p.texture + mRng.bipolar() * 0.11f, 0.00f, 0.95f);
     mPattern.roughness = clamp(p.rough + mRng.bipolar() * 0.12f, 0.00f, 0.98f);
     mPattern.space = clamp(p.space + mRng.bipolar() * 0.13f, 0.02f, 0.92f);
     mPattern.melody = clamp(p.melody + mRng.bipolar() * 0.14f, 0.15f, 0.98f);
-    mPattern.delay = clamp(0.06f + p.space * 0.22f + p.texture * 0.12f + mRng.bipolar() * 0.06f, 0.02f, 0.42f);
     mPattern.drive = clamp(0.36f + p.rough * 0.48f + mRng.bipolar() * 0.08f, 0.18f, 0.92f);
 
     mBpmTarget = p.bpmMin + mRng.uni() * (p.bpmMax - p.bpmMin);
     if (mBpm <= 10.0f) mBpm = mBpmTarget;
     else mBpm = 0.45f * mBpm + 0.55f * mBpmTarget;
 
-    static constexpr uint16_t kickDNA[24] = {
-        0x1101,0x1049,0x1481,0x9009,0x1189,0x8109,0x5421,0x1249,
-        0x9081,0x1141,0x8049,0x5085,0x2209,0x102d,0x2409,0x8901,
-        0x1501,0x4481,0x0189,0xa101,0x2105,0x1881,0x4029,0x9301
-    };
-    static constexpr uint16_t snareDNA[20] = {
-        0x1010,0x1100,0x0110,0x9010,0x1090,0x1018,0x1810,0x0018,
-        0x1091,0x1110,0x0410,0x1004,0x2010,0x1080,0x0181,0x1040,
-        0x5010,0x0118,0x1910,0x1050
-    };
-    static constexpr uint16_t hatDNA[18] = {
-        0x5555,0xffff,0xaaaa,0x3333,0xcccc,0x5d75,0xd575,0x7777,
-        0xeeee,0xbbbb,0x6db6,0xb6db,0x0f0f,0xf0f0,0x9696,0x6996,
-        0xdddd,0x7bde
-    };
-    static constexpr uint16_t percDNA[24] = {
-        0x0208,0x2080,0x4042,0x8400,0x0220,0x8840,0x2004,0x4280,
-        0x0802,0x2288,0x4410,0x8021,0x1204,0x0482,0x2810,0x8120,
-        0x0448,0x4804,0x1028,0x8044,0x2402,0x4208,0x9004,0x0490
-    };
-    const int32_t kickVariant = mRng.rangeInt(0, 23);
-    const int32_t snareVariant = mRng.rangeInt(0, 19);
-    const int32_t hatVariant = mRng.rangeInt(0, 17);
-    const int32_t percVariant = mRng.rangeInt(0, 23);
-    const float dnaStrength = clamp(0.20f + 0.42f * p.palette + 0.16f * mRng.uni(), 0.16f, 0.76f);
-
-    for (int32_t i = 0; i < kPatternSteps; ++i) {
-        const int32_t p16 = i & 15;
-        const bool down = p16 == 0;
-        const bool back = p16 == 4 || p16 == 12;
-        const bool halfBack = p16 == 8;
-        const bool eighth = (p16 & 1) == 0;
-        const bool offEighth = p16 == 2 || p16 == 6 || p16 == 10 || p16 == 14;
-        const bool barTwo = (i & 31) >= 16;
-        const float lift = barTwo ? 0.045f : 0.0f;
-
-        float kick = 0.004f;
-        float snare = 0.004f;
-        float hat = eighth ? 0.18f : 0.045f;
-        float openHat = 0.004f;
-        float perc = 0.010f;
-        float bass = 0.020f;
-        float chord = 0.004f;
-        float lead = 0.006f;
-        float accent = down ? 0.95f : (back || halfBack ? 0.74f : (eighth ? 0.42f : 0.22f));
-
-        switch (style) {
-            case StyleType::ConcretePulse:
-                if (down) kick = 0.94f;
-                if (p16 == 7 || p16 == 10 || p16 == 14 || (barTwo && p16 == 3)) kick = 0.20f + lift;
-                if (p16 == 8) kick = 0.42f + lift;
-                if (back) snare = 0.93f;
-                if (p16 == 11 || p16 == 15) snare = 0.12f;
-                hat = eighth ? 0.52f : 0.20f;
-                if (p16 == 6 || p16 == 13) perc = 0.11f;
-                if (p16 == 2 || p16 == 10) chord = 0.035f;
-                if (p16 == 3 || p16 == 7 || p16 == 15) lead = 0.055f;
-                bass = (kick > 0.30f ? 0.34f : 0.050f) + (p16 == 6 || p16 == 13 ? 0.14f : 0.0f);
-                break;
-
-            case StyleType::GlassNoir:
-                if (p16 == 0 || p16 == 3 || p16 == 11 || (barTwo && p16 == 14)) kick = 0.60f;
-                if (p16 == 8) snare = 0.92f;
-                if (p16 == 7 || p16 == 15) snare = 0.10f;
-                hat = 0.42f + (eighth ? 0.14f : 0.08f);
-                if (p16 == 2 || p16 == 6 || p16 == 10 || p16 == 14) hat += 0.18f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.10f : 0.004f;
-                bass = (kick > 0.35f || p16 == 1 || p16 == 12) ? 0.48f : 0.040f;
-                chord = (p16 == 0 || p16 == 12) ? 0.022f : 0.002f;
-                lead = (p16 == 5 || p16 == 10 || p16 == 15) ? 0.040f : 0.006f;
-                perc = (p16 == 4 || p16 == 13) ? 0.07f : 0.012f;
-                accent = halfBack ? 0.88f : accent;
-                break;
-
-            case StyleType::ShardRush:
-                if (p16 == 0 || p16 == 10 || (barTwo && p16 == 3)) kick = 0.86f;
-                if (p16 == 4 || p16 == 12) snare = 0.94f;
-                if (p16 == 7 || p16 == 15) snare = 0.16f;
-                hat = 0.54f + (eighth ? 0.12f : 0.20f);
-                openHat = offEighth ? 0.07f : 0.004f;
-                perc = (p16 == 1 || p16 == 6 || p16 == 9 || p16 == 14) ? 0.18f : 0.030f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 10 || p16 == 13) ? 0.38f : 0.050f;
-                lead = (p16 == 3 || p16 == 11) ? 0.030f : 0.004f;
-                chord = 0.006f;
-                break;
-
-            case StyleType::NeonLatch:
-                if (p16 == 0 || p16 == 6 || p16 == 10) kick = 0.74f;
-                if (p16 == 3 || p16 == 13) kick = 0.24f;
-                if (back) snare = 0.88f;
-                if (p16 == 2 || p16 == 15) snare = 0.10f;
-                hat = eighth ? 0.56f : 0.24f;
-                openHat = offEighth ? 0.06f : 0.004f;
-                perc = (p16 == 1 || p16 == 5 || p16 == 9 || p16 == 14) ? 0.16f : 0.026f;
-                bass = (p16 == 0 || p16 == 2 || p16 == 6 || p16 == 9 || p16 == 13) ? 0.42f : 0.050f;
-                chord = (p16 == 2 || p16 == 6 || p16 == 10 || p16 == 14) ? 0.034f : 0.004f;
-                lead = (p16 == 1 || p16 == 5 || p16 == 7 || p16 == 13 || p16 == 15) ? 0.090f : 0.012f;
-                break;
-
-            case StyleType::TinyGrid:
-                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.86f;
-                if (p16 == 4 || p16 == 12) snare = 0.30f;
-                hat = offEighth ? 0.72f : (eighth ? 0.16f : 0.07f);
-                openHat = offEighth ? 0.18f : 0.002f;
-                perc = (p16 == 3 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.10f : 0.018f;
-                bass = (p16 == 0 || p16 == 7 || p16 == 10 || p16 == 15) ? 0.24f : 0.034f;
-                chord = (p16 == 2 || p16 == 10) ? 0.040f : 0.006f;
-                lead = (p16 == 5 || p16 == 13) ? 0.026f : 0.003f;
-                break;
-
-            case StyleType::PrismCruise:
-                if (p16 == 0 || p16 == 8) kick = 0.82f;
-                if (back) snare = 0.86f;
-                hat = eighth ? 0.32f : 0.08f;
-                openHat = offEighth ? 0.06f : 0.003f;
-                bass = (p16 == 0 || p16 == 2 || p16 == 4 || p16 == 6 || p16 == 8 || p16 == 10 || p16 == 12 || p16 == 14) ? 0.34f : 0.018f;
-                chord = (p16 == 0 || p16 == 8) ? 0.080f : ((p16 == 4 || p16 == 12) ? 0.028f : 0.004f);
-                lead = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.115f : 0.010f;
-                perc = (p16 == 15) ? 0.070f : 0.010f;
-                break;
-
-            case StyleType::BrokenMagnet:
-                if (p16 == 0 || p16 == 5 || p16 == 11) kick = 0.72f;
-                if (p16 == 4 || p16 == 12) snare = 0.86f;
-                if (p16 == 2 || p16 == 9 || p16 == 15) snare = 0.14f;
-                hat = eighth ? 0.42f : 0.26f;
-                openHat = (p16 == 7 || p16 == 14) ? 0.06f : 0.003f;
-                perc = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 10 || p16 == 13 || p16 == 15) ? 0.24f : 0.030f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 11 || p16 == 15) ? 0.42f : 0.040f;
-                chord = (p16 == 6 || p16 == 14) ? 0.026f : 0.003f;
-                lead = (p16 == 2 || p16 == 7 || p16 == 10 || p16 == 13) ? 0.065f : 0.006f;
-                break;
-
-            case StyleType::VelvetDrift:
-                kick = down && !barTwo ? 0.30f : ((p16 == 8 && mRng.chance(0.35f)) ? 0.16f : 0.002f);
-                snare = (p16 == 12 && mRng.chance(0.45f)) ? 0.18f : 0.002f;
-                hat = eighth ? 0.08f : 0.018f;
-                openHat = (p16 == 14) ? 0.035f : 0.002f;
-                perc = (p16 == 5 || p16 == 11) ? 0.045f : 0.008f;
-                bass = (p16 == 0 || p16 == 10) ? 0.26f : 0.020f;
-                chord = (p16 == 0 || p16 == 8) ? 0.14f : 0.012f;
-                lead = (p16 == 3 || p16 == 6 || p16 == 13) ? 0.085f : 0.018f;
-                accent *= 0.74f;
-                break;
-
-            case StyleType::SubOrbit:
-                if (p16 == 0 || p16 == 10) kick = 0.82f;
-                if (p16 == 8) snare = 0.82f;
-                if (p16 == 4 || p16 == 12) snare = 0.12f;
-                hat = offEighth ? 0.42f : (eighth ? 0.20f : 0.06f);
-                openHat = (p16 == 6 || p16 == 14) ? 0.09f : 0.003f;
-                perc = (p16 == 3 || p16 == 11 || p16 == 15) ? 0.12f : 0.018f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 10 || p16 == 13) ? 0.48f : 0.034f;
-                chord = (p16 == 2 || p16 == 10) ? 0.052f : 0.006f;
-                lead = (p16 == 7 || p16 == 15) ? 0.035f : 0.004f;
-                accent = halfBack ? 0.84f : accent;
-                break;
-
-            case StyleType::SoftVoltage:
-                kick = (down && mRng.chance(0.55f)) ? 0.26f : ((p16 == 10 && barTwo) ? 0.12f : 0.002f);
-                snare = (p16 == 8 && mRng.chance(0.42f)) ? 0.20f : 0.002f;
-                hat = eighth ? 0.07f : 0.014f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.025f : 0.002f;
-                perc = (p16 == 5 || p16 == 9 || p16 == 15) ? 0.040f : 0.006f;
-                bass = (p16 == 0 || p16 == 8 || p16 == 14) ? 0.24f : 0.018f;
-                chord = (p16 == 0 || p16 == 8) ? 0.16f : ((p16 == 4 || p16 == 12) ? 0.040f : 0.010f);
-                lead = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 10 || p16 == 13) ? 0.115f : 0.014f;
-                accent *= 0.78f;
-                break;
-
-            case StyleType::DeepMagnet:
-                if (p16 == 0 || p16 == 9 || (barTwo && p16 == 14)) kick = 0.72f;
-                if (p16 == 8) snare = 0.58f;
-                if (p16 == 15) snare = 0.11f;
-                hat = eighth ? 0.13f : 0.034f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.052f : 0.002f;
-                perc = (p16 == 3 || p16 == 11) ? 0.070f : 0.012f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 9 || p16 == 12 || p16 == 15) ? 0.52f : 0.030f;
-                chord = (p16 == 0 || p16 == 10) ? 0.050f : 0.004f;
-                lead = (p16 == 6 || p16 == 13) ? 0.026f : 0.003f;
-                accent = halfBack ? 0.78f : accent * 0.92f;
-                break;
-
-            case StyleType::WarmCurrent:
-                if (p16 == 0 || p16 == 6 || p16 == 10) kick = 0.72f;
-                if (p16 == 3 || p16 == 14) kick = 0.22f;
-                if (back) snare = 0.78f;
-                if (p16 == 7 || p16 == 15) snare = 0.13f;
-                hat = eighth ? 0.36f : 0.16f;
-                openHat = offEighth ? 0.06f : 0.004f;
-                perc = (p16 == 1 || p16 == 5 || p16 == 9 || p16 == 13) ? 0.14f : 0.018f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 6 || p16 == 10 || p16 == 13) ? 0.42f : 0.050f;
-                chord = (p16 == 0 || p16 == 8 || p16 == 12) ? 0.085f : 0.012f;
-                lead = (p16 == 1 || p16 == 4 || p16 == 6 || p16 == 10 || p16 == 14) ? 0.125f : 0.016f;
-                break;
-
-            case StyleType::PulseGarden:
-                kick = (down || p16 == 10) ? 0.42f : ((p16 == 6 || p16 == 14) ? 0.11f : 0.004f);
-                snare = (p16 == 8 || p16 == 12) ? 0.24f : 0.004f;
-                hat = eighth ? 0.12f : 0.030f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.040f : 0.003f;
-                perc = (p16 == 2 || p16 == 5 || p16 == 11 || p16 == 15) ? 0.075f : 0.010f;
-                bass = (p16 == 0 || p16 == 8 || p16 == 10 || p16 == 15) ? 0.30f : 0.026f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.125f : 0.018f;
-                lead = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 9 || p16 == 13) ? 0.120f : 0.018f;
-                accent *= 0.82f;
-                break;
-
-            case StyleType::VoidStep:
-                if (p16 == 0 || p16 == 9 || p16 == 14) kick = 0.78f;
-                if (p16 == 8) snare = 0.72f;
-                if (p16 == 3 || p16 == 15) snare = 0.13f;
-                hat = offEighth ? 0.20f : (eighth ? 0.10f : 0.035f);
-                openHat = (p16 == 6 || p16 == 14) ? 0.075f : 0.003f;
-                perc = (p16 == 1 || p16 == 6 || p16 == 11 || p16 == 13) ? 0.13f : 0.020f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 9 || p16 == 10 || p16 == 14) ? 0.56f : 0.038f;
-                chord = (p16 == 0 || p16 == 8) ? 0.070f : 0.007f;
-                lead = (p16 == 5 || p16 == 11 || p16 == 15) ? 0.060f : 0.008f;
-                accent = halfBack ? 0.88f : accent * 0.95f;
-                break;
-
-            case StyleType::SolarFold:
-                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.74f;
-                if (p16 == 4 || p16 == 12) snare = 0.52f;
-                if (p16 == 15) snare = 0.11f;
-                hat = offEighth ? 0.58f : (eighth ? 0.26f : 0.08f);
-                openHat = offEighth ? 0.15f : 0.004f;
-                perc = (p16 == 2 || p16 == 5 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.13f : 0.018f;
-                bass = (p16 == 0 || p16 == 2 || p16 == 4 || p16 == 7 || p16 == 10 || p16 == 14) ? 0.34f : 0.032f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.090f : 0.009f;
-                lead = (p16 == 1 || p16 == 3 || p16 == 5 || p16 == 9 || p16 == 11 || p16 == 13 || p16 == 15) ? 0.140f : 0.014f;
-                accent = offEighth ? accent * 1.08f : accent;
-                break;
-
-            case StyleType::IonGarden:
-                kick = (down || p16 == 9) ? 0.34f : ((p16 == 6 || p16 == 14) ? 0.08f : 0.003f);
-                snare = (p16 == 8) ? 0.18f : 0.003f;
-                hat = eighth ? 0.10f : 0.025f;
-                openHat = offEighth ? 0.035f : 0.003f;
-                perc = (p16 == 2 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.070f : 0.012f;
-                bass = (p16 == 0 || p16 == 8 || p16 == 13) ? 0.28f : 0.022f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.140f : 0.020f;
-                lead = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 10 || p16 == 13 || p16 == 15) ? 0.150f : 0.020f;
-                accent *= 0.80f;
-                break;
-
-            case StyleType::MarbleBass:
-                if (p16 == 0 || p16 == 3 || p16 == 9 || p16 == 14) kick = 0.76f;
-                if (p16 == 8) snare = 0.66f;
-                if (p16 == 5 || p16 == 15) snare = 0.11f;
-                hat = eighth ? 0.22f : 0.070f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.065f : 0.003f;
-                perc = (p16 == 1 || p16 == 6 || p16 == 10 || p16 == 13) ? 0.110f : 0.020f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 8 || p16 == 9 || p16 == 12 || p16 == 14) ? 0.58f : 0.045f;
-                chord = (p16 == 0 || p16 == 8) ? 0.050f : 0.006f;
-                lead = (p16 == 5 || p16 == 11 || p16 == 15) ? 0.075f : 0.010f;
-                accent = halfBack ? 0.88f : accent * 0.96f;
-                break;
-
-            case StyleType::EchoCrown:
-                if (p16 == 0 || p16 == 8) kick = 0.58f;
-                if (p16 == 4 || p16 == 12) snare = 0.40f;
-                hat = offEighth ? 0.36f : (eighth ? 0.17f : 0.055f);
-                openHat = offEighth ? 0.100f : 0.004f;
-                perc = (p16 == 2 || p16 == 5 || p16 == 9 || p16 == 14) ? 0.105f : 0.016f;
-                bass = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 10 || p16 == 14) ? 0.32f : 0.032f;
-                chord = (p16 == 0 || p16 == 6 || p16 == 8 || p16 == 14) ? 0.105f : 0.014f;
-                lead = (p16 == 1 || p16 == 2 || p16 == 5 || p16 == 7 || p16 == 9 || p16 == 11 || p16 == 13 || p16 == 15) ? 0.165f : 0.020f;
-                accent = offEighth ? accent * 1.04f : accent;
-                break;
-
-            case StyleType::BitFog:
-                if (p16 == 0 || p16 == 5 || p16 == 10 || (barTwo && p16 == 3)) kick = 0.82f;
-                if (p16 == 4 || p16 == 12) snare = 0.88f;
-                if (p16 == 7 || p16 == 15) snare = 0.18f;
-                hat = 0.42f + (eighth ? 0.10f : 0.18f);
-                openHat = offEighth ? 0.095f : 0.004f;
-                perc = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.220f : 0.034f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 9 || p16 == 10 || p16 == 13) ? 0.46f : 0.046f;
-                chord = (p16 == 2 || p16 == 10) ? 0.040f : 0.006f;
-                lead = (p16 == 3 || p16 == 6 || p16 == 11 || p16 == 14) ? 0.090f : 0.010f;
-                break;
-
-            case StyleType::MagentaWell:
-                if (p16 == 0 || p16 == 8 || (barTwo && p16 == 14)) kick = 0.62f;
-                if (p16 == 4 || p16 == 12) snare = 0.46f;
-                hat = eighth ? 0.36f : 0.14f;
-                openHat = offEighth ? 0.08f : 0.004f;
-                perc = (p16 == 3 || p16 == 10 || p16 == 15) ? 0.08f : 0.018f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 13) ? 0.32f : 0.040f;
-                chord = (p16 == 0 || p16 == 8) ? 0.080f : 0.010f;
-                lead = (p16 == 0 || p16 == 2 || p16 == 5 || p16 == 7 || p16 == 10 || p16 == 14) ? 0.160f : 0.030f;
-                accent = (p16 == 0 || p16 == 8) ? 0.90f : accent;
-                break;
-
-            case StyleType::CarbonRain:
-                if (p16 == 0 || p16 == 3 || p16 == 10 || (barTwo && p16 == 14)) kick = 0.90f;
-                if (p16 == 4 || p16 == 12) snare = 0.96f;
-                if (p16 == 7 || p16 == 15) snare = 0.22f;
-                hat = 0.50f + (eighth ? 0.16f : 0.22f);
-                openHat = offEighth ? 0.07f : 0.004f;
-                perc = (p16 == 1 || p16 == 5 || p16 == 9 || p16 == 13 || p16 == 15) ? 0.24f : 0.040f;
-                bass = (kick > 0.50f || p16 == 6 || p16 == 11) ? 0.44f : 0.060f;
-                chord = (p16 == 0 || p16 == 12) ? 0.018f : 0.004f;
-                lead = (p16 == 2 || p16 == 6 || p16 == 14) ? 0.054f : 0.008f;
-                break;
-
-            case StyleType::LatticeSun:
-                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.76f;
-                if (p16 == 4 || p16 == 12) snare = 0.34f;
-                hat = offEighth ? 0.62f : (eighth ? 0.28f : 0.12f);
-                openHat = offEighth ? 0.16f : 0.004f;
-                perc = (p16 == 3 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.12f : 0.020f;
-                bass = (p16 == 0 || p16 == 4 || p16 == 7 || p16 == 12 || p16 == 15) ? 0.30f : 0.040f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.052f : 0.008f;
-                lead = (p16 == 1 || p16 == 3 || p16 == 5 || p16 == 9 || p16 == 11 || p16 == 13) ? 0.120f : 0.020f;
-                break;
-
-            case StyleType::StrangeHarbor:
-                if (p16 == 0 && !barTwo) kick = 0.26f;
-                if (p16 == 8 && barTwo) snare = 0.18f;
-                hat = (p16 == 2 || p16 == 10) ? 0.10f : 0.020f;
-                openHat = (p16 == 14) ? 0.06f : 0.002f;
-                perc = (p16 == 5 || p16 == 13) ? 0.07f : 0.006f;
-                bass = (p16 == 0 || p16 == 10) ? 0.20f : 0.018f;
-                chord = (p16 == 0 || p16 == 8) ? 0.110f : 0.020f;
-                lead = (p16 == 4 || p16 == 11 || p16 == 15) ? 0.070f : 0.008f;
-                accent = down ? 0.72f : accent * 0.72f;
-                break;
-
-            case StyleType::CopperChord:
-                if (p16 == 0 || p16 == 8 || p16 == 13) kick = 0.54f;
-                if (p16 == 4 || p16 == 12) snare = 0.36f;
-                hat = eighth ? 0.28f : 0.10f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.070f : 0.004f;
-                perc = (p16 == 2 || p16 == 9 || p16 == 15) ? 0.095f : 0.014f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 12) ? 0.36f : 0.032f;
-                chord = (p16 == 0 || p16 == 3 || p16 == 8 || p16 == 11) ? 0.130f : 0.020f;
-                lead = (p16 == 1 || p16 == 5 || p16 == 7 || p16 == 10 || p16 == 14) ? 0.120f : 0.018f;
-                accent = (p16 == 0 || p16 == 8) ? 0.88f : accent * 0.92f;
-                break;
-
-            case StyleType::GhostMeter:
-                if (p16 == 0 || p16 == 5 || p16 == 11 || (barTwo && p16 == 14)) kick = 0.58f;
-                if (p16 == 8 || (barTwo && p16 == 3)) snare = 0.42f;
-                hat = (p16 == 2 || p16 == 7 || p16 == 10 || p16 == 15) ? 0.32f : (eighth ? 0.12f : 0.044f);
-                openHat = (p16 == 7 || p16 == 15) ? 0.080f : 0.003f;
-                perc = (p16 == 1 || p16 == 6 || p16 == 9 || p16 == 13) ? 0.145f : 0.018f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 8 || p16 == 11) ? 0.36f : 0.030f;
-                chord = (p16 == 0 || p16 == 10) ? 0.075f : 0.012f;
-                lead = (p16 == 3 || p16 == 7 || p16 == 12 || p16 == 15) ? 0.090f : 0.010f;
-                accent = offEighth ? accent * 1.08f : accent * 0.90f;
-                break;
-
-            case StyleType::ObsidianBloom:
-                if (p16 == 0 || (barTwo && p16 == 10)) kick = 0.34f;
-                if (p16 == 8 && barTwo) snare = 0.20f;
-                hat = (p16 == 2 || p16 == 10) ? 0.090f : 0.018f;
-                openHat = (p16 == 14) ? 0.040f : 0.002f;
-                perc = (p16 == 5 || p16 == 13) ? 0.060f : 0.008f;
-                bass = (p16 == 0 || p16 == 8 || p16 == 11) ? 0.44f : 0.024f;
-                chord = (p16 == 0 || p16 == 8) ? 0.150f : 0.026f;
-                lead = (p16 == 4 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.080f : 0.010f;
-                accent = down ? 0.74f : accent * 0.70f;
-                break;
-
-            case StyleType::VoltageMoth:
-                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.58f;
-                if (p16 == 4 || p16 == 12) snare = 0.42f;
-                hat = offEighth ? 0.54f : (eighth ? 0.24f : 0.12f);
-                openHat = offEighth ? 0.110f : 0.004f;
-                perc = (p16 == 1 || p16 == 3 || p16 == 7 || p16 == 11 || p16 == 14) ? 0.155f : 0.024f;
-                bass = (p16 == 0 || p16 == 4 || p16 == 7 || p16 == 10 || p16 == 13) ? 0.32f : 0.036f;
-                chord = (p16 == 0 || p16 == 8) ? 0.060f : 0.010f;
-                lead = (p16 == 0 || p16 == 2 || p16 == 5 || p16 == 7 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.170f : 0.024f;
-                accent = offEighth ? accent * 1.08f : accent;
-                break;
-
-            case StyleType::QuartzTide:
-                kick = (p16 == 0 && !barTwo) ? 0.24f : ((p16 == 8 && barTwo) ? 0.18f : 0.003f);
-                snare = (p16 == 12 && barTwo) ? 0.14f : 0.003f;
-                hat = (p16 == 2 || p16 == 10 || p16 == 14) ? 0.075f : 0.012f;
-                openHat = (p16 == 14) ? 0.050f : 0.002f;
-                perc = (p16 == 3 || p16 == 9 || p16 == 15) ? 0.060f : 0.006f;
-                bass = (p16 == 0 || p16 == 10) ? 0.24f : 0.016f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.140f : 0.024f;
-                lead = (p16 == 1 || p16 == 6 || p16 == 11 || p16 == 15) ? 0.110f : 0.014f;
-                accent *= 0.76f;
-                break;
-
-            case StyleType::StaticCathedral:
-                if (p16 == 0 || p16 == 8) kick = 0.52f;
-                if (p16 == 4 || p16 == 12) snare = 0.28f;
-                hat = eighth ? 0.18f : 0.060f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.060f : 0.003f;
-                perc = (p16 == 2 || p16 == 5 || p16 == 11 || p16 == 15) ? 0.120f : 0.018f;
-                bass = (p16 == 0 || p16 == 7 || p16 == 8 || p16 == 14) ? 0.42f : 0.032f;
-                chord = (p16 == 0 || p16 == 8 || p16 == 12) ? 0.155f : 0.024f;
-                lead = (p16 == 3 || p16 == 10 || p16 == 15) ? 0.075f : 0.010f;
-                accent = (p16 == 0 || p16 == 8) ? 0.86f : accent * 0.82f;
-                break;
-
-            case StyleType::MercuryThread:
-                if (p16 == 0 || p16 == 3 || p16 == 10 || (barTwo && p16 == 14)) kick = 0.84f;
-                if (p16 == 4 || p16 == 12) snare = 0.88f;
-                if (p16 == 7 || p16 == 15) snare = 0.16f;
-                hat = 0.48f + (eighth ? 0.14f : 0.24f);
-                openHat = offEighth ? 0.100f : 0.004f;
-                perc = (p16 == 1 || p16 == 3 || p16 == 6 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.210f : 0.034f;
-                bass = (p16 == 0 || p16 == 5 || p16 == 9 || p16 == 10 || p16 == 13) ? 0.36f : 0.046f;
-                chord = (p16 == 2 || p16 == 10) ? 0.034f : 0.006f;
-                lead = (p16 == 1 || p16 == 4 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.115f : 0.012f;
-                break;
-
-            case StyleType::NightLatch:
-                if (p16 == 0 || p16 == 3 || p16 == 9 || p16 == 14) kick = 0.72f;
-                if (p16 == 8) snare = 0.70f;
-                if (p16 == 5 || p16 == 15) snare = 0.12f;
-                hat = eighth ? 0.24f : 0.075f;
-                openHat = (p16 == 6 || p16 == 14) ? 0.065f : 0.003f;
-                perc = (p16 == 1 || p16 == 6 || p16 == 10 || p16 == 13) ? 0.130f : 0.020f;
-                bass = (p16 == 0 || p16 == 3 || p16 == 8 || p16 == 9 || p16 == 12 || p16 == 14) ? 0.54f : 0.045f;
-                chord = (p16 == 0 || p16 == 8) ? 0.058f : 0.006f;
-                lead = (p16 == 5 || p16 == 11 || p16 == 15) ? 0.070f : 0.010f;
-                accent = halfBack ? 0.88f : accent * 0.94f;
-                break;
-
-            case StyleType::ChromeBloom:
-            default:
-                if (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) kick = 0.64f;
-                if (p16 == 4 || p16 == 12) snare = 0.44f;
-                hat = offEighth ? 0.48f : (eighth ? 0.20f : 0.06f);
-                openHat = offEighth ? 0.12f : 0.004f;
-                perc = (p16 == 2 || p16 == 7 || p16 == 11 || p16 == 15) ? 0.12f : 0.018f;
-                bass = (p16 == 0 || p16 == 4 || p16 == 7 || p16 == 10 || p16 == 14) ? 0.28f : 0.030f;
-                chord = (p16 == 0 || p16 == 4 || p16 == 8 || p16 == 12) ? 0.062f : 0.006f;
-                lead = (p16 == 1 || p16 == 3 || p16 == 5 || p16 == 9 || p16 == 11 || p16 == 14) ? 0.135f : 0.012f;
-                accent = offEighth ? accent * 1.05f : accent;
-                break;
+    // Generate a rhythmic sentence from weighted positions and its own pulse
+    // grammar. There is no finite DNA/riff table. The following bars answer the
+    // first bar, and the existing long-form development continues to vary them.
+    Rng rhythm(mixSeed(mPattern.designSeed ^ 0xa4517e2du));
+    std::array<float, kPhraseSteps> kickWord{};
+    std::array<float, kPhraseSteps> snareWord{};
+    std::array<float, kPhraseSteps> hatWord{};
+    std::array<float, kPhraseSteps> percWord{};
+    const int32_t hatStride = p.motion < 0.38f ? (rhythm.chance(0.60f) ? 4 : 2) : 2;
+    const int32_t hatPhase = rhythm.rangeInt(0, hatStride - 1);
+    kickWord[0] = p.ambient ? 0.42f : 0.94f;
+    if (p.halfTime) snareWord[8] = 0.88f;
+    else { snareWord[4] = 0.86f; snareWord[12] = 0.92f; }
+    if (p.fourOnFloor) {
+        for (int32_t pos = 0; pos < 16; pos += 4) kickWord[pos] = 0.88f;
+    }
+    auto buildWord = [&](std::array<float, kPhraseSteps>& word, int32_t count, int32_t kind) {
+        int32_t used = 0;
+        for (float value : word) if (value > 0.0f) ++used;
+        for (; used < count; ++used) {
+            int32_t best = -1;
+            float bestScore = -10000.0f;
+            for (int32_t pos = 0; pos < 16; ++pos) {
+                if (word[pos] > 0.0f) continue;
+                int32_t distance = 8;
+                for (int32_t other = 0; other < 16; ++other) {
+                    if (word[other] <= 0.0f) continue;
+                    const int32_t delta = std::abs(pos - other);
+                    distance = std::min(distance, std::min(delta, 16 - delta));
+                }
+                const bool strong = (pos & 3) == 0;
+                const bool off = (pos & 1) != 0;
+                float score = 0.70f * rhythm.uni() + 0.055f * static_cast<float>(distance);
+                if (kind == 0) {
+                    score += strong ? 0.42f * (1.0f - p.sync) : 0.0f;
+                    score += off ? 0.44f * p.sync : 0.0f;
+                    score -= snareWord[pos] * 0.36f;
+                    if (distance <= 1) score -= 0.50f * (1.0f - p.motion);
+                } else if (kind == 1) {
+                    score += (pos == 3 || pos == 7 || pos == 11 || pos == 15) ? 0.20f * p.sync : 0.0f;
+                    score -= kickWord[pos] * 0.22f;
+                } else if (kind == 2) {
+                    score += ((pos + hatPhase) % hatStride == 0) ? 0.52f : 0.16f * p.motion;
+                    if (distance == 1) score -= 0.38f * (1.0f - p.motion);
+                } else {
+                    score += off ? 0.22f * p.sync : 0.0f;
+                    score -= (kickWord[pos] + snareWord[pos]) * 0.36f;
+                }
+                if (score > bestScore) { bestScore = score; best = pos; }
+            }
+            if (best < 0) break;
+            const float strength = kind == 0 ? 0.56f : (kind == 1 ? 0.25f : 0.46f);
+            word[best] = strength + (kind == 1 ? 0.16f : 0.30f) * rhythm.uni();
         }
+    };
+    const int32_t kickCount = clampInt32(2 + static_cast<int32_t>(3.8f * p.motion) + rhythm.rangeInt(0, 2), 2, 8);
+    const int32_t snareCount = (p.halfTime ? 1 : 2) + static_cast<int32_t>(2.4f * p.motion * p.sync);
+    const int32_t hatCount = clampInt32(static_cast<int32_t>(std::lround(2.0f + 10.0f * p.motion + 2.0f * p.sync)), 3, 15);
+    const int32_t percCount = clampInt32(static_cast<int32_t>(std::lround(1.0f + 4.0f * p.motion * p.sync)), 1, 6);
+    buildWord(kickWord, kickCount, 0);
+    buildWord(snareWord, snareCount, 1);
+    buildWord(hatWord, hatCount, 2);
+    buildWord(percWord, percCount, 3);
 
-        const bool kickDNAHit = (kickDNA[kickVariant] & static_cast<uint16_t>(1u << p16)) != 0;
-        const bool snareDNAHit = (snareDNA[snareVariant] & static_cast<uint16_t>(1u << p16)) != 0;
-        const bool hatDNAHit = (hatDNA[hatVariant] & static_cast<uint16_t>(1u << p16)) != 0;
-        const bool percDNAHit = (percDNA[percVariant] & static_cast<uint16_t>(1u << p16)) != 0;
-        const float dnaBar = ((i >> 4) & 1) ? 1.08f : 0.92f;
-        if (kickDNAHit && !p.ambient) kick = std::max(kick, (0.13f + 0.34f * p.drum) * dnaStrength * dnaBar);
-        if (snareDNAHit && !p.ambient) snare = std::max(snare, (0.10f + 0.30f * p.drum) * dnaStrength * (back ? 1.35f : 0.85f));
-        if (hatDNAHit) hat = std::max(hat, (0.20f + 0.36f * p.density) * (0.52f + 0.48f * dnaStrength));
-        if (percDNAHit) perc = std::max(perc, (0.045f + 0.24f * p.sync + 0.12f * p.rough) * dnaStrength);
-        if (((kickVariant + p16) % 11) == 0 && p.sync > 0.52f) bass = std::max(bass, 0.050f + 0.20f * p.bass * dnaStrength);
-        if (((hatVariant ^ p16) & 7) == 3 && p.hatRoll > 0.08f) openHat = std::max(openHat, 0.024f + 0.11f * p.hatRoll);
-
-        const float randomScale = 0.95f + mRng.uni() * 0.10f;
-        mPattern.kick[i] = clamp(kick * randomScale + mRng.bipolar() * 0.035f, 0.0f, 0.98f);
-        mPattern.snare[i] = clamp(snare + mRng.bipolar() * 0.035f, 0.0f, 0.98f);
-        mPattern.hat[i] = clamp(hat + mRng.bipolar() * 0.095f, 0.0f, 0.98f);
-        mPattern.openHat[i] = clamp(openHat + mRng.bipolar() * 0.035f, 0.0f, 0.65f);
-        mPattern.perc[i] = clamp(perc + mRng.bipolar() * 0.055f, 0.0f, 0.88f);
-        mPattern.bass[i] = clamp(bass + mRng.bipolar() * 0.055f, 0.0f, 0.95f);
-        mPattern.chord[i] = clamp(chord + mRng.bipolar() * 0.030f, 0.0f, 0.72f);
-        mPattern.lead[i] = clamp(lead + mRng.bipolar() * 0.050f, 0.0f, 0.85f);
-        mPattern.accent[i] = clamp(accent + mRng.bipolar() * 0.14f, 0.0f, 1.0f);
+    const int32_t openHatPosition = rhythm.rangeInt(0, 15);
+    for (int32_t i = 0; i < kPatternSteps; ++i) {
+        const int32_t pos = i & 15;
+        const int32_t bar = i / 16;
+        const bool down = pos == 0;
+        const bool back = p.halfTime ? pos == 8 : (pos == 4 || pos == 12);
+        const float barBreath = 0.92f + 0.12f * rhythm.uni();
+        const float quiet = p.ambient ? 0.58f : 1.0f;
+        mPattern.kick[i] = clamp(kickWord[pos] * barBreath * quiet, 0.0f, 0.98f);
+        mPattern.snare[i] = clamp(snareWord[pos] * barBreath * quiet, 0.0f, 0.98f);
+        mPattern.hat[i] = clamp(hatWord[pos] * (0.60f + 0.36f * p.motion), 0.0f, 0.96f);
+        mPattern.openHat[i] = pos == ((openHatPosition + (bar >= 2 ? 4 : 0)) & 15)
+            ? 0.08f + 0.18f * p.motion : 0.0f;
+        mPattern.perc[i] = clamp(percWord[pos] * (0.20f + 0.40f * p.motion), 0.0f, 0.72f);
+        if ((bar & 1) != 0 && pos >= 9 && !back && rhythm.chance(0.09f + 0.20f * p.motion)) {
+            mPattern.perc[i] = std::max(mPattern.perc[i], 0.10f + 0.22f * p.sync);
+        }
+        mPattern.bass[i] = (0.05f + 0.48f * kickWord[pos]) * (0.58f + 0.38f * p.bass);
+        mPattern.chord[i] = down ? 0.10f + 0.12f * p.chord : 0.0f;
+        mPattern.lead[i] = 0.02f + 0.08f * p.melody;
+        const float accent = down ? 0.96f : (back ? 0.76f : ((pos & 1) == 0 ? 0.48f : 0.32f));
+        mPattern.accent[i] = clamp(accent + 0.08f * rhythm.bipolar(), 0.0f, 1.0f);
     }
 
     generateComposition(p);
     repairPattern();
+    rememberDrumReference();
 
-    // Candidate material is a pure function of seed, candidate index, and frozen
-    // channel state. Recent-session memory influences candidate scoring only;
+    // Candidate material is a pure function of seed and candidate index.
+    // Recent-session memory influences candidate scoring only;
     // it must never rewrite a candidate, or saved seeds/history/export snapshots
     // would reconstruct differently in another engine instance.
     // Song data and recent-history state are committed only after
@@ -2138,9 +1502,7 @@ void MusicEngine::generatePrimaryMotif(const StyleProfile& p) {
     mComposition.leadCadenceDegree = rng.chance(0.78f) ? 0 : (rng.chance(0.50f) ? 2 : -1);
     mComposition.leadLeapBudget = rng.rangeInt(1, 3) + (p.melodyRun > 0.72f ? 1 : 0);
     mComposition.leadSyncopation = clamp(0.16f + 0.62f * p.sync + rng.bipolar() * 0.12f, 0.04f, 0.92f);
-    int32_t noteCount = 4 + static_cast<int32_t>(4.0f * p.melody + 2.0f * p.density) + rng.rangeInt(0, 3);
-    if (p.ambient) noteCount -= 2;
-    if (p.melodyRun > 0.70f) noteCount += 2;
+    int32_t noteCount = static_cast<int32_t>(std::lround(p.leadTarget)) + rng.rangeInt(-1, 1);
     noteCount = clampInt32(noteCount, 4, 13);
     mComposition.leadNoteCount = noteCount;
 
@@ -2235,9 +1597,12 @@ void MusicEngine::generatePrimaryMotif(const StyleProfile& p) {
         int32_t next = 16;
         for (int32_t j = pos + 1; j < 16; ++j) if (used[j]) { next = j; break; }
         const int32_t gap = std::max(1, next - pos);
-        float dur = 0.40f + 0.20f * static_cast<float>(std::min(4, gap));
-        if (pos == 0 || pos == 8) dur += 0.18f;
-        if (pos == 15) dur = 1.35f;
+        // Phrase durations follow the actual distance to the next note. The
+        // old near-constant duration smeared dense lines and made sparse lines
+        // sound like the same short riff with a slower clock.
+        float dur = static_cast<float>(gap) * (0.78f + 0.18f * p.space);
+        if (pos == 0 || pos == 8) dur *= 1.08f;
+        if (pos == 15) dur = 1.10f;
         mComposition.durA[pos] = dur;
     }
     mComposition.motifTemplateId = static_cast<int32_t>((mComposition.leadGrammarSeed ^ (mComposition.leadGrammarSeed >> 16u)) & 0x7fffffffu);
@@ -2317,10 +1682,7 @@ void MusicEngine::generateBassGrammar(const StyleProfile& p) {
     mComposition.bassRootGravity = clamp(0.46f + 0.40f * p.bass + (p.ambient ? 0.08f : 0.0f), 0.34f, 0.98f);
     mComposition.bassAnswerShift = rng.rangeInt(-2, 2);
     mComposition.bassMotionBias = rng.rangeInt(-1, 1);
-    int32_t hitCount = 2 + static_cast<int32_t>(4.0f * p.bass + 3.0f * p.density) + rng.rangeInt(-1, 2);
-    if (p.ambient) hitCount -= 3;
-    if (p.halfTime) hitCount -= 1;
-    if (p.breakbeat) hitCount += 1;
+    int32_t hitCount = static_cast<int32_t>(std::lround(p.bassTarget)) + rng.rangeInt(-1, 1);
     hitCount = clampInt32(hitCount, 2, 10);
     mComposition.bassHitCount = hitCount;
 
@@ -2625,24 +1987,32 @@ void MusicEngine::generateTimbreGrammar(const StyleProfile& p) {
         (mComposition.paletteHash * 0x85ebca6bu) ^ 0x7f4a7c15u;
     Rng rng(mComposition.timbreGrammarSeed);
 
-    mComposition.bassModel = rng.rangeInt(0, 11);
-    mComposition.leadModel = rng.rangeInt(0, 15);
-    mComposition.padModel = rng.rangeInt(0, 9);
-    mComposition.drumKit = rng.rangeInt(0, 7);
-
-    // Channel/style character biases the instrument window without collapsing
-    // it to a stored preset. Every seed still receives a distinct grammar.
-    if (p.ambient) {
-        mComposition.padModel = (mComposition.padModel + 2) % 10;
-        mComposition.leadModel = (mComposition.leadModel + 2) % 16;
+    mComposition.bassModel = rng.rangeInt(0, kBassModels - 1);
+    mComposition.leadModel = rng.rangeInt(0, kLeadModels - 1);
+    mComposition.padModel = rng.rangeInt(0, kPadModels - 1);
+    mComposition.drumKit = rng.rangeInt(0, kDrumKits - 1);
+    // Mellow instruments keep a stable harmonic center. Their choice still
+    // spans many synthesis designs and continuous shape/envelope coordinates.
+    static constexpr std::array<int32_t, 18> mellowLeads{{
+        2, 6, 7, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 28, 29, 30, 31
+    }};
+    static constexpr std::array<int32_t, 12> mellowBass{{0, 1, 6, 9, 12, 13, 14, 15, 16, 17, 18, 19}};
+    if (p.intent == 0) {
+        mComposition.leadModel = mellowLeads[rng.rangeInt(0, static_cast<int32_t>(mellowLeads.size()) - 1)];
+        mComposition.bassModel = mellowBass[rng.rangeInt(0, static_cast<int32_t>(mellowBass.size()) - 1)];
+        mComposition.padModel = rng.rangeInt(10, kPadModels - 1);
     }
-    if (p.rough > 0.68f) {
-        mComposition.bassModel = (mComposition.bassModel + 5) % 12;
-        mComposition.drumKit = (mComposition.drumKit + 3) % 8;
+    // The catalogue expands between songs. Three fixed supporting colors are
+    // shared among selected roles, so primary+bass+harmony+supports never exceeds
+    // six distinct pitched families, and no role changes family with tone.
+    Rng paletteRng(mComposition.timbreGrammarSeed ^ 0x30ba11adu);
+    std::array<int32_t, 3> supportingModels{};
+    for (int32_t& model : supportingModels) {
+        model = p.intent == 0 ? mellowLeads[paletteRng.rangeInt(0, static_cast<int32_t>(mellowLeads.size()) - 1)] :
+                               paletteRng.rangeInt(0, kLeadModels - 1);
     }
-    if (p.brightness > 0.68f) {
-        mComposition.leadModel = (mComposition.leadModel + 7) % 16;
-        mComposition.padModel = (mComposition.padModel + 4) % 10;
+    for (int32_t lane = 0; lane < kSupportLanes; ++lane) {
+        mComposition.supportModels[lane] = supportingModels[static_cast<size_t>(lane) % supportingModels.size()];
     }
 
     mComposition.bassAttack = clamp(0.12f + 0.72f * rng.uni(), 0.08f, 0.92f);
@@ -2656,8 +2026,10 @@ void MusicEngine::generateTimbreGrammar(const StyleProfile& p) {
     mComposition.leadGlide = clamp(0.04f + 0.66f * rng.uni(), 0.02f, 0.80f);
     mComposition.leadVibratoDepth = clamp(0.02f + 0.72f * rng.uni(), 0.0f, 0.82f);
     mComposition.leadVibratoRate = clamp(0.08f + 0.84f * rng.uni(), 0.04f, 0.96f);
-    mComposition.leadModRatio = clamp(0.06f + 0.88f * rng.uni(), 0.02f, 0.98f);
-    mComposition.leadAir = clamp(0.02f + 0.62f * rng.uni(), 0.0f, 0.72f);
+    // A harmonic operator ratio keeps the pitch readable while depth, waveform,
+    // envelope and register still create continuously variable instruments.
+    mComposition.leadModRatio = (static_cast<float>(rng.rangeInt(1, 5)) - 0.62f) / 5.20f;
+    mComposition.leadAir = 0.0f;
 
     mComposition.padAttack = clamp(0.20f + 0.72f * rng.uni(), 0.16f, 0.96f);
     mComposition.padRelease = clamp(0.58f + 0.36f * rng.uni(), 0.54f, 0.98f);
@@ -2667,27 +2039,25 @@ void MusicEngine::generateTimbreGrammar(const StyleProfile& p) {
     mComposition.padVoiceCount = rng.chance(0.18f + 0.24f * p.chord) ? 4 :
                                  (rng.chance(0.26f + 0.18f * p.space) ? 2 : 3);
 
-    // Generate a scale-degree voicing rather than reusing 0,2,4,6 in every sound.
-    // Ascending constraints keep it harmonic while allowing broad variation.
-    mComposition.padIntervals[0] = 0;
-    int32_t cursor = 0;
-    for (int32_t i = 1; i < 4; ++i) {
-        const int32_t step = rng.rangeInt(1, (i == 3) ? 4 : 3);
-        cursor = clampInt32(cursor + step, i, 11);
-        mComposition.padIntervals[i] = cursor;
+    // Voicings move among chord members and inversions of the generated
+    // harmony. Close dissonant clusters no longer dominate sparse slow lines.
+    const int32_t scaleSize = scaleLength();
+    const int32_t inversion = rng.rangeInt(0, 2);
+    for (int32_t i = 0; i < 4; ++i) {
+        const int32_t member = (i + inversion) % 3;
+        const int32_t octave = (i + inversion) / 3;
+        mComposition.padIntervals[i] = member * 2 + octave * scaleSize;
     }
-    if (rng.chance(0.35f)) {
-        mComposition.padIntervals[1] = clampInt32(mComposition.padIntervals[1] + 1, 1, 4);
-    }
-    for (int32_t i = 1; i < 4; ++i) {
-        if (mComposition.padIntervals[i] <= mComposition.padIntervals[i - 1]) {
-            mComposition.padIntervals[i] = mComposition.padIntervals[i - 1] + 1;
-        }
-    }
+    if (p.intent > 0 && rng.chance(0.34f)) mComposition.padIntervals[3] -= 1;
 
     mComposition.drumBody = clamp(0.14f + 0.78f * rng.uni(), 0.10f, 0.96f);
-    mComposition.drumMetal = clamp(0.06f + 0.82f * rng.uni(), 0.02f, 0.94f);
-    mComposition.drumNoise = clamp(0.10f + 0.78f * rng.uni(), 0.06f, 0.94f);
+    mComposition.drumMetal = clamp(0.05f + (0.24f + 0.38f * p.motion) * rng.uni(), 0.02f, 0.78f);
+    mComposition.drumNoise = clamp(0.10f + (0.24f + 0.28f * p.motion) * rng.uni(), 0.06f, 0.72f);
+    mComposition.bassMotion *= 0.45f + 0.45f * p.motion;
+    mComposition.leadVibratoDepth *= 0.42f;
+    mComposition.leadAttack = clamp(mComposition.leadAttack + 0.18f * (0.50f - p.motion), 0.06f, 0.94f);
+    mComposition.leadRelease = clamp(0.64f + 0.26f * p.noteLength, 0.64f, 0.92f);
+    mComposition.padDetune *= 0.60f;
 
     // Make timbre part of the palette identity so session anti-repetition can
     // distinguish the same note grammar performed by different instruments.
@@ -2701,6 +2071,7 @@ void MusicEngine::generateTimbreGrammar(const StyleProfile& p) {
     mix(static_cast<uint32_t>(mComposition.leadModel));
     mix(static_cast<uint32_t>(mComposition.padModel));
     mix(static_cast<uint32_t>(mComposition.drumKit));
+    for (int32_t model : mComposition.supportModels) mix(static_cast<uint32_t>(model));
     for (int32_t interval : mComposition.padIntervals) {
         mix(static_cast<uint32_t>(interval + 16));
     }
@@ -2740,6 +2111,13 @@ void MusicEngine::generateBoundaryGrammar(const StyleProfile& p) {
     if (p.melody > 0.78f) entry[2] = std::min(entry[2], 1);
     if (p.chord > 0.72f) entry[3] = std::min(entry[3], 1);
     if (entry[1] > 0 && entry[2] > 0 && entry[3] > 0) entry[rng.rangeInt(1, 3)] = 0;
+    if (p.intent == 0) {
+        mComposition.introPhrases = std::min(mComposition.introPhrases, 3);
+        entry[0] = std::min(entry[0], 1);
+        entry[1] = std::min(entry[1], 1);
+        entry[2] = 0;
+        entry[3] = std::min(entry[3], 1);
+    }
     mComposition.introDrumEntry = entry[0];
     mComposition.introBassEntry = entry[1];
     mComposition.introLeadEntry = entry[2];
@@ -2815,232 +2193,52 @@ void MusicEngine::chooseInstrumentPalette(const StyleProfile& p) {
         return clamp(lo + (hi - lo) * mRng.uni(), 0.0f, 1.25f);
     };
 
-    mComposition.drama = clamp(0.10f + p.drama * 0.86f + mRng.bipolar() * 0.18f, 0.08f, 0.98f);
-    if (mRng.chance(0.24f)) mComposition.drama = clamp(mComposition.drama + 0.18f + 0.22f * mRng.uni(), 0.08f, 0.99f);
-    mComposition.deviceDepth = clamp(0.20f + mComposition.drama * 0.78f + mRng.bipolar() * 0.16f, 0.16f, 0.98f);
-    if (mRng.chance(0.20f + 0.20f * p.drama)) mComposition.deviceDepth = clamp(mComposition.deviceDepth + 0.20f, 0.18f, 0.99f);
-    mComposition.hookEmphasis = clamp(1.02f + p.melody * 0.68f + mComposition.drama * 0.44f, 0.92f, 2.18f);
-    mComposition.surgeLift = clamp(0.98f + mComposition.drama * 0.66f + p.density * 0.28f, 0.92f, 1.92f);
+    mComposition.drama = clamp(0.12f + p.drama * 0.80f + mRng.bipolar() * 0.08f, 0.12f, 0.90f);
+    mComposition.deviceDepth = clamp(0.20f + mComposition.drama * 0.58f, 0.18f, 0.80f);
+    mComposition.hookEmphasis = clamp(1.00f + p.melody * 0.34f + mComposition.drama * 0.18f, 1.0f, 1.55f);
+    mComposition.surgeLift = clamp(0.96f + mComposition.drama * 0.38f + p.motion * 0.16f, 0.94f, 1.50f);
 
-    // Use a broad per-sound instrument window. Lanes are intensities, not simple on/off gates.
-    mComposition.useKick = lane(0.88f + p.drum * 0.22f - (p.ambient ? 0.20f : 0.0f), 0.62f, 1.00f);
-    mComposition.useSnare = lane(0.76f + p.drum * 0.24f - (p.ambient ? 0.20f : 0.0f), 0.54f, 1.00f);
-    mComposition.useHat = lane(0.74f + p.density * 0.22f - p.space * 0.08f, 0.48f, 1.00f);
-    mComposition.useOpenHat = lane(0.50f + p.density * 0.22f - p.space * 0.08f, 0.34f, 0.88f);
-    mComposition.usePerc = lane(0.64f + p.sync * 0.28f + p.rough * 0.12f, 0.44f, 1.00f);
-    mComposition.useBass = lane(0.92f + p.bass * 0.14f, 0.72f, 1.08f);
-    mComposition.useChord = lane(0.60f + p.chord * 0.36f + p.texture * 0.12f, 0.42f, 1.00f);
-    mComposition.useLead = lane(0.76f + p.melody * 0.32f, 0.58f, 1.14f);
-    mComposition.useTexture = lane(0.58f + p.texture * 0.38f + p.space * 0.10f, 0.36f, 1.00f);
-    mComposition.useArp = lane(0.44f + p.melodyRun * 0.50f + p.brightness * 0.10f, 0.32f, 0.94f);
-    mComposition.useCounter = lane(0.42f + p.melody * 0.42f + p.sync * 0.14f, 0.30f, 0.88f);
-    mComposition.useStab = lane(0.34f + p.chord * 0.42f + p.density * 0.10f, 0.30f, 0.88f);
-    mComposition.useDrone = lane(0.28f + p.texture * 0.42f + p.space * 0.18f, 0.24f, 0.82f);
-    mComposition.useSpark = lane(0.30f + p.brightness * 0.32f + p.sync * 0.12f, 0.22f, 0.76f);
-    mComposition.useFx = lane(0.26f + p.rough * 0.34f + p.drama * 0.20f, 0.20f, 0.72f);
-    mComposition.useEcho = lane(0.34f + p.space * 0.30f + p.melody * 0.20f, 0.24f, 0.82f);
-    mComposition.useOrbit = lane(0.32f + p.melodyRun * 0.34f + p.texture * 0.18f, 0.22f, 0.80f);
-    mComposition.useBloom = lane(0.30f + p.chord * 0.34f + p.drama * 0.18f, 0.24f, 0.88f);
-    mComposition.useGlyph = lane(0.34f + p.brightness * 0.24f + p.sync * 0.24f, 0.22f, 0.78f);
-    mComposition.useSub = lane(0.42f + p.bass * 0.34f, 0.28f, 0.92f);
-    mComposition.useSheen = lane(0.28f + p.brightness * 0.38f + p.space * 0.12f, 0.20f, 0.76f);
-    mComposition.usePluck = lane(0.36f + p.melodyRun * 0.44f + p.sync * 0.14f, 0.22f, 0.88f);
-    mComposition.useBell = lane(0.28f + p.brightness * 0.36f + p.chord * 0.18f, 0.18f, 0.78f);
-    mComposition.usePulse = lane(0.30f + p.sync * 0.38f + p.density * 0.16f, 0.24f, 0.86f);
-    mComposition.useGrain = lane(0.24f + p.rough * 0.42f + p.texture * 0.18f, 0.18f, 0.72f);
-    mComposition.useComet = lane(0.20f + p.drama * 0.36f + p.melody * 0.14f, 0.16f, 0.70f);
-    mComposition.useRotor = lane(0.28f + p.chord * 0.36f + p.space * 0.18f, 0.22f, 0.84f);
+    // Every tune has a foreground and a foundation. Optional colors are chosen
+    // as a bounded ensemble, never filled to a universal 12/15-layer minimum.
+    mComposition.useKick = lane(1.0f, p.ambient ? 0.40f : 0.76f, 0.98f);
+    mComposition.useSnare = lane(1.0f, p.ambient ? 0.28f : 0.62f, 0.90f);
+    mComposition.useHat = lane(0.86f, 0.30f + 0.16f * p.motion, 0.46f + 0.38f * p.motion);
+    mComposition.useOpenHat = lane(0.16f + 0.38f * p.motion, 0.24f, 0.60f);
+    mComposition.usePerc = lane(0.38f + 0.36f * p.sync, 0.32f, 0.64f + 0.18f * p.motion);
+    mComposition.useBass = 0.90f + 0.16f * mRng.uni();
+    mComposition.useChord = 0.50f + 0.34f * p.chord + 0.12f * mRng.uni();
+    mComposition.useLead = 1.00f + 0.12f * mRng.uni();
+    mComposition.useTexture = 0.0f;
+    mComposition.useFx = 0.0f;
+    mComposition.useGrain = 0.0f;
 
-    switch (mPattern.style) {
-        case StyleType::VelvetDrift:
-        case StyleType::SoftVoltage:
-        case StyleType::PulseGarden:
-        case StyleType::IonGarden:
-            mComposition.useKick *= lane(0.72f, 0.58f, 1.0f);
-            mComposition.useSnare *= lane(0.68f, 0.50f, 1.0f);
-            mComposition.useChord = std::max(mComposition.useChord, 0.76f);
-            mComposition.useLead = std::max(mComposition.useLead, 0.72f);
-            mComposition.useTexture = std::max(mComposition.useTexture, 0.70f);
-            mComposition.useDrone = std::max(mComposition.useDrone, 0.48f);
-            mComposition.useBloom = std::max(mComposition.useBloom, 0.48f);
-            mComposition.useEcho = std::max(mComposition.useEcho, 0.40f);
-            break;
-        case StyleType::DeepMagnet:
-        case StyleType::VoidStep:
-        case StyleType::SubOrbit:
-        case StyleType::MarbleBass:
-            mComposition.useBass = std::max(mComposition.useBass, 0.96f);
-            mComposition.useTexture = std::max(mComposition.useTexture, 0.58f);
-            mComposition.useFx = std::max(mComposition.useFx, 0.36f);
-            mComposition.useSub = std::max(mComposition.useSub, 0.60f);
-            mComposition.useOrbit = std::max(mComposition.useOrbit, 0.34f);
-            break;
-        case StyleType::ChromeBloom:
-        case StyleType::SolarFold:
-        case StyleType::PrismCruise:
-        case StyleType::EchoCrown:
-            mComposition.useLead = std::max(mComposition.useLead, 0.90f);
-            mComposition.useArp = std::max(mComposition.useArp, 0.46f);
-            mComposition.useChord = std::max(mComposition.useChord, 0.56f);
-            mComposition.useSpark = std::max(mComposition.useSpark, 0.40f);
-            mComposition.useSheen = std::max(mComposition.useSheen, 0.44f);
-            mComposition.useEcho = std::max(mComposition.useEcho, 0.48f);
-            break;
-        case StyleType::MagentaWell:
-            mComposition.useLead = std::max(mComposition.useLead, 0.92f);
-            mComposition.useCounter = std::max(mComposition.useCounter, 0.54f);
-            mComposition.usePluck = std::max(mComposition.usePluck, 0.62f);
-            mComposition.useBell = std::max(mComposition.useBell, 0.48f);
-            mComposition.useRotor = std::max(mComposition.useRotor, 0.42f);
-            break;
-        case StyleType::CarbonRain:
-            mComposition.useKick = std::max(mComposition.useKick, 0.88f);
-            mComposition.usePerc = std::max(mComposition.usePerc, 0.78f);
-            mComposition.usePulse = std::max(mComposition.usePulse, 0.58f);
-            mComposition.useGrain = std::max(mComposition.useGrain, 0.56f);
-            mComposition.useFx = std::max(mComposition.useFx, 0.48f);
-            break;
-        case StyleType::LatticeSun:
-            mComposition.useArp = std::max(mComposition.useArp, 0.72f);
-            mComposition.usePluck = std::max(mComposition.usePluck, 0.58f);
-            mComposition.usePulse = std::max(mComposition.usePulse, 0.52f);
-            mComposition.useSheen = std::max(mComposition.useSheen, 0.52f);
-            mComposition.useBell = std::max(mComposition.useBell, 0.42f);
-            break;
-        case StyleType::StrangeHarbor:
-            mComposition.useChord = std::max(mComposition.useChord, 0.82f);
-            mComposition.useTexture = std::max(mComposition.useTexture, 0.82f);
-            mComposition.useDrone = std::max(mComposition.useDrone, 0.64f);
-            mComposition.useRotor = std::max(mComposition.useRotor, 0.50f);
-            mComposition.useComet = std::max(mComposition.useComet, 0.34f);
-            mComposition.useBell = std::max(mComposition.useBell, 0.34f);
-            break;
-        case StyleType::CopperChord:
-            mComposition.useChord = std::max(mComposition.useChord, 0.86f);
-            mComposition.useLead = std::max(mComposition.useLead, 0.78f);
-            mComposition.useCounter = std::max(mComposition.useCounter, 0.52f);
-            mComposition.useRotor = std::max(mComposition.useRotor, 0.46f);
-            mComposition.useBell = std::max(mComposition.useBell, 0.42f);
-            break;
-        case StyleType::GhostMeter:
-            mComposition.usePerc = std::max(mComposition.usePerc, 0.66f);
-            mComposition.useEcho = std::max(mComposition.useEcho, 0.58f);
-            mComposition.useOrbit = std::max(mComposition.useOrbit, 0.54f);
-            mComposition.useCounter = std::max(mComposition.useCounter, 0.44f);
-            mComposition.useGlyph = std::max(mComposition.useGlyph, 0.38f);
-            break;
-        case StyleType::ObsidianBloom:
-            mComposition.useBass = std::max(mComposition.useBass, 0.92f);
-            mComposition.useSub = std::max(mComposition.useSub, 0.72f);
-            mComposition.useChord = std::max(mComposition.useChord, 0.76f);
-            mComposition.useDrone = std::max(mComposition.useDrone, 0.68f);
-            mComposition.useBloom = std::max(mComposition.useBloom, 0.54f);
-            break;
-        case StyleType::VoltageMoth:
-            mComposition.useLead = std::max(mComposition.useLead, 0.94f);
-            mComposition.useArp = std::max(mComposition.useArp, 0.72f);
-            mComposition.useSheen = std::max(mComposition.useSheen, 0.60f);
-            mComposition.usePluck = std::max(mComposition.usePluck, 0.56f);
-            mComposition.useSpark = std::max(mComposition.useSpark, 0.52f);
-            break;
-        case StyleType::QuartzTide:
-            mComposition.useChord = std::max(mComposition.useChord, 0.86f);
-            mComposition.useTexture = std::max(mComposition.useTexture, 0.82f);
-            mComposition.useLead = std::max(mComposition.useLead, 0.74f);
-            mComposition.useBell = std::max(mComposition.useBell, 0.54f);
-            mComposition.useComet = std::max(mComposition.useComet, 0.40f);
-            break;
-        case StyleType::StaticCathedral:
-            mComposition.useChord = std::max(mComposition.useChord, 0.88f);
-            mComposition.useTexture = std::max(mComposition.useTexture, 0.78f);
-            mComposition.useDrone = std::max(mComposition.useDrone, 0.62f);
-            mComposition.useFx = std::max(mComposition.useFx, 0.46f);
-            mComposition.useRotor = std::max(mComposition.useRotor, 0.52f);
-            break;
-        case StyleType::MercuryThread:
-            mComposition.useHat = std::max(mComposition.useHat, 0.80f);
-            mComposition.usePerc = std::max(mComposition.usePerc, 0.76f);
-            mComposition.usePulse = std::max(mComposition.usePulse, 0.64f);
-            mComposition.useGrain = std::max(mComposition.useGrain, 0.52f);
-            mComposition.useArp = std::max(mComposition.useArp, 0.54f);
-            break;
-        case StyleType::NightLatch:
-            mComposition.useBass = std::max(mComposition.useBass, 0.86f);
-            mComposition.useSub = std::max(mComposition.useSub, 0.62f);
-            mComposition.usePerc = std::max(mComposition.usePerc, 0.56f);
-            mComposition.useEcho = std::max(mComposition.useEcho, 0.46f);
-            mComposition.useBloom = std::max(mComposition.useBloom, 0.42f);
-            break;
-        case StyleType::TinyGrid:
-            mComposition.useKick = std::max(mComposition.useKick, 0.82f);
-            mComposition.useHat = std::max(mComposition.useHat, 0.62f);
-            mComposition.useArp = std::max(mComposition.useArp, 0.36f);
-            break;
-        case StyleType::BitFog:
-            mComposition.usePerc = std::max(mComposition.usePerc, 0.72f);
-            mComposition.useGlyph = std::max(mComposition.useGlyph, 0.54f);
-            mComposition.useFx = std::max(mComposition.useFx, 0.46f);
-            break;
-        case StyleType::WarmCurrent:
-            mComposition.useBass = std::max(mComposition.useBass, 0.82f);
-            mComposition.useChord = std::max(mComposition.useChord, 0.62f);
-            mComposition.useLead = std::max(mComposition.useLead, 0.74f);
-            mComposition.useCounter = std::max(mComposition.useCounter, 0.38f);
-            break;
-        default:
-            break;
+    std::array<float*, 16> support{{
+        &mComposition.useArp, &mComposition.useCounter, &mComposition.useStab,
+        &mComposition.useDrone, &mComposition.useSpark, &mComposition.useEcho,
+        &mComposition.useOrbit, &mComposition.useBloom, &mComposition.useGlyph,
+        &mComposition.useSub, &mComposition.useSheen, &mComposition.usePluck,
+        &mComposition.useBell, &mComposition.usePulse, &mComposition.useComet,
+        &mComposition.useRotor
+    }};
+    const std::array<float, 16> affinity{{
+        0.35f + 0.90f * p.motion, 0.70f + 0.55f * p.melody, 0.28f + 0.50f * p.chord,
+        0.16f + 0.54f * p.space, 0.18f + 0.45f * p.brightness, 0.28f + 0.55f * p.sync,
+        0.26f + 0.52f * p.melodyRun, 0.22f + 0.58f * p.chord, 0.16f + 0.50f * p.sync,
+        0.14f + 0.44f * p.bass, 0.18f + 0.42f * p.brightness, 0.46f + 0.48f * p.sync,
+        0.34f + 0.45f * p.chord, 0.22f + 0.65f * p.motion, 0.14f + 0.35f * p.space,
+        0.22f + 0.50f * p.chord
+    }};
+    std::array<float, 16> rank{};
+    for (size_t i = 0; i < support.size(); ++i) {
+        *support[i] = 0.0f;
+        rank[i] = affinity[i] * (0.12f + 0.88f * mRng.uni());
     }
-
-    if (mComposition.useBass + mComposition.useChord + mComposition.useLead < 2.30f) {
-        mComposition.useBass = std::max(mComposition.useBass, 0.84f);
-        if (p.melody >= 0.42f) mComposition.useLead = std::max(mComposition.useLead, 0.72f);
-        if (p.chord >= 0.32f || p.texture >= 0.40f) mComposition.useChord = std::max(mComposition.useChord, 0.58f);
-    }
-    if (mComposition.useKick + mComposition.useSnare + mComposition.useHat + mComposition.usePerc < 2.10f && !p.ambient) {
-        mComposition.useKick = std::max(mComposition.useKick, 0.78f);
-        mComposition.useSnare = std::max(mComposition.useSnare, 0.58f);
-        mComposition.useHat = std::max(mComposition.useHat, 0.52f);
-    }
-
-    int32_t active = 0;
-    auto on = [&](float v) { return v > 0.05f; };
-    active += on(mComposition.useKick); active += on(mComposition.useSnare);
-    active += on(mComposition.useHat); active += on(mComposition.useOpenHat);
-    active += on(mComposition.usePerc); active += on(mComposition.useBass);
-    active += on(mComposition.useChord); active += on(mComposition.useLead);
-    active += on(mComposition.useTexture); active += on(mComposition.useArp);
-    active += on(mComposition.useCounter); active += on(mComposition.useStab);
-    active += on(mComposition.useDrone); active += on(mComposition.useSpark);
-    active += on(mComposition.useFx); active += on(mComposition.useEcho);
-    active += on(mComposition.useOrbit); active += on(mComposition.useBloom);
-    active += on(mComposition.useGlyph); active += on(mComposition.useSub);
-    active += on(mComposition.useSheen); active += on(mComposition.usePluck);
-    active += on(mComposition.useBell); active += on(mComposition.usePulse);
-    active += on(mComposition.useGrain); active += on(mComposition.useComet);
-    active += on(mComposition.useRotor);
-    while (active < (p.ambient ? 12 : 15)) {
-        switch (mRng.rangeInt(0, 19)) {
-            case 0: if (!on(mComposition.useOpenHat)) { mComposition.useOpenHat = 0.42f; ++active; } break;
-            case 1: if (!on(mComposition.usePerc)) { mComposition.usePerc = 0.50f; ++active; } break;
-            case 2: if (!on(mComposition.useChord)) { mComposition.useChord = 0.54f; ++active; } break;
-            case 3: if (!on(mComposition.useLead)) { mComposition.useLead = 0.60f; ++active; } break;
-            case 4: if (!on(mComposition.useTexture)) { mComposition.useTexture = 0.46f; ++active; } break;
-            case 5: if (!on(mComposition.useArp)) { mComposition.useArp = 0.38f; ++active; } break;
-            case 6: if (!on(mComposition.useCounter)) { mComposition.useCounter = 0.40f; ++active; } break;
-            case 7: if (!on(mComposition.useStab)) { mComposition.useStab = 0.40f; ++active; } break;
-            case 8: if (!on(mComposition.useEcho)) { mComposition.useEcho = 0.38f; ++active; } break;
-            case 9: if (!on(mComposition.useOrbit)) { mComposition.useOrbit = 0.34f; ++active; } break;
-            case 10: if (!on(mComposition.useBloom)) { mComposition.useBloom = 0.40f; ++active; } break;
-            case 11: if (!on(mComposition.useGlyph)) { mComposition.useGlyph = 0.34f; ++active; } break;
-            case 12: if (!on(mComposition.useSub)) { mComposition.useSub = 0.38f; ++active; } break;
-            case 13: if (!on(mComposition.useSheen)) { mComposition.useSheen = 0.32f; ++active; } break;
-            case 14: if (!on(mComposition.usePluck)) { mComposition.usePluck = 0.36f; ++active; } break;
-            case 15: if (!on(mComposition.useBell)) { mComposition.useBell = 0.30f; ++active; } break;
-            case 16: if (!on(mComposition.usePulse)) { mComposition.usePulse = 0.34f; ++active; } break;
-            case 17: if (!on(mComposition.useGrain)) { mComposition.useGrain = 0.28f; ++active; } break;
-            case 18: if (!on(mComposition.useComet)) { mComposition.useComet = 0.24f; ++active; } break;
-            default: if (!on(mComposition.useRotor)) { mComposition.useRotor = 0.34f; ++active; } break;
-        }
+    const int32_t supportCount = clampInt32(static_cast<int32_t>(std::lround(p.supportTarget)), 1, 6);
+    for (int32_t selected = 0; selected < supportCount; ++selected) {
+        const auto best = std::max_element(rank.begin(), rank.end());
+        const size_t index = static_cast<size_t>(best - rank.begin());
+        *support[index] = 0.30f + 0.44f * mRng.uni();
+        *best = -1.0f;
     }
 
     int32_t bassBucket = 2, leadBucket = 2, padBucket = 2, kickBucket = 2, snareBucket = 2, hatBucket = 2, percBucket = 2, textureBucket = 2;
@@ -3145,10 +2343,8 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     // export overlays a finite boundary after reconstruction.
     mComposition.pieceSteps = kIndefinitePieceSteps;
 
-    // Preserve the established candidate RNG sequence. Older releases consumed
-    // this decision before generating the composition identity. v28 replaces the
-    // actual ending policy later with boundaryGrammarSeed, but retaining the draw
-    // keeps existing seeds, candidates, melodies, bass grammar, and timbres stable.
+    // The final boundary policy is generated later from this composition's
+    // identity. Live playback keeps developing until the listener changes tune.
     mComposition.conclusiveOutro = mRng.chance(
         0.34f + 0.22f * p.drama + 0.10f * p.chord);
 
@@ -3259,7 +2455,7 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
 
     const bool lowRegisterStyle = p.bass > 0.76f || p.halfTime || (p.rough > 0.68f && p.brightness < 0.50f);
     const bool highRegisterStyle = p.brightness > 0.66f || p.melody > 0.76f;
-    mComposition.octaveBias = lowRegisterStyle ? 2 : (highRegisterStyle ? 3 : 2);
+    mComposition.octaveBias = (p.intent == 0 || lowRegisterStyle) ? 2 : (highRegisterStyle ? 3 : 2);
     mComposition.motifGain = clamp(1.10f + p.melody * 1.04f + mRng.bipolar() * 0.09f, 0.82f, 2.12f);
     mComposition.bassGain = clamp(0.90f + p.bass * 0.72f + mRng.bipolar() * 0.08f, 0.64f, 1.56f);
     mComposition.chordGain = clamp(0.58f + p.chord * 0.78f + p.texture * 0.42f, 0.38f, 1.46f);
@@ -3274,6 +2470,7 @@ void MusicEngine::generateComposition(const StyleProfile& p) {
     generateTensionGrammar(p);
     generateTimbreGrammar(p);
     generateBoundaryGrammar(p);
+    generatePhrasePlan(p);
 
     uint32_t mh = 0x811c9dc5u;
     auto mixMotif = [&](uint32_t v) {
@@ -3334,19 +2531,36 @@ void MusicEngine::mutateDrumsOnly() {
     const int32_t pos = rng.rangeInt(0, kPatternSteps - 1);
     const int32_t track = rng.rangeInt(0, 4);
     const float delta = rng.bipolar() * (0.035f + 0.10f * mPattern.roughness + 0.04f * mNovelty);
+    const float reference = mPattern.drumReference[track][pos];
+    const float spread = reference > 0.015f ? (0.06f + 0.13f * p.motion) :
+                                             (0.015f + 0.055f * p.motion);
+    auto develop = [&](float& value, float scale) {
+        value = clamp(reference + 0.92f * (value - reference) + delta * scale,
+                      std::max(0.0f, reference - spread),
+                      std::min(0.98f, reference + spread));
+    };
     switch (track) {
-        case 0: mPattern.kick[pos] += delta * 0.70f; break;
-        case 1: mPattern.snare[pos] += delta * 0.85f; break;
-        case 2: mPattern.hat[pos] += delta * (p.trapHats ? 1.35f : 0.90f); break;
-        case 3: mPattern.perc[pos] += delta * 1.40f; break;
-        default: mPattern.openHat[pos] += delta * 0.55f; break;
+        case 0: develop(mPattern.kick[pos], 0.70f); break;
+        case 1: develop(mPattern.snare[pos], 0.85f); break;
+        case 2: develop(mPattern.hat[pos], p.trapHats ? 1.35f : 0.90f); break;
+        case 3: develop(mPattern.perc[pos], 1.40f); break;
+        default: develop(mPattern.openHat[pos], 0.55f); break;
     }
     repairPattern();
 }
 
+void MusicEngine::rememberDrumReference() {
+    mPattern.drumReference[0] = mPattern.kick;
+    mPattern.drumReference[1] = mPattern.snare;
+    mPattern.drumReference[2] = mPattern.hat;
+    mPattern.drumReference[3] = mPattern.perc;
+    mPattern.drumReference[4] = mPattern.openHat;
+}
+
 
 void MusicEngine::repairPattern() {
-    const StyleProfile p = profile(mPattern.style);
+    // Repair the composed rhythm, not the currently selected performance lens.
+    const StyleProfile p = profile(mPattern.style, false);
     for (int32_t i = 0; i < kPatternSteps; ++i) {
         mPattern.kick[i] = clamp(mPattern.kick[i], 0.0f, 0.98f);
         mPattern.snare[i] = clamp(mPattern.snare[i], 0.0f, 0.98f);
@@ -3376,11 +2590,8 @@ void MusicEngine::repairPattern() {
         }
     }
 
-    if (p.trapHats) {
-        for (int32_t i = 0; i < kPatternSteps; ++i) mPattern.hat[i] = std::max(mPattern.hat[i], (i & 1) ? 0.24f : 0.38f);
-    } else if (!p.ambient) {
-        for (int32_t i = 0; i < kPatternSteps; i += 2) mPattern.hat[i] = std::max(mPattern.hat[i], 0.16f + 0.22f * p.density);
-    }
+    // Rests in the generated hat word are intentional. A repair must not add
+    // eighth/sixteenth-note hits back into every slow or sparse composition.
 
     for (int32_t i = 0; i < kPatternSteps; ++i) {
         const int32_t n = (i + 1) & (kPatternSteps - 1);
@@ -3535,16 +2746,13 @@ float MusicEngine::boundaryEnvelope(int32_t phrase, int32_t phrasePos, int32_t e
 
 int32_t MusicEngine::currentChordRoot(int32_t step) const {
     const int32_t progression = std::max(1, std::min(kMaxProgressionSlots, mComposition.progressionLength));
-    int32_t bar = step / kPhraseSteps;
-    while (bar < 0) bar += progression;
+    int32_t bar = std::max(0, step) / (kPhraseSteps * clampInt32(mComposition.harmonicSpan, 1, 3));
     int32_t root = mComposition.chordRoot[bar % progression];
 
     // Harmony evolves only away from the recurring hook. It returns to the
     // original progression during identity-return windows, so the sound keeps
     // an audible home even in an indefinitely held generation.
-    const bool hookBar = mComposition.hookCycle > 0 &&
-                         ((bar / std::max(1, mComposition.sectionPhraseLength)) %
-                          mComposition.hookCycle) == 1;
+    const bool hookBar = phrasePlanForStep(step).section == SectionType::Hook;
     if (!hookBar && bar > 1) {
         const EvolutionFrame frame = evolutionFrameForStep(step);
         const uint32_t h0 = evolutionHash(frame.epoch, bar & 15, MelodyLayer::Lead, 0xc0a1u);
@@ -3568,121 +2776,290 @@ int32_t MusicEngine::currentChordRoot(int32_t step) const {
     return clampInt32(root, -7, 12);
 }
 
-MusicEngine::SectionType MusicEngine::currentSectionType(int32_t step) const {
+void MusicEngine::generatePhrasePlan(const StyleProfile& p) {
+    // A single form owns recall, questions, answers and arrival. It consumes no
+    // candidate RNG, and it never adds an instrument to the selected ensemble.
+    mComposition.phrasePlanSeed = mixSeed(mComposition.arcSeed ^
+        mComposition.leadGrammarSeed ^ 0x3051a71eu);
+    Rng rng(mComposition.phrasePlanSeed);
+    mComposition.developmentCycle = rng.rangeInt(10, 18);
+    mComposition.recallPhrases = rng.rangeInt(1, 2);
+    mComposition.harmonicSpan = p.intent == 0 ? rng.rangeInt(2, 3) :
+        (p.intent == 1 ? rng.rangeInt(1, 2) : 1);
+    mComposition.deviceRotation = rng.rangeInt(0, 4);
+    mComposition.phraseJoint = rng.rangeInt(6, 11);
+}
+
+float MusicEngine::supportLaneWeight(int32_t lane) const {
+    const std::array<float, kSupportLanes> weights{{
+        mComposition.useArp, mComposition.useCounter, mComposition.useStab,
+        mComposition.useDrone, mComposition.useSpark, mComposition.useEcho,
+        mComposition.useOrbit, mComposition.useBloom, mComposition.useGlyph,
+        mComposition.useSub, mComposition.useSheen, mComposition.usePluck,
+        mComposition.useBell, mComposition.usePulse, mComposition.useComet,
+        mComposition.useRotor
+    }};
+    return lane >= 0 && lane < kSupportLanes ? weights[lane] : 0.0f;
+}
+
+void MusicEngine::constrainSupportPalette() {
+    std::array<float*, kSupportLanes> weights{{
+        &mComposition.useArp, &mComposition.useCounter, &mComposition.useStab,
+        &mComposition.useDrone, &mComposition.useSpark, &mComposition.useEcho,
+        &mComposition.useOrbit, &mComposition.useBloom, &mComposition.useGlyph,
+        &mComposition.useSub, &mComposition.useSheen, &mComposition.usePluck,
+        &mComposition.useBell, &mComposition.usePulse, &mComposition.useComet,
+        &mComposition.useRotor
+    }};
+    // Edited legacy recipes cannot resurrect every former layer at once.
+    for (int32_t retained = 0; retained < kSupportLanes; ++retained) {
+        int32_t best = -1;
+        for (int32_t i = 0; i < kSupportLanes; ++i) {
+            if (weights[i] && (best < 0 || *weights[i] > *weights[best])) best = i;
+        }
+        if (best < 0) break;
+        if (retained >= 6) *weights[best] = 0.0f;
+        weights[best] = nullptr;
+    }
+    mComposition.useTexture = mComposition.useFx = mComposition.useGrain = 0.0f;
+}
+
+MusicEngine::PhrasePlan MusicEngine::phrasePlanForStep(int32_t step) const {
+    PhrasePlan plan;
     const int32_t phrase = std::max(0, step) / kPhraseSteps;
-    if (phrase < effectiveIntroPhrases()) return SectionType::Intro;
-    if (mExportSinglePieceMode && step >= outroStartStep()) return SectionType::Outro;
+    const int32_t intro = effectiveIntroPhrases();
+    const int32_t length = clampInt32(mComposition.developmentCycle, 10, 18);
+    const int32_t local = std::max(0, phrase - intro);
+    plan.cycle = local / length;
+    plan.position = local % length;
+    const uint32_t cycleHash = mixSeed(mComposition.phrasePlanSeed ^
+        (static_cast<uint32_t>(plan.cycle) + 1u) * 0x9e3779b9u);
+    const uint32_t phraseHash = mixSeed(cycleHash ^
+        (static_cast<uint32_t>(plan.position) + 1u) * 0x85ebca6bu);
+    plan.joint = clampInt32(mComposition.phraseJoint + static_cast<int32_t>((cycleHash >> 8u) % 3u) - 1, 5, 12);
+    plan.rhythmShift = static_cast<int32_t>((phraseHash >> 3u) % 5u) - 2;
+    plan.turnPosition = 3 + static_cast<int32_t>((phraseHash >> 11u) % 10u);
+    plan.turnDirection = ((phraseHash >> 20u) & 1u) ? 1 : -1;
+    plan.cadenceTone = ((phraseHash >> 21u) & 1u) ? 2 : 4;
 
-    const int32_t sectionLen = std::max(4, mComposition.sectionPhraseLength);
-    const int32_t section = phrase / sectionLen;
-
-    if (mComposition.hookCycle > 0 && (section % mComposition.hookCycle) == 1) {
-        return SectionType::Hook;
+    if (phrase < intro) {
+        plan.section = SectionType::Intro;
+        plan.role = mComposition.introForm[clampInt32(phrase, 0, kBoundarySlots - 1)];
+        plan.rhythmShift = 0;
+        return plan;
+    }
+    if (mExportSinglePieceMode && step >= outroStartStep()) {
+        plan.section = SectionType::Outro;
+        plan.role = mComposition.outroForm[clampInt32(phrase - outroStartStep() / kPhraseSteps, 0, kBoundarySlots - 1)];
+        plan.rhythmShift = 0;
+        plan.resolves = mComposition.conclusiveOutro;
+        return plan;
     }
 
-    uint32_t h = mComposition.arcSeed ^ static_cast<uint32_t>(section * 0x9e3779b9u);
-    h ^= h << 13u;
-    h ^= h >> 17u;
-    h ^= h << 5u;
-    const int32_t r = static_cast<int32_t>(h % 100u);
+    const int32_t recall = clampInt32(mComposition.recallPhrases, 1, 2);
+    if (plan.position < recall) {
+        // Theme recall is one or two phrases, never a whole eight-bar section.
+        plan.section = SectionType::Hook;
+        plan.role = plan.position == 0 ? PhraseType::Hook : PhraseType::Repeat;
+        plan.rhythmShift = 0;
+        plan.resolves = true;
+        return plan;
+    }
 
-    const int32_t suspensionCut = 4 + static_cast<int32_t>(mComposition.deviceDepth * 7.0f);
-    const int32_t shadowCut = suspensionCut + 5 + static_cast<int32_t>(mComposition.longMemory * 4.0f);
-    const int32_t weaveCut = shadowCut + 6 + static_cast<int32_t>(mComposition.counterpoint * 5.0f);
-    const int32_t tideCut = weaveCut + 5 + static_cast<int32_t>(mComposition.layerMigration * 5.0f);
-    const int32_t hingeCut = tideCut + 5 + static_cast<int32_t>(mComposition.callResponse * 4.0f);
-    const int32_t mirrorCut = hingeCut + 6 + static_cast<int32_t>(mComposition.paletteHash & 3u);
-    const int32_t orbitCut = mirrorCut + 5 + static_cast<int32_t>(mPattern.texture * 5.0f);
-    const int32_t variationCut = std::min(76, orbitCut + 8 + static_cast<int32_t>(mPattern.melody * 8.0f));
-    const int32_t cascadeCut = 88 - static_cast<int32_t>(mComposition.drama * 8.0f);
-    const int32_t surgeCut = 94 - static_cast<int32_t>(mComposition.drama * 14.0f);
+    const bool answer = plan.position == recall ||
+        ((plan.position + mComposition.deviceRotation) % 3) == 1;
+    if (plan.position == length - 3) {
+        plan.section = SectionType::Hinge;
+        plan.role = PhraseType::Hinge;
+        plan.device = MusicalDevice::HeldQuestion;
+        plan.cadenceTone = ((cycleHash >> 17u) & 1u) ? 1 : 5;
+        plan.articulation = 1.18f;
+    } else if (plan.position == length - 2) {
+        plan.section = SectionType::Surge;
+        plan.role = PhraseType::Surge;
+        plan.device = MusicalDevice::Confluence;
+        plan.resolves = true;
+        plan.articulation = 0.94f;
+    } else if (plan.position == length - 1) {
+        plan.section = SectionType::Shadow;
+        plan.role = PhraseType::Afterimage;
+        plan.device = MusicalDevice::OpenRelease;
+        plan.articulation = 1.24f;
+    } else if (answer) {
+        plan.section = SectionType::Weave;
+        plan.role = PhraseType::Answer;
+        plan.device = ((phraseHash >> 7u) & 1u) ? MusicalDevice::Counterweight : MusicalDevice::PocketExchange;
+        plan.articulation = 0.92f + 0.20f * static_cast<float>((phraseHash >> 23u) & 1u);
+    } else {
+        static constexpr std::array<PhraseType, 6> development{{
+            PhraseType::Variation, PhraseType::Mirror, PhraseType::Tide,
+            PhraseType::Crystallize, PhraseType::Weave, PhraseType::Statement
+        }};
+        plan.role = development[(phraseHash >> 6u) % development.size()];
+        plan.section = SectionType::Variation;
+        plan.device = MusicalDevice::PocketExchange;
+    }
 
-    if (r < suspensionCut) return SectionType::Suspension;
-    if (r < shadowCut) return SectionType::Shadow;
-    if (r < weaveCut) return SectionType::Weave;
-    if (r < tideCut) return SectionType::Tide;
-    if (r < hingeCut) return SectionType::Hinge;
-    if (r < mirrorCut) return SectionType::Mirror;
-    if (r < orbitCut) return SectionType::Orbit;
-    if (r > surgeCut) return SectionType::Surge;
-    if (r > cascadeCut) return SectionType::Cascade;
-    if (r < variationCut) return SectionType::Variation;
-    return SectionType::Theme;
+    if (answer && plan.device != MusicalDevice::HeldQuestion &&
+        plan.device != MusicalDevice::Confluence && plan.device != MusicalDevice::OpenRelease) {
+        // Answers change who speaks. A supporting voice is promoted rather than
+        // layered on top of a second complete lead. All choices already exist.
+        std::array<int32_t, kSupportLanes + 1> owners{};
+        int32_t count = 0;
+        if (mComposition.useBass > 0.02f) owners[count++] = 1;
+        for (int32_t lane = 0; lane < kSupportLanes; ++lane) {
+            const bool harmonic = lane == 2 || lane == 3 || lane == 7 || lane == 15;
+            if (!harmonic && lane != 8 && lane != 9 && supportLaneWeight(lane) > 0.02f) owners[count++] = lane + 3;
+        }
+        if (count > 0) plan.instrumentSlot = owners[(phraseHash >> 13u) % static_cast<uint32_t>(count)];
+    }
+    if (plan.device == MusicalDevice::OpenRelease && mComposition.useChord > 0.02f &&
+        (cycleHash & 3u) == 1u) plan.instrumentSlot = 2;
+    return plan;
+}
+
+MusicEngine::SectionType MusicEngine::currentSectionType(int32_t step) const {
+    return phrasePlanForStep(step).section;
 }
 
 MusicEngine::PhraseType MusicEngine::currentPhraseType(int32_t step) const {
-    const int32_t len = std::max(1, std::min(kMaxFormSlots, mComposition.formLength));
-    int32_t phrase = step / kPhraseSteps;
-    while (phrase < 0) phrase += len;
+    return phrasePlanForStep(step).role;
+}
 
-    const SectionType section = currentSectionType(step);
-    const int32_t local = phrase & 3;
-    switch (section) {
-        case SectionType::Intro: {
-            const int32_t intro = effectiveIntroPhrases();
-            const int32_t index = clampInt32(phrase, 0, std::max(0, intro - 1));
-            return mComposition.introForm[index];
+MusicEngine::ForegroundNote MusicEngine::foregroundNoteForStep(int32_t step, int32_t chordRoot) const {
+    const PhrasePlan plan = phrasePlanForStep(step);
+    const int32_t position = std::max(0, step) & 15;
+    const int32_t phraseStart = std::max(0, step) - position;
+    const bool recall = plan.section == SectionType::Hook;
+    const bool slow = mPattern.intent == 0;
+    const uint32_t phraseHash = mixSeed(mComposition.phrasePlanSeed ^
+        (static_cast<uint32_t>(phraseStart / kPhraseSteps) + 1u) * 0x27d4eb2du);
+    std::array<int32_t, kPhraseSteps> degrees{};
+    std::array<float, kPhraseSteps> gates{};
+    std::array<float, kPhraseSteps> lengths{};
+    int32_t lastDestination = -1;
+    int32_t lastDegree = chordRoot;
+    const int32_t octave = plan.instrumentSlot == 1 ? 0 :
+        (plan.instrumentSlot >= 3 ? std::max(1, mComposition.octaveBias - 1) : mComposition.octaveBias);
+    const int32_t scaleSize = scaleLength();
+
+    for (int32_t source = 0; source < kPhraseSteps; ++source) {
+        bool rest = false;
+        float gate = 0.0f, duration = 0.0f;
+        int32_t degree = grammarDegree(plan.role, source, chordRoot, rest, gate, duration);
+        if (rest) continue;
+        int32_t destination = source;
+        if (!recall && plan.section != SectionType::Intro && plan.section != SectionType::Outro &&
+            source != 0 && source != 8 && source != 15) {
+            const uint32_t cellHash = mixSeed(phraseHash ^ static_cast<uint32_t>(source / 3 + 1) * 0x85ebca6bu);
+            const int32_t shift = clampInt32(plan.rhythmShift + static_cast<int32_t>(cellHash % 3u) - 1,
+                                             slow ? -1 : -2, slow ? 1 : 2);
+            const int32_t low = source < 8 ? 1 : 9;
+            const int32_t high = source < 8 ? 7 : 14;
+            destination = clampInt32(source + shift, low, high);
+            destination = std::max(destination, lastDestination + 1);
+            if (destination > high) continue;
         }
-        case SectionType::Hook:
-            if (local == 0) return PhraseType::Hook;
-            if (local == 1) return PhraseType::Repeat;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Hook;
-        case SectionType::Variation:
-            if (local == 0) return PhraseType::Statement;
-            if (local == 1) return PhraseType::Variation;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Variation;
-        case SectionType::Suspension:
-            if (local == 0) return PhraseType::Suspension;
-            if (local == 1) return PhraseType::Orbit;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Mirror;
-        case SectionType::Mirror:
-            if (local == 0) return PhraseType::Mirror;
-            if (local == 1) return PhraseType::Answer;
-            if (local == 2) return PhraseType::Variation;
-            return PhraseType::Mirror;
-        case SectionType::Orbit:
-            if (local == 0 || local == 3) return PhraseType::Orbit;
-            if (local == 1) return PhraseType::Statement;
-            return PhraseType::Answer;
-        case SectionType::Weave:
-            if (local == 0 || local == 2) return PhraseType::Weave;
-            if (local == 1) return PhraseType::Answer;
-            return PhraseType::Hook;
-        case SectionType::Tide:
-            if (local == 0 || local == 3) return PhraseType::Tide;
-            if (local == 1) return PhraseType::Statement;
-            return PhraseType::Variation;
-        case SectionType::Hinge:
-            if (local == 0) return PhraseType::Statement;
-            if (local == 1) return PhraseType::Hinge;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Hook;
-        case SectionType::Shadow:
-            if (local == 0 || local == 3) return PhraseType::Shadow;
-            if (local == 1) return PhraseType::Afterimage;
-            return PhraseType::Answer;
-        case SectionType::Cascade:
-            if (local == 0) return PhraseType::Cascade;
-            if (local == 1) return PhraseType::Hook;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Surge;
-        case SectionType::Surge:
-            if (local == 0) return PhraseType::Hook;
-            if (local == 1) return PhraseType::Surge;
-            if (local == 2) return PhraseType::Answer;
-            return PhraseType::Cascade;
-        case SectionType::Outro: {
-            const int32_t index = clampInt32(phrase - outroStartStep() / kPhraseSteps,
-                                             0, std::max(0, effectiveOutroPhrases() - 1));
-            return mComposition.outroForm[index];
+        if (destination <= lastDestination) continue;
+        degree = applyThemeTransform(degree, phraseStart + destination, destination, chordRoot, plan.role);
+        int32_t relative = degree - chordRoot;
+        if (!recall && source != 0 && source != 8) {
+            const int32_t turnDistance = std::abs(destination - plan.turnPosition);
+            if (turnDistance <= 2) relative += plan.turnDirection * (turnDistance == 0 ? 2 : 1);
+            if (plan.device == MusicalDevice::Counterweight && destination >= plan.joint) {
+                relative = mComposition.motifA[8] - relative / 2;
+            }
         }
-        case SectionType::Theme:
-        default:
-            return mComposition.form[phrase % len];
+        degree = chordRoot + relative;
+        // Middle-register slow music and bounded voice leading. Equivalent
+        // scale octaves preserve contour without the old soprano register tail.
+        const int32_t lowerMidi = plan.instrumentSlot == 1 ? 33 : (slow ? 52 : 48);
+        const int32_t upperMidi = plan.instrumentSlot == 1 ? 62 : (slow ? 78 : 91);
+        for (int32_t pass = 0; pass < 4; ++pass) {
+            const int32_t midi = scaleDegreeToMidi(degree, octave);
+            if (midi > upperMidi) degree -= scaleSize;
+            else if (midi < lowerMidi) degree += scaleSize;
+        }
+        if (lastDestination >= 0 && !recall) {
+            const int32_t maxLeap = slow ? 4 : 6;
+            degree = clampInt32(degree, lastDegree - maxLeap, lastDegree + maxLeap);
+        }
+        gates[destination] = evolvedGate(gate, phraseStart + destination, destination,
+                                         plan.role, plan.section, MelodyLayer::Lead);
+        degrees[destination] = degree;
+        lengths[destination] = duration;
+        lastDegree = degree;
+        lastDestination = destination;
     }
+
+    if (lastDestination >= 0) {
+        // Endings belong to the multi-phrase argument. Questions and continuing
+        // thoughts land on a third/fifth/suspension; recall and arrival resolve.
+        int32_t landing = chordRoot + (plan.resolves ? 0 : plan.cadenceTone);
+        for (int32_t pass = 0; pass < 4; ++pass) {
+            if (landing - lastDegree > scaleSize / 2) landing -= scaleSize;
+            else if (lastDegree - landing > scaleSize / 2) landing += scaleSize;
+        }
+        degrees[lastDestination] = landing;
+    }
+    if (plan.device == MusicalDevice::Confluence) {
+        gates[plan.joint] = std::max(gates[plan.joint], 0.86f);
+        degrees[plan.joint] = chordRoot + (mComposition.padIntervals[1] % scaleSize);
+        lengths[plan.joint] = 1.6f;
+    }
+    if (plan.device == MusicalDevice::OpenRelease) {
+        for (int32_t i = 0; i < kPhraseSteps; ++i) {
+            if (i > plan.joint && i != lastDestination) gates[i] = 0.0f;
+            gates[i] *= 0.74f;
+        }
+    }
+    if (plan.instrumentSlot == 2) {
+        for (int32_t i = 0; i < kPhraseSteps; ++i) if (i != 0 && i != plan.joint) gates[i] = 0.0f;
+        gates[0] = 0.70f;
+        degrees[0] = chordRoot;
+    }
+
+    // Cadence, arrival and ownership edits above can create new notes after
+    // source placement. Fold the final score, preserving every pitch class.
+    // Slow lines choose the nearest allowed octave of each next note rather
+    // than jumping down to the root at the end of every phrase.
+    const int32_t lowerMidi = plan.instrumentSlot == 1 ? 33 : (slow ? 52 : 48);
+    const int32_t upperMidi = plan.instrumentSlot == 1 ? 62 : (slow ? 78 : 91);
+    int32_t precedingMidi = -1;
+    for (int32_t i = 0; i < kPhraseSteps; ++i) {
+        if (gates[i] <= 0.02f) continue;
+        int32_t bestDegree = degrees[i];
+        int32_t bestScore = 100000;
+        for (int32_t displacement = -5; displacement <= 5; ++displacement) {
+            const int32_t candidate = degrees[i] + displacement * scaleSize;
+            const int32_t midi = scaleDegreeToMidi(candidate, octave);
+            if (midi < lowerMidi || midi > upperMidi) continue;
+            const int32_t score = slow && precedingMidi >= 0 ?
+                std::abs(midi - precedingMidi) * 12 + std::abs(displacement) : std::abs(displacement);
+            if (score < bestScore) {
+                bestScore = score;
+                bestDegree = candidate;
+            }
+        }
+        degrees[i] = bestDegree;
+        precedingMidi = scaleDegreeToMidi(bestDegree, octave);
+    }
+
+    ForegroundNote result;
+    result.instrumentSlot = plan.instrumentSlot;
+    result.octave = octave;
+    result.gate = gates[position];
+    result.rest = result.gate <= 0.02f;
+    result.degree = degrees[position];
+    int32_t gap = 1;
+    while (position + gap < kPhraseSteps && gates[position + gap] <= 0.02f) ++gap;
+    const float connected = slow ? 0.90f : 0.73f;
+    result.duration = slow ?
+        std::max(0.30f, static_cast<float>(gap) * std::min(0.98f, connected * plan.articulation)) :
+        std::max(0.30f, std::min(static_cast<float>(gap) * connected,
+            std::max(lengths[position], 0.45f)) * plan.articulation);
+    if (plan.device == MusicalDevice::HeldQuestion && position == lastDestination) result.duration = std::max(result.duration, 1.45f);
+    return result;
 }
 
 int32_t MusicEngine::grammarDegree(PhraseType phrase,
@@ -3812,7 +3189,7 @@ int32_t MusicEngine::grammarDegree(PhraseType phrase,
                 best = cand;
             }
         }
-        if (phrasePos == 15) best = chordRoot;
+        if (phrasePos == 15 && (phrase == PhraseType::Hook || phrase == PhraseType::Repeat)) best = chordRoot;
         degree = (bestDist <= 2 || rel == 0) ? best : degree;
     }
 
@@ -4028,7 +3405,7 @@ int32_t MusicEngine::evolvedDegree(int32_t degree,
     }
 
     if (phrasePos == 14 && std::abs(rel) > 6) rel = rel > 0 ? 4 : -2;
-    if (phrasePos == 15 && mComposition.melodicGravity > 0.52f) rel = 0;
+    if (phrasePos == 15 && (phrase == PhraseType::Hook || phrase == PhraseType::Repeat)) rel = 0;
     return chordRoot + clampInt32(rel, -8, 15);
 }
 
@@ -4175,7 +3552,8 @@ int32_t MusicEngine::applyThemeTransform(int32_t degree, int32_t step, int32_t p
         else if (phrase == PhraseType::Answer && phrasePos >= 8) rel -= lift;
     }
 
-    if ((phrasePos == 0 || phrasePos == 15) && mComposition.melodicGravity > 0.56f) rel = 0;
+    if (phrasePos == 0 && mComposition.melodicGravity > 0.56f) rel = 0;
+    if (phrasePos == 15 && (phrase == PhraseType::Hook || phrase == PhraseType::Repeat)) rel = 0;
     if (phrasePos == 8 && mComposition.melodicGravity > 0.74f) rel = offset;
     if (phrasePos == 14 && mComposition.melodicGravity > 0.82f && std::abs(rel) > 5) rel = (rel > 0) ? 4 : -2;
     const SectionType section = currentSectionType(step);
@@ -4269,70 +3647,12 @@ void MusicEngine::switchToPendingStyle() {
     mLastBassStep = -1000;
     mLastLeadStep = -1000;
     mSilentSteps = 0;
-    mAgcRms = 0.010f;
-    mAgcGain = 1.0f;
-    mSidechain = 1.0f;
     mNovelty = 0.0f;
-    mTextureLp = 0.0f;
-    mTextureHp = 0.0f;
-    mTexturePhaseA = 0.0f;
-    mTexturePhaseB = 0.0f;
-    mTextureNoise = mRng.nextU32();
     mDcInL = mDcInR = mDcOutL = mDcOutR = 0.0f;
-    if (!mDelayL.empty()) std::fill(mDelayL.begin(), mDelayL.end(), 0.0f);
-    if (!mDelayR.empty()) std::fill(mDelayR.begin(), mDelayR.end(), 0.0f);
-    mDelayWrite = 0;
     // Manual Next preserves the full composition search.
     generateSeededSong(mPendingSongSeed);
 }
 
-
-void MusicEngine::updateTransition() {
-    if (mTransitionStage == TransitionStage::None) {
-        mTransitionGain = 1.0f;
-        return;
-    }
-
-    if (mTransitionStage == TransitionStage::FadeOut) {
-        const float x = static_cast<float>(mTransitionSamplesLeft) / static_cast<float>(std::max(1, mTransitionSamplesTotal));
-        mTransitionGain = x * x;
-        --mTransitionSamplesLeft;
-        if (mTransitionSamplesLeft <= 0) {
-            switchToPendingStyle();
-            if (mDeadAirSamples > 0) {
-                mTransitionStage = TransitionStage::DeadAir;
-                mTransitionSamplesLeft = mDeadAirSamples;
-                mTransitionSamplesTotal = std::max(1, mDeadAirSamples);
-            } else {
-                mTransitionStage = TransitionStage::FadeIn;
-                mTransitionSamplesTotal = std::max(1, static_cast<int32_t>((0.15f + mRng.uni() * 0.80f) * static_cast<float>(mSampleRate)));
-                mTransitionSamplesLeft = mTransitionSamplesTotal;
-            }
-        }
-        return;
-    }
-
-    if (mTransitionStage == TransitionStage::DeadAir) {
-        mTransitionGain = 0.0f;
-        --mTransitionSamplesLeft;
-        if (mTransitionSamplesLeft <= 0) {
-            mTransitionStage = TransitionStage::FadeIn;
-            mTransitionSamplesTotal = std::max(1, static_cast<int32_t>((0.12f + mRng.uni() * 0.92f) * static_cast<float>(mSampleRate)));
-            mTransitionSamplesLeft = mTransitionSamplesTotal;
-        }
-        return;
-    }
-
-    if (mTransitionStage == TransitionStage::FadeIn) {
-        const float x = 1.0f - static_cast<float>(mTransitionSamplesLeft) / static_cast<float>(std::max(1, mTransitionSamplesTotal));
-        mTransitionGain = clamp01(x * x * (3.0f - 2.0f * x));
-        --mTransitionSamplesLeft;
-        if (mTransitionSamplesLeft <= 0) {
-            mTransitionStage = TransitionStage::None;
-            mTransitionGain = 1.0f;
-        }
-    }
-}
 
 void MusicEngine::render(float* output, int32_t frames, int32_t channelCount) {
     if (!output || frames <= 0 || channelCount <= 0) return;
@@ -4345,7 +3665,6 @@ void MusicEngine::render(float* output, int32_t frames, int32_t channelCount) {
         }
         mSamplesUntilNextStep -= 1.0;
 
-        updateTransition();
         processEvents();
 
         float left = 0.0f;
@@ -4376,18 +3695,8 @@ void MusicEngine::render(float* output, int32_t frames, int32_t channelCount) {
             right += s * v.panR;
         }
 
-        const float tex = renderTexture();
-        left += tex * 0.75f;
-        right += tex * 0.75f;
 
-        mSidechain += (1.0f - mSidechain) * 0.0016f;
-        const float duck = 0.72f + 0.28f * mSidechain;
-        left *= duck;
-        right *= duck;
-
-        left *= mTransitionGain;
-        right *= mTransitionGain;
-        applyDelayAndMaster(left, right);
+        applyMaster(left, right);
 
         const int32_t base = frame * channelCount;
         if (channelCount == 1) {
@@ -4408,8 +3717,6 @@ void MusicEngine::onStep() {
     mBpm += (mBpmTarget - mBpm) * 0.0012f;
     mNovelty = clamp01(mNovelty + 0.00042f);
 
-    if (mTransitionStage == TransitionStage::DeadAir) return;
-
     const StyleProfile p = profile(mPattern.style);
     const int32_t pieceStep = std::max(0, mStyleAgeSteps - 1);
     const int32_t pos = static_cast<int32_t>(mStepIndex & (kPatternSteps - 1));
@@ -4421,8 +3728,10 @@ void MusicEngine::onStep() {
     const float stepSamples = static_cast<float>(stepDurationSamples());
     const int32_t chordRoot = currentChordRoot(pieceStep);
     const int32_t nextChordRoot = currentChordRoot(pieceStep + kPhraseSteps);
-    const SectionType section = currentSectionType(pieceStep);
-    const PhraseType phrase = currentPhraseType(pieceStep);
+    const PhrasePlan phrasePlan = phrasePlanForStep(pieceStep);
+    const SectionType section = phrasePlan.section;
+    const PhraseType phrase = phrasePlan.role;
+    const bool arrivalJoint = phrasePlan.device == MusicalDevice::Confluence && p16 == phrasePlan.joint;
     const EvolutionFrame evolution = evolutionFrameForStep(pieceStep);
     const bool finiteOutro = mExportSinglePieceMode && section == SectionType::Outro;
     const int32_t outroLocalStep = finiteOutro ? std::max(0, pieceStep - outroStartStep()) : 0;
@@ -4443,96 +3752,99 @@ void MusicEngine::onStep() {
 
     bool eventHappened = false;
 
-    float phraseDrumScale = 1.0f;
-    float phraseBassScale = 1.0f;
-    float phraseLeadScale = 1.0f;
-    float phraseChordScale = 1.0f;
+    // These factors control note activity only. Phrase, section, opening,
+    // ending and device decisions never turn the band's note amplitudes up
+    // or down together; each played note keeps its normal role and accent.
+    float drumActivity = 1.0f;
+    float bassActivity = 1.0f;
+    float leadActivity = 1.0f;
+    float chordActivity = 1.0f;
     switch (phrase) {
         case PhraseType::Suspension:
-            phraseDrumScale = p.ambient ? 0.76f : clamp(0.88f - 0.36f * mComposition.deviceDepth, 0.38f, 0.88f);
-            phraseBassScale = clamp(0.92f - 0.22f * mComposition.deviceDepth, 0.48f, 0.92f);
-            phraseLeadScale = clamp(0.92f - 0.16f * mComposition.deviceDepth, 0.58f, 0.92f);
-            phraseChordScale = 1.08f + 0.34f * mComposition.deviceDepth;
+            drumActivity = p.ambient ? 0.76f : clamp(0.88f - 0.36f * mComposition.deviceDepth, 0.38f, 0.88f);
+            bassActivity = clamp(0.92f - 0.22f * mComposition.deviceDepth, 0.48f, 0.92f);
+            leadActivity = clamp(0.92f - 0.16f * mComposition.deviceDepth, 0.58f, 0.92f);
+            chordActivity = 1.08f + 0.34f * mComposition.deviceDepth;
             break;
         case PhraseType::Hook:
-            phraseDrumScale = 1.02f + 0.08f * mComposition.drama;
-            phraseBassScale = 1.02f + 0.06f * mComposition.drama;
-            phraseLeadScale = 1.14f + 0.36f * mComposition.hookEmphasis;
-            phraseChordScale = 0.98f + 0.10f * mComposition.drama;
+            drumActivity = 1.02f + 0.08f * mComposition.drama;
+            bassActivity = 1.02f + 0.06f * mComposition.drama;
+            leadActivity = 1.14f + 0.36f * mComposition.hookEmphasis;
+            chordActivity = 0.98f + 0.10f * mComposition.drama;
             break;
         case PhraseType::Mirror:
-            phraseDrumScale = 0.96f;
-            phraseBassScale = 1.04f;
-            phraseLeadScale = 1.08f;
-            phraseChordScale = 1.06f;
+            drumActivity = 0.96f;
+            bassActivity = 1.04f;
+            leadActivity = 1.08f;
+            chordActivity = 1.06f;
             break;
         case PhraseType::Orbit:
-            phraseDrumScale = 0.86f;
-            phraseBassScale = 1.08f;
-            phraseLeadScale = 0.94f;
-            phraseChordScale = 1.18f;
+            drumActivity = 0.86f;
+            bassActivity = 1.08f;
+            leadActivity = 0.94f;
+            chordActivity = 1.18f;
             break;
         case PhraseType::Cascade:
-            phraseDrumScale = 1.04f + 0.12f * mComposition.drama;
-            phraseBassScale = 1.02f + 0.08f * mComposition.drama;
-            phraseLeadScale = 1.16f + 0.20f * mComposition.surgeLift;
-            phraseChordScale = 0.94f + 0.08f * mComposition.drama;
+            drumActivity = 1.04f + 0.12f * mComposition.drama;
+            bassActivity = 1.02f + 0.08f * mComposition.drama;
+            leadActivity = 1.16f + 0.20f * mComposition.surgeLift;
+            chordActivity = 0.94f + 0.08f * mComposition.drama;
             break;
         case PhraseType::Surge:
-            phraseDrumScale = 1.06f + 0.20f * mComposition.surgeLift;
-            phraseBassScale = 1.04f + 0.16f * mComposition.surgeLift;
-            phraseLeadScale = 1.08f + 0.28f * mComposition.surgeLift;
-            phraseChordScale = 0.88f + 0.08f * mComposition.drama;
+            drumActivity = 1.06f + 0.20f * mComposition.surgeLift;
+            bassActivity = 1.04f + 0.16f * mComposition.surgeLift;
+            leadActivity = 1.08f + 0.28f * mComposition.surgeLift;
+            chordActivity = 0.88f + 0.08f * mComposition.drama;
             break;
         case PhraseType::Answer:
-            phraseLeadScale = 0.98f;
-            phraseBassScale = 0.92f;
+            leadActivity = 0.98f;
+            bassActivity = 0.92f;
             break;
         case PhraseType::Variation:
-            phraseLeadScale = 1.08f;
-            phraseBassScale = 1.04f;
+            leadActivity = 1.08f;
+            bassActivity = 1.04f;
             break;
         case PhraseType::Crystallize:
-            phraseDrumScale = 0.88f;
-            phraseBassScale = 0.96f;
-            phraseLeadScale = 1.16f;
-            phraseChordScale = 1.10f;
+            drumActivity = 0.88f;
+            bassActivity = 0.96f;
+            leadActivity = 1.16f;
+            chordActivity = 1.10f;
             break;
         case PhraseType::Eclipse:
-            phraseDrumScale = 0.62f;
-            phraseBassScale = 0.78f;
-            phraseLeadScale = 0.68f;
-            phraseChordScale = 1.24f;
+            drumActivity = 0.62f;
+            bassActivity = 0.78f;
+            leadActivity = 0.68f;
+            chordActivity = 1.24f;
             break;
         case PhraseType::Afterimage:
-            phraseDrumScale = 0.78f;
-            phraseBassScale = 0.86f;
-            phraseLeadScale = 0.82f;
-            phraseChordScale = 1.18f;
+            drumActivity = 0.78f;
+            bassActivity = 0.86f;
+            leadActivity = 0.82f;
+            chordActivity = 1.18f;
             break;
         case PhraseType::Weave:
-            phraseDrumScale = 0.92f;
-            phraseBassScale = 0.98f;
-            phraseLeadScale = 1.10f;
-            phraseChordScale = 0.96f;
+            drumActivity = 0.92f;
+            bassActivity = 0.98f;
+            leadActivity = 1.10f;
+            chordActivity = 0.96f;
             break;
         case PhraseType::Tide:
-            phraseDrumScale = 0.86f;
-            phraseBassScale = 1.04f;
-            phraseLeadScale = 1.02f;
-            phraseChordScale = 1.12f;
+            drumActivity = 0.86f;
+            bassActivity = 1.04f;
+            leadActivity = 1.02f;
+            chordActivity = 1.12f;
             break;
         case PhraseType::Hinge:
-            phraseDrumScale = p16 < evolution.focusPosition ? 0.88f : 1.06f;
-            phraseBassScale = p16 < evolution.focusPosition ? 0.96f : 1.08f;
-            phraseLeadScale = p16 < evolution.focusPosition ? 0.94f : 1.12f;
-            phraseChordScale = 1.04f;
+            drumActivity = p16 < evolution.focusPosition ? 0.88f : 1.06f;
+            bassActivity = p16 < evolution.focusPosition ? 0.96f : 1.08f;
+            leadActivity = p16 < evolution.focusPosition ? 0.94f : 1.12f;
+            chordActivity = 1.04f;
             break;
         case PhraseType::Shadow:
-            phraseDrumScale = 0.58f;
-            phraseBassScale = 0.82f;
-            phraseLeadScale = 0.72f;
-            phraseChordScale = 1.22f;
+            drumActivity = 0.58f;
+            bassActivity = 0.82f;
+            leadActivity = 0.72f;
+            chordActivity = 1.22f;
             break;
         default:
             break;
@@ -4597,73 +3909,73 @@ void MusicEngine::onStep() {
                     break;
             }
 
-            phraseDrumScale *= 0.04f + 0.96f * drumReveal;
-            phraseBassScale *= 0.06f + 0.94f * bassReveal;
-            phraseLeadScale *= 0.05f + 0.95f * leadReveal;
-            phraseChordScale *= 0.06f + 0.98f * chordReveal;
+            drumActivity *= 0.04f + 0.96f * drumReveal;
+            bassActivity *= 0.06f + 0.94f * bassReveal;
+            leadActivity *= 0.05f + 0.95f * leadReveal;
+            chordActivity *= 0.06f + 0.98f * chordReveal;
             break;
         }
         case SectionType::Hook:
-            phraseDrumScale *= 1.03f;
-            phraseBassScale *= 1.04f;
-            phraseLeadScale *= 1.18f;
+            drumActivity *= 1.03f;
+            bassActivity *= 1.04f;
+            leadActivity *= 1.18f;
             break;
         case SectionType::Variation:
-            phraseDrumScale *= 0.96f;
-            phraseBassScale *= 1.00f;
-            phraseLeadScale *= 1.06f;
-            phraseChordScale *= 1.03f;
+            drumActivity *= 0.96f;
+            bassActivity *= 1.00f;
+            leadActivity *= 1.06f;
+            chordActivity *= 1.03f;
             break;
         case SectionType::Suspension:
-            phraseDrumScale *= clamp(0.95f - 0.30f * mComposition.deviceDepth, 0.42f, 0.95f);
-            phraseBassScale *= clamp(0.96f - 0.24f * mComposition.deviceDepth, 0.50f, 0.96f);
-            phraseLeadScale *= clamp(1.02f - 0.16f * mComposition.deviceDepth, 0.66f, 1.02f);
-            phraseChordScale *= 1.08f + 0.26f * mComposition.deviceDepth;
+            drumActivity *= clamp(0.95f - 0.30f * mComposition.deviceDepth, 0.42f, 0.95f);
+            bassActivity *= clamp(0.96f - 0.24f * mComposition.deviceDepth, 0.50f, 0.96f);
+            leadActivity *= clamp(1.02f - 0.16f * mComposition.deviceDepth, 0.66f, 1.02f);
+            chordActivity *= 1.08f + 0.26f * mComposition.deviceDepth;
             break;
         case SectionType::Mirror:
-            phraseDrumScale *= 0.94f;
-            phraseBassScale *= 1.06f;
-            phraseLeadScale *= 1.10f;
-            phraseChordScale *= 1.04f;
+            drumActivity *= 0.94f;
+            bassActivity *= 1.06f;
+            leadActivity *= 1.10f;
+            chordActivity *= 1.04f;
             break;
         case SectionType::Orbit:
-            phraseDrumScale *= 0.86f;
-            phraseBassScale *= 1.10f;
-            phraseLeadScale *= 0.96f;
-            phraseChordScale *= 1.16f;
+            drumActivity *= 0.86f;
+            bassActivity *= 1.10f;
+            leadActivity *= 0.96f;
+            chordActivity *= 1.16f;
             break;
         case SectionType::Weave:
-            phraseDrumScale *= 0.94f;
-            phraseBassScale *= 0.98f;
-            phraseLeadScale *= 1.12f;
-            phraseChordScale *= 0.96f;
+            drumActivity *= 0.94f;
+            bassActivity *= 0.98f;
+            leadActivity *= 1.12f;
+            chordActivity *= 0.96f;
             break;
         case SectionType::Tide:
-            phraseDrumScale *= 0.86f + 0.18f * static_cast<float>(p16) / 15.0f;
-            phraseBassScale *= 1.00f + 0.08f * evolution.registerTide;
-            phraseLeadScale *= 1.02f + 0.10f * std::abs(evolution.registerTide);
-            phraseChordScale *= 1.10f;
+            drumActivity *= 0.86f + 0.18f * static_cast<float>(p16) / 15.0f;
+            bassActivity *= 1.00f + 0.08f * evolution.registerTide;
+            leadActivity *= 1.02f + 0.10f * std::abs(evolution.registerTide);
+            chordActivity *= 1.10f;
             break;
         case SectionType::Hinge:
-            phraseDrumScale *= p16 < evolution.focusPosition ? 0.90f : 1.08f;
-            phraseBassScale *= p16 < evolution.focusPosition ? 0.96f : 1.08f;
-            phraseLeadScale *= p16 < evolution.focusPosition ? 0.94f : 1.12f;
+            drumActivity *= p16 < evolution.focusPosition ? 0.90f : 1.08f;
+            bassActivity *= p16 < evolution.focusPosition ? 0.96f : 1.08f;
+            leadActivity *= p16 < evolution.focusPosition ? 0.94f : 1.12f;
             break;
         case SectionType::Shadow:
-            phraseDrumScale *= 0.62f;
-            phraseBassScale *= 0.84f;
-            phraseLeadScale *= 0.74f;
-            phraseChordScale *= 1.20f;
+            drumActivity *= 0.62f;
+            bassActivity *= 0.84f;
+            leadActivity *= 0.74f;
+            chordActivity *= 1.20f;
             break;
         case SectionType::Cascade:
-            phraseDrumScale *= 1.06f + 0.08f * mComposition.drama;
-            phraseBassScale *= 1.04f;
-            phraseLeadScale *= 1.14f + 0.16f * mComposition.surgeLift;
+            drumActivity *= 1.06f + 0.08f * mComposition.drama;
+            bassActivity *= 1.04f;
+            leadActivity *= 1.14f + 0.16f * mComposition.surgeLift;
             break;
         case SectionType::Surge:
-            phraseDrumScale *= 1.04f + 0.12f * mComposition.surgeLift;
-            phraseBassScale *= 1.04f + 0.10f * mComposition.surgeLift;
-            phraseLeadScale *= 1.10f + 0.20f * mComposition.surgeLift;
+            drumActivity *= 1.04f + 0.12f * mComposition.surgeLift;
+            bassActivity *= 1.04f + 0.10f * mComposition.surgeLift;
+            leadActivity *= 1.10f + 0.20f * mComposition.surgeLift;
             break;
         case SectionType::Outro: {
             const int32_t start = outroStartStep();
@@ -4710,10 +4022,10 @@ void MusicEngine::onStep() {
                         drum -= 0.08f * progress;
                         break;
                 }
-                phraseDrumScale *= clamp(drum, 0.10f, 1.08f);
-                phraseBassScale *= clamp(bass, 0.60f, 1.36f);
-                phraseLeadScale *= clamp(lead, 0.48f, 1.28f);
-                phraseChordScale *= clamp(chord, 0.70f, 1.54f);
+                drumActivity *= clamp(drum, 0.10f, 1.08f);
+                bassActivity *= clamp(bass, 0.60f, 1.36f);
+                leadActivity *= clamp(lead, 0.48f, 1.28f);
+                chordActivity *= clamp(chord, 0.70f, 1.54f);
             } else {
                 // A dissolve is staggered: different layers leave at different
                 // rates, avoiding a mechanically synchronized master fade.
@@ -4722,12 +4034,12 @@ void MusicEngine::onStep() {
                 const float l = std::pow(1.0f - progress, 1.05f);
                 const float c = std::pow(1.0f - progress, 0.78f);
                 switch (mComposition.outroShape) {
-                    case 0: phraseDrumScale *= d; phraseBassScale *= b; phraseLeadScale *= l; phraseChordScale *= c; break;
-                    case 1: phraseDrumScale *= d * d; phraseBassScale *= b; phraseLeadScale *= std::sqrt(l); phraseChordScale *= c; break;
-                    case 2: phraseDrumScale *= std::sqrt(d); phraseBassScale *= b * b; phraseLeadScale *= l; phraseChordScale *= c; break;
-                    case 3: phraseDrumScale *= d; phraseBassScale *= std::sqrt(b); phraseLeadScale *= l * l; phraseChordScale *= c; break;
+                    case 0: drumActivity *= d; bassActivity *= b; leadActivity *= l; chordActivity *= c; break;
+                    case 1: drumActivity *= d * d; bassActivity *= b; leadActivity *= std::sqrt(l); chordActivity *= c; break;
+                    case 2: drumActivity *= std::sqrt(d); bassActivity *= b * b; leadActivity *= l; chordActivity *= c; break;
+                    case 3: drumActivity *= d; bassActivity *= std::sqrt(b); leadActivity *= l * l; chordActivity *= c; break;
                     case 4:
-                    default: phraseDrumScale *= d; phraseBassScale *= b; phraseLeadScale *= std::sqrt(l); phraseChordScale *= c * c; break;
+                    default: drumActivity *= d; bassActivity *= b; leadActivity *= std::sqrt(l); chordActivity *= c * c; break;
                 }
             }
             break;
@@ -4737,121 +4049,78 @@ void MusicEngine::onStep() {
             break;
     }
 
-    // The current sound evolves as a coordinated system. These factors move
-    // slowly and continuously; they do not replace its seed identity.
-    phraseDrumScale *= clamp(1.0f + 0.12f * evolution.densityDrift - 0.04f * evolution.paletteDrift,
+    // Event activity evolves with the composition. These factors affect when
+    // notes occur, while each instrument keeps its fixed performance level.
+    drumActivity *= clamp(1.0f + 0.12f * evolution.densityDrift - 0.04f * evolution.paletteDrift,
                              0.78f, 1.22f);
-    phraseBassScale *= clamp(1.0f + 0.10f * evolution.bassMutation + 0.06f * evolution.densityDrift,
+    bassActivity *= clamp(1.0f + 0.10f * evolution.bassMutation + 0.06f * evolution.densityDrift,
                              0.80f, 1.20f);
-    phraseLeadScale *= clamp(1.0f + 0.12f * evolution.leadMutation + 0.08f * evolution.paletteDrift,
+    leadActivity *= clamp(1.0f + 0.12f * evolution.leadMutation + 0.08f * evolution.paletteDrift,
                              0.78f, 1.24f);
-    phraseChordScale *= clamp(1.0f + 0.10f * evolution.harmonyLens - 0.05f * evolution.densityDrift,
+    chordActivity *= clamp(1.0f + 0.10f * evolution.harmonyLens - 0.05f * evolution.densityDrift,
                               0.82f, 1.22f);
 
-    const int32_t phraseNumber = pieceStep / kPhraseSteps;
-    const TensionDevice tensionDevice = tensionDeviceForPhrase(phraseNumber, section);
-    const int32_t tensionFocus = tensionFocusForPhrase(phraseNumber);
-    const int32_t tensionDistance0 = std::abs(p16 - tensionFocus);
-    const int32_t tensionDistance = std::min(tensionDistance0, 16 - tensionDistance0);
-    const float tensionShape = tensionDevice == TensionDevice::None ? 0.0f :
-        clamp01((1.0f - static_cast<float>(tensionDistance) /
-                 static_cast<float>(std::max(2, mComposition.tensionWindow + 3))) *
-                mComposition.tensionDepth);
-    const bool prismLatch = (section == SectionType::Suspension && mComposition.drama > 0.68f && (phraseNumber & 3) == 3 && p16 >= 12);
-    const bool gravityFold = ((section == SectionType::Orbit || section == SectionType::Suspension) && mComposition.drama > 0.76f && ((phraseNumber + static_cast<int32_t>(mComposition.paletteHash & 3u)) & 7) == 5 && p16 < 12);
-    const bool mirrorGate = (section == SectionType::Mirror && mComposition.drama > 0.58f && (p16 == 4 || p16 == 12));
-    const bool cascadeSpray = (section == SectionType::Cascade && (p16 >= 10 || p16 == 3));
-    if (prismLatch) {
-        phraseDrumScale *= 0.34f;
-        phraseBassScale *= 0.54f;
-        phraseLeadScale *= 0.78f;
-        phraseChordScale *= 1.24f;
-    }
-    if (gravityFold) {
-        phraseDrumScale *= 0.24f;
-        phraseBassScale *= 1.10f;
-        phraseLeadScale *= 0.74f;
-        phraseChordScale *= 1.38f;
-    }
-    if (mirrorGate) {
-        phraseDrumScale *= 0.70f;
-        phraseLeadScale *= 1.26f;
-        phraseChordScale *= 1.08f;
-    }
-    if (cascadeSpray) {
-        phraseDrumScale *= 1.08f;
-        phraseLeadScale *= 1.20f;
-    }
-
-    // Original tension devices act through relationships among layers. They do
-    // not all mean "play the same low pad again".
-    switch (tensionDevice) {
-        case TensionDevice::Vacuum:
-            phraseDrumScale *= clamp(1.0f - 0.48f * tensionShape, 0.46f, 1.0f);
-            phraseChordScale *= clamp(1.0f - 0.24f * tensionShape, 0.66f, 1.0f);
-            phraseLeadScale *= 0.96f + 0.12f * tensionShape;
-            break;
-        case TensionDevice::Convergence:
-            phraseDrumScale *= 0.94f;
-            phraseLeadScale *= 1.0f + 0.18f * tensionShape;
-            phraseChordScale *= 0.96f;
-            break;
-        case TensionDevice::Hinge:
-            phraseDrumScale *= (p16 < tensionFocus) ? 0.90f : 1.06f;
-            phraseBassScale *= (p16 < tensionFocus) ? 0.96f : 1.05f;
-            phraseLeadScale *= (p16 < tensionFocus) ? 0.94f : 1.09f;
-            break;
-        case TensionDevice::Shadow:
-            phraseLeadScale *= clamp(1.0f - 0.34f * tensionShape, 0.58f, 1.0f);
-            phraseBassScale *= 0.98f + 0.12f * tensionShape;
-            phraseChordScale *= clamp(1.0f - 0.20f * tensionShape, 0.72f, 1.0f);
-            break;
-        case TensionDevice::Afterimage:
-            phraseDrumScale *= 0.90f;
-            phraseLeadScale *= 0.92f + 0.14f * tensionShape;
-            break;
-        case TensionDevice::PadBreath:
-            phraseDrumScale *= clamp(1.0f - 0.38f * tensionShape, 0.56f, 1.0f);
-            phraseBassScale *= 0.96f;
-            phraseLeadScale *= 0.90f;
-            break;
-        case TensionDevice::None:
-        default:
-            break;
+    // Device activity follows the same phrase plan as pitch and ownership.
+    // A question leaves room for its answer; an arrival uses the existing band.
+    if (phrasePlan.device == MusicalDevice::HeldQuestion && p16 >= phrasePlan.joint) {
+        drumActivity *= 0.62f;
+        chordActivity *= 0.72f;
+        leadActivity *= 1.06f;
+    } else if (phrasePlan.device == MusicalDevice::Confluence) {
+        const float arrival = p16 < phrasePlan.joint ? 0.90f : 1.10f;
+        drumActivity *= arrival;
+        bassActivity *= arrival;
+        leadActivity *= 1.10f;
+    } else if (phrasePlan.device == MusicalDevice::OpenRelease) {
+        drumActivity *= 0.56f;
+        bassActivity *= 0.82f;
+        leadActivity *= 0.78f;
+        chordActivity *= 0.86f;
+    } else if (phrasePlan.instrumentSlot != 0) {
+        chordActivity *= 0.78f;
+        drumActivity *= 0.90f;
     }
 
     if (afterCadence) {
-        phraseDrumScale = 0.0f;
-        phraseBassScale = 0.0f;
-        phraseLeadScale = 0.0f;
-        phraseChordScale = 0.0f;
+        drumActivity = 0.0f;
+        bassActivity = 0.0f;
+        leadActivity = 0.0f;
+        chordActivity = 0.0f;
     } else if (closingCadence) {
         // The cadence is one generated point of arrival, not a last-second
         // master fade. Bass, harmony, and lead meet on tonal home while rhythmic
         // detail yields enough space for the arrival to be perceived.
-        phraseDrumScale = std::min(phraseDrumScale, 0.48f);
-        phraseBassScale = std::max(phraseBassScale, 1.12f);
-        phraseLeadScale = std::max(phraseLeadScale, 0.96f);
-        phraseChordScale = std::max(phraseChordScale, 1.28f);
+        drumActivity = std::min(drumActivity, 0.48f);
+        bassActivity = std::max(bassActivity, 1.12f);
+        leadActivity = std::max(leadActivity, 0.96f);
+        chordActivity = std::max(chordActivity, 1.28f);
     }
 
-    float kickP = mPattern.kick[pos] * (0.52f + 0.70f * p.drum) * (0.72f + 0.42f * mPattern.energy) * phraseDrumScale * mComposition.useKick;
-    const bool forceKick = (downbeat && !p.ambient && mComposition.useKick > 0.0f) ||
+    // Preserve structural silence at a completed ending, including zero-level
+    // events historically scheduled by forced anchors. Presence is binary;
+    // continuous activity curves above never reach the amplitude path.
+    const float drumPresence = drumActivity > 0.0f ? 1.0f : 0.0f;
+    const float bassPresence = bassActivity > 0.0f ? 1.0f : 0.0f;
+    const float leadPresence = leadActivity > 0.0f ? 1.0f : 0.0f;
+    const float chordPresence = chordActivity > 0.0f ? 1.0f : 0.0f;
+
+    float kickP = mPattern.kick[pos] * (0.52f + 0.70f * p.drum) * (0.72f + 0.42f * mPattern.energy) * drumActivity * mComposition.useKick;
+    const bool forceKick = ((downbeat || arrivalJoint) && !p.ambient && mComposition.useKick > 0.0f) ||
                            (closingCadence && mComposition.useKick > 0.0f);
     if (forceKick) kickP = std::max(kickP,
-        (closingCadence ? 0.44f : 0.72f) * phraseDrumScale);
+        (closingCadence ? 0.44f : 0.72f) * drumActivity);
     if (forceKick || mRng.chance(clamp01(kickP))) {
-        const float amp = (0.44f + 0.34f * mPattern.energy) * accent * phraseDrumScale;
+        const float amp = (0.44f + 0.34f * mPattern.energy) * accent * drumPresence;
         scheduleDrum(humanizeSamples(0.12f, downbeat, false), DrumType::Kick, amp, 0.0f, 0.52f + 0.22f * mPattern.roughness, clamp01(0.18f * mPattern.roughness + 0.82f * mComposition.kickTone));
         mLastKickStep = static_cast<int32_t>(mStepIndex);
         eventHappened = true;
     }
 
-    float snareP = mPattern.snare[pos] * (0.48f + 0.62f * p.drum) * phraseDrumScale * mComposition.useSnare;
-    if (backbeat && !p.ambient && mComposition.useSnare > 0.0f) snareP = std::max(snareP, 0.68f * phraseDrumScale);
+    float snareP = mPattern.snare[pos] * (0.48f + 0.62f * p.drum) * drumActivity * mComposition.useSnare;
+    if (backbeat && !p.ambient && mComposition.useSnare > 0.0f) snareP = std::max(snareP, 0.68f * drumActivity);
     if (mRng.chance(clamp01(snareP))) {
         DrumType sn = (mRng.chance(0.22f + 0.20f * mPattern.roughness) && !p.breakbeat) ? DrumType::Clap : DrumType::Snare;
-        const float amp = (0.30f + 0.30f * mPattern.energy) * accent * phraseDrumScale;
+        const float amp = (0.24f + 0.24f * mPattern.energy) * accent * drumPresence;
         scheduleDrum(humanizeSamples(0.50f, false, backbeat), sn, amp, mRng.bipolar() * 0.08f, 0.17f + 0.10f * mRng.uni(), clamp01(0.16f * mPattern.roughness + 0.84f * mComposition.snareTone));
         if (mRng.chance(0.12f + 0.12f * mPattern.roughness) && backbeat && phrase != PhraseType::Suspension) {
             scheduleDrum(static_cast<int32_t>(0.010f * mSampleRate + mRng.uni() * 0.014f * mSampleRate), DrumType::Clap,
@@ -4861,10 +4130,10 @@ void MusicEngine::onStep() {
         eventHappened = true;
     }
 
-    float hatP = mPattern.hat[pos] * (0.40f + 0.64f * p.density) * (1.0f - 0.35f * mPattern.space) * phraseDrumScale * mComposition.useHat;
-    if (p.trapHats && (pos & 1) == 0) hatP += 0.18f * phraseDrumScale * mComposition.useHat;
+    float hatP = mPattern.hat[pos] * (0.40f + 0.64f * p.density) * (1.0f - 0.35f * mPattern.space) * drumActivity * mComposition.useHat;
+    if (p.trapHats && (pos & 1) == 0) hatP += 0.18f * drumActivity * mComposition.useHat;
     if (mRng.chance(clamp01(hatP))) {
-        const float amp = (0.10f + 0.16f * mPattern.energy) * (0.70f + 0.50f * accent) * phraseDrumScale;
+        const float amp = (0.055f + 0.105f * mPattern.energy) * (0.70f + 0.50f * accent) * drumPresence;
         scheduleDrum(humanizeSamples(0.85f, false, false), DrumType::HatClosed,
                      amp, mRng.bipolar() * 0.55f, 0.020f + mRng.uni() * 0.060f, clamp01(0.20f * mPattern.roughness + 0.80f * mComposition.hatTone));
         eventHappened = true;
@@ -4880,25 +4149,23 @@ void MusicEngine::onStep() {
         }
     }
 
-    if (mRng.chance(clamp01((mPattern.openHat[pos] * (0.34f + 0.70f * p.drum) * phraseDrumScale + (offEighth ? 0.016f : 0.0f)) * mComposition.useOpenHat))) {
+    if (mRng.chance(clamp01((mPattern.openHat[pos] * (0.34f + 0.70f * p.drum) * drumActivity + (offEighth ? 0.016f : 0.0f)) * mComposition.useOpenHat))) {
         scheduleDrum(humanizeSamples(0.52f, false, false), DrumType::HatOpen,
-                     (0.08f + 0.14f * mPattern.energy) * accent * phraseDrumScale, mRng.bipolar() * 0.50f,
+                     (0.08f + 0.14f * mPattern.energy) * accent * drumPresence, mRng.bipolar() * 0.50f,
                      0.10f + mRng.uni() * 0.19f, mComposition.hatTone);
         eventHappened = true;
     }
 
-    float percP = mPattern.perc[pos] * (0.25f + 0.85f * mPattern.syncopation) * (0.50f + 0.70f * p.drum) * phraseDrumScale * mComposition.usePerc;
-    if (p.breakbeat && (p16 == 1 || p16 == 7 || p16 == 14)) percP += 0.05f * phraseDrumScale;
+    float percP = mPattern.perc[pos] * (0.25f + 0.85f * mPattern.syncopation) * (0.50f + 0.70f * p.drum) * drumActivity * mComposition.usePerc;
+    if (p.breakbeat && (p16 == 1 || p16 == 7 || p16 == 14)) percP += 0.05f * drumActivity;
     if (p.ambient) percP *= 0.55f;
     if (!backbeat && mRng.chance(clamp01(percP))) {
         DrumType type = DrumType::Perc;
         const float r = mRng.uni();
         if (r < 0.16f) type = DrumType::Rim;
         else if (r < 0.30f) type = DrumType::Tom;
-        else if (r > 0.88f && p.rough > 0.36f) type = DrumType::Zap;
-        else if (r > 0.74f && p.rough > 0.52f) type = DrumType::Noise;
         scheduleDrum(humanizeSamples(0.90f, false, false), type,
-                     (0.075f + 0.19f * mPattern.energy) * accent * phraseDrumScale,
+                     (0.075f + 0.19f * mPattern.energy) * accent * drumPresence,
                      mRng.bipolar() * 0.72f, 0.045f + mRng.uni() * 0.16f, clamp01(mComposition.percTone + mRng.bipolar() * 0.08f));
         eventHappened = true;
     }
@@ -4910,24 +4177,26 @@ void MusicEngine::onStep() {
     const bool anchorPulse = downbeat && !p.ambient;
 
     float bassGate = clamp01(generatedLayerGate(MelodyLayer::Bass, pieceStep, p16, phrase, section) *
-                              mComposition.bassGain * phraseBassScale * mComposition.useBass);
+                              mComposition.bassGain * bassActivity * mComposition.useBass);
     if ((bassFloorPulse || anchorPulse) && mComposition.useBass > 0.0f) {
         bassGate = std::max(bassGate, p.ambient ? 0.30f : 0.44f);
     }
-    if (closingCadence) bassGate = 1.0f;
+    if (phrasePlan.instrumentSlot == 1) bassGate = 0.0f;
+    if ((arrivalJoint || closingCadence) && mComposition.useBass > 0.02f) bassGate = 1.0f;
     if (afterCadence) bassGate = 0.0f;
-    if (bassGate > 0.02f && (closingCadence || bassFloorPulse || anchorPulse ||
+    if (bassGate > 0.02f && (closingCadence || arrivalJoint || bassFloorPulse || anchorPulse ||
                              mRng.chance(clamp01(bassGate * (0.84f + 0.14f * accent))))) {
-        const int32_t degree = closingCadence ? 0 :
-            bassDegreeForStep(pieceStep, p16, chordRoot, nextChordRoot, phrase, section);
-        const int32_t octave = (mPattern.style == StyleType::GlassNoir || mPattern.style == StyleType::SubOrbit || mPattern.style == StyleType::DeepMagnet || mPattern.style == StyleType::MarbleBass) ? -1 : 0;
+        const int32_t degree = closingCadence ? 0 : (arrivalJoint ? chordRoot :
+            bassDegreeForStep(pieceStep, p16, chordRoot, nextChordRoot, phrase, section));
+        const int32_t octave = mPattern.rootMidi >= 40 ? -1 : 0;
         const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, octave)));
-        float dur = closingCadence
+        int32_t gap = 1;
+        while (gap < 12 && mComposition.bassGate[(p16 + gap) & 15] <= 0.02f) ++gap;
+        const float dur = closingCadence
             ? stepDurationSeconds() * static_cast<float>(std::max(2, kPhraseSteps - p16))
-            : stepDurationSeconds() * (p.halfTime ? 2.8f : 1.5f);
-        if (downbeat && !closingCadence) dur *= p.ambient ? 5.0f : 1.65f;
+            : stepDurationSeconds() * clamp(static_cast<float>(gap) * p.noteLength, 0.75f, 8.0f);
         scheduleBass(humanizeSamples(0.18f, downbeat, false), freq,
-                     (0.25f + 0.27f * mPattern.energy) * phraseBassScale,
+                     (0.22f + 0.22f * mPattern.energy) * bassPresence,
                      dur, mRng.bipolar() * 0.045f,
                      clamp01(mComposition.bassTone + 0.055f * evolution.paletteDrift +
                              mRng.bipolar() * 0.045f + p.rough * 0.04f));
@@ -4936,496 +4205,159 @@ void MusicEngine::onStep() {
     }
 
     float chordGate = clamp01(mComposition.chordGate[p16] * mComposition.chordGain *
-                              phraseChordScale * mComposition.useChord);
+                              chordActivity * mComposition.useChord);
     if (anchorPulse && mComposition.useChord > 0.0f) {
         chordGate = std::max(chordGate, 0.10f);
     }
-    if (closingCadence) chordGate = 1.0f;
+    if (phrasePlan.instrumentSlot == 2) chordGate = 0.0f;
+    if (p.intent == 0 && (pieceStep / kPhraseSteps) % mComposition.harmonicSpan != 0) chordGate *= 0.36f;
+    if ((arrivalJoint || closingCadence) && mComposition.useChord > 0.02f) chordGate = 1.0f;
     if (afterCadence) chordGate = 0.0f;
     if (chordGate > 0.02f && (closingCadence || mRng.chance(chordGate))) {
         const float dur = closingCadence
             ? stepDurationSeconds() * static_cast<float>(std::max(2, kPhraseSteps - p16))
-            : stepDurationSeconds() * (0.72f + 1.30f * p.space +
-                                       0.46f * mComposition.longMemory);
+            : stepDurationSeconds() * (p.intent == 0 ? (3.4f + 2.0f * p.space) :
+                (0.72f + 1.30f * p.space + 0.46f * mComposition.longMemory));
         const float amp = (0.030f + 0.070f * mPattern.texture + 0.055f * p.chord) *
-                          accent * phraseChordScale;
+                          accent * chordPresence;
         scheduleChordGesture(closingCadence ? 0 : humanizeSamples(0.28f, downbeat, false),
                              closingCadence ? 0 : chordRoot,
                              amp, dur, mRng.bipolar() * 0.42f,
                              clamp01(mComposition.padTone + mRng.bipolar() * 0.04f),
-                             mComposition.chordArticulation);
+                             mComposition.chordArticulation, closingCadence);
         eventHappened = true;
     }
 
-    bool leadRest = false;
-    float leadGate = 0.0f;
-    float leadDurSteps = 0.0f;
-    int32_t leadDegree = grammarDegree(phrase, p16, chordRoot, leadRest, leadGate, leadDurSteps);
-    leadDegree = applyThemeTransform(leadDegree, pieceStep, p16, chordRoot, phrase);
+    ForegroundNote foreground = foregroundNoteForStep(pieceStep, chordRoot);
     if (closingCadence) {
-        leadRest = false;
-        leadDegree = 0;
-        leadGate = 1.0f;
-        leadDurSteps = static_cast<float>(std::max(2, kPhraseSteps - p16));
+        foreground.rest = false;
+        foreground.degree = 0;
+        foreground.instrumentSlot = 0;
+        foreground.octave = mComposition.octaveBias;
+        foreground.gate = 1.0f;
+        foreground.duration = static_cast<float>(std::max(2, kPhraseSteps - p16));
     } else if (afterCadence) {
-        leadRest = true;
-        leadGate = 0.0f;
+        foreground.rest = true;
+        foreground.gate = 0.0f;
     }
-    leadGate = evolvedGate(leadGate, pieceStep, p16, phrase, section, MelodyLayer::Lead);
-    leadGate = clamp01(leadGate * phraseLeadScale * (1.0f - 0.18f * mComposition.leadSpace) * mComposition.useLead);
-    if (!leadRest && leadGate > 0.04f &&
-        (closingCadence || mRng.chance(clamp01(0.72f + 0.26f * leadGate)))) {
-        int32_t octave = mComposition.octaveBias;
-        if ((phrase == PhraseType::Surge || phrase == PhraseType::Cascade || phrase == PhraseType::Hook) && mRng.chance(0.35f)) octave += 1;
-        if (phrase == PhraseType::Suspension || phrase == PhraseType::Shadow) octave = std::max(1, octave - 1);
-        if (phrase == PhraseType::Tide || section == SectionType::Tide) {
-            octave += static_cast<int32_t>(std::lround(evolution.registerTide));
+    if (mPattern.intent == 0 && foreground.instrumentSlot != 1) {
+        for (int32_t pass = 0; pass < 5; ++pass) {
+            const int32_t midi = scaleDegreeToMidi(foreground.degree, foreground.octave);
+            if (midi > 78) foreground.degree -= scaleLength();
+            else if (midi < 52) foreground.degree += scaleLength();
         }
-        const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(leadDegree, octave)));
-        const float dur = stepDurationSeconds() * (0.60f + leadDurSteps * (p.ambient ? 3.4f : 1.75f));
-        scheduleLead(closingCadence ? 0 : humanizeSamples(0.55f, false, false), freq,
-                     (0.055f + 0.12f * mPattern.melody + 0.05f * p.melodyRun) * accent * phraseLeadScale,
-                     dur, mRng.bipolar() * 0.62f,
-                     clamp01(mComposition.leadTone + 0.060f * evolution.paletteDrift +
-                             ((phrase == PhraseType::Surge || phrase == PhraseType::Cascade) ? 0.08f : 0.0f) +
-                             mRng.bipolar() * 0.035f));
-        if (phrase != PhraseType::Suspension && mRng.chance(mComposition.ornament * leadGate)) {
-            const int32_t neighbor = generatedLayerDegree(MelodyLayer::Ornament, pieceStep, p16,
-                                                          chordRoot, phrase, section);
-            const float ornamentGate = generatedLayerGate(MelodyLayer::Ornament, pieceStep, p16,
-                                                           phrase, section);
-            const float f2 = midiToHz(static_cast<float>(scaleDegreeToMidi(neighbor, octave)));
-            if (ornamentGate > 0.02f) {
-                scheduleLead(static_cast<int32_t>(stepSamples * (0.45f + 0.24f * mRng.uni())), f2,
-                             (0.022f + 0.046f * mPattern.melody) * accent * phraseLeadScale * ornamentGate,
-                             stepDurationSeconds() * generatedLayerDur(MelodyLayer::Ornament, p16),
-                             mRng.bipolar() * 0.66f,
-                             clamp01(mComposition.leadTone + 0.04f + 0.05f * evolution.paletteDrift +
-                                     mRng.bipolar() * 0.035f));
-            }
-        }
-        if ((phrase == PhraseType::Hook || phrase == PhraseType::Surge || phrase == PhraseType::Cascade) && mComposition.drama > 0.55f && (p16 == 0 || p16 == 8 || p16 == 15) && mRng.chance(0.34f + 0.30f * mComposition.drama)) {
-            const float f3 = midiToHz(static_cast<float>(scaleDegreeToMidi(leadDegree, octave + 1)));
-            scheduleLead(static_cast<int32_t>(stepSamples * 0.18f), f3,
-                         (0.018f + 0.045f * mPattern.melody) * accent * phraseLeadScale,
-                         dur * 0.72f, mRng.bipolar() * 0.72f, clamp01(mComposition.leadTone + 0.10f));
+    }
+    const float foregroundWeight = foreground.instrumentSlot == 1 ? mComposition.useBass :
+        (foreground.instrumentSlot == 2 ? mComposition.useChord :
+         (foreground.instrumentSlot >= 3 ? supportLaneWeight(foreground.instrumentSlot - 3) : mComposition.useLead));
+    const float leadGate = clamp01(foreground.gate * leadActivity *
+        (1.0f - 0.18f * mComposition.leadSpace) * foregroundWeight);
+    if (!foreground.rest && leadGate > 0.04f) {
+        // Pitch/rest development is already decided in the phrase grammar.
+        // Performance varies color and timing, never randomly deletes its answer.
+        const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(foreground.degree, foreground.octave)));
+        const float dur = stepDurationSeconds() * foreground.duration * p.noteLength;
+        const float amp = (0.085f + 0.145f * mPattern.melody + 0.025f * p.melodyRun) *
+                           accent * leadPresence;
+        const int32_t offset = closingCadence ? 0 : humanizeSamples(0.46f, downbeat, false);
+        if (foreground.instrumentSlot == 1) {
+            scheduleBass(offset, freq, amp * 1.28f, dur, 0.0f,
+                         clamp01(mComposition.bassTone + 0.04f * evolution.paletteDrift), true);
+        } else if (foreground.instrumentSlot == 2) {
+            scheduleChordGesture(offset, foreground.degree, amp * 0.72f,
+                                 std::max(dur, stepDurationSeconds() * 3.0f), 0.0f,
+                                 mComposition.padTone, mComposition.chordArticulation, true);
+        } else {
+            const float color = foreground.instrumentSlot >= 3 ?
+                clamp01(0.65f * mComposition.counterTone + 0.35f * mComposition.leadTone) : mComposition.leadTone;
+            scheduleLead(offset, freq, amp, dur, mRng.bipolar() * 0.16f,
+                         clamp01(color + 0.05f * evolution.paletteDrift + mRng.bipolar() * 0.025f),
+                         foreground.instrumentSlot, true);
         }
         mLastLeadStep = static_cast<int32_t>(mStepIndex);
         eventHappened = true;
     }
 
-    if (mComposition.useArp > 0.02f && phrase != PhraseType::Suspension && !prismLatch) {
-        const float arpGate = generatedLayerGate(MelodyLayer::Arp, pieceStep, p16, phrase, section);
-        const bool arpPulse = arpGate > 0.02f || offEighth ||
-                              ((p16 & 3) == 1 && (section == SectionType::Hook ||
-                                                 section == SectionType::Surge || section == SectionType::Cascade));
-        const float arpP = arpGate * (0.42f + 0.48f * p.melodyRun + 0.18f * mPattern.density) *
-                           phraseLeadScale * mComposition.useArp;
-        if (arpPulse && mRng.chance(clamp01(arpP))) {
-            const int32_t degree = generatedLayerDegree(MelodyLayer::Arp, pieceStep, p16,
-                                                        chordRoot, phrase, section);
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, mComposition.octaveBias + 1)));
-            scheduleLead(humanizeSamples(0.42f, false, false), f,
-                         (0.020f + 0.056f * p.brightness + 0.020f * mPattern.melody) * accent * phraseLeadScale * mComposition.useArp,
-                         stepDurationSeconds() * generatedLayerDur(MelodyLayer::Arp, p16),
-                         mRng.bipolar() * 0.78f,
-                         clamp01(mComposition.arpTone + 0.05f * evolution.paletteDrift + mRng.bipolar() * 0.030f));
-            eventHappened = true;
-        }
-    }
-
-    if (mComposition.useCounter > 0.02f && phrase != PhraseType::Suspension) {
-        const float gate2 = generatedLayerGate(MelodyLayer::Counter, pieceStep, p16, phrase, section);
-        const int32_t deg2 = generatedLayerDegree(MelodyLayer::Counter, pieceStep, p16,
-                                                  chordRoot, phrase, section);
-        const float dur2 = generatedLayerDur(MelodyLayer::Counter, p16);
-        const float counterP = clamp01(gate2 * (0.38f + 0.50f * mComposition.useCounter +
-                                                0.18f * mComposition.callResponse) * phraseLeadScale);
-        if (gate2 > 0.02f && mRng.chance(counterP)) {
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg2, std::max(1, mComposition.octaveBias - 1))));
-            scheduleLead(humanizeSamples(0.62f, false, false), f,
-                         (0.020f + 0.052f * mPattern.melody) * accent * phraseLeadScale * mComposition.useCounter,
-                         stepDurationSeconds() * (0.52f + 0.80f * dur2),
-                         mRng.bipolar() * 0.70f,
-                         clamp01(mComposition.counterTone + 0.05f * evolution.paletteDrift + mRng.bipolar() * 0.034f));
-            eventHappened = true;
-        }
-    }
-
-    // The former fixed Stab and section-boundary Drone paths both used the
-    // same PadVoice and produced a recognizable DOO lattice. Tension is now
-    // generated from the current seed and expressed through several distinct
-    // mathematical relationships.
-    const float pressureGate = tensionGateForStep(phraseNumber, p16) *
-        clamp01(0.32f + 0.38f * mComposition.useStab + 0.24f * mComposition.useDrone +
-                0.18f * mComposition.deviceDepth);
-    if (pressureGate > 0.02f && tensionDevice != TensionDevice::None &&
-        mRng.chance(clamp01(pressureGate * phraseChordScale))) {
-        const int32_t source = (p16 + tensionFocus) & 15;
-        const int32_t rel = mComposition.tensionRel[source];
-        const float duration = stepDurationSeconds() *
-            std::max(0.22f, mComposition.tensionDur[source]);
-        const float pressureAmp = (0.015f + 0.042f * mComposition.tensionDepth) *
-                                  accent * (0.58f + 0.42f * pressureGate);
-
-        switch (tensionDevice) {
-            case TensionDevice::Vacuum:
-                // Vacuum creates tension by omission. A small high marker makes
-                // the missing center perceptible without replacing it with a pad.
-                if (p16 == tensionFocus && mComposition.useSheen > 0.02f) {
-                    const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot + rel + 7,
-                                                                                 mComposition.octaveBias + 1)));
-                    scheduleLead(static_cast<int32_t>(stepSamples * 0.58f), f,
-                                 pressureAmp * 0.42f, duration * 0.34f,
-                                 mRng.bipolar() * 0.90f,
-                                 clamp01(mComposition.sheenTone + 0.05f));
-                    eventHappened = true;
-                }
-                break;
-
-            case TensionDevice::Convergence: {
-                const int32_t target = chordRoot + rel / 3;
-                const float low = midiToHz(static_cast<float>(scaleDegreeToMidi(target - 3,
-                                                                                std::max(0, mComposition.octaveBias - 1))));
-                const float high = midiToHz(static_cast<float>(scaleDegreeToMidi(target + 4,
-                                                                                 mComposition.octaveBias + 1)));
-                scheduleLead(humanizeSamples(0.22f, false, false), low,
-                             pressureAmp * 0.78f, duration * 0.54f, -0.46f,
-                             clamp01(mComposition.counterTone - 0.06f));
-                scheduleLead(static_cast<int32_t>(stepSamples * 0.47f), high,
-                             pressureAmp * 0.62f, duration * 0.38f, 0.46f,
-                             clamp01(mComposition.leadTone + 0.05f));
-                eventHappened = true;
-                break;
-            }
-
-            case TensionDevice::Hinge:
-                scheduleChordGesture(humanizeSamples(0.26f, false, false),
-                                     chordRoot + rel / 2, pressureAmp * 1.28f,
-                                     duration, mRng.bipolar() * 0.48f,
-                                     clamp01(mComposition.stabTone + 0.03f),
-                                     (mComposition.chordArticulation == 3) ? 0 :
-                                         ((mComposition.chordArticulation + 2) % 5));
-                eventHappened = true;
-                break;
-
-            case TensionDevice::Shadow: {
-                const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot + rel - 2,
-                                                                              std::max(0, mComposition.octaveBias - 1))));
-                scheduleLead(humanizeSamples(0.34f, false, false), f,
-                             pressureAmp * 0.74f, duration * 0.72f,
-                             mRng.bipolar() * 0.32f,
-                             clamp01(mComposition.droneTone - 0.10f));
-                eventHappened = true;
-                break;
-            }
-
-            case TensionDevice::Afterimage: {
-                const int32_t motifSource = (p16 + 16 - mComposition.counterDelay) & 15;
-                const int32_t degree = chordRoot + mComposition.motifF[motifSource] / 2 + rel / 3;
-                const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(degree,
-                                                                              mComposition.octaveBias)));
-                scheduleLead(static_cast<int32_t>(stepSamples * 0.64f), f,
-                             pressureAmp * 0.58f, duration * 0.46f,
-                             mRng.bipolar() * 0.72f,
-                             clamp01(mComposition.echoTone + 0.03f));
-                eventHappened = true;
-                break;
-            }
-
-            case TensionDevice::PadBreath:
-                // One rare breath may exist, but it cannot repeat as a lattice or
-                // overlap another slow pad mechanism.
-                if (p16 == tensionFocus &&
-                    mRng.chance(mComposition.padBreathRarity) &&
-                    !hasSustainedPad(0.24f)) {
-                    scheduleChordGesture(0, chordRoot + rel / 3,
-                                         pressureAmp * 0.88f,
-                                         std::min(duration * 1.8f,
-                                                  stepDurationSeconds() * 3.4f),
-                                         mRng.bipolar() * 0.28f,
-                                         clamp01(mComposition.droneTone), 3);
-                    eventHappened = true;
-                }
-                break;
-
-            case TensionDevice::None:
-            default:
-                break;
-        }
-    }
-
-    if (mComposition.useSpark > 0.02f && phrase != PhraseType::Suspension && (p16 == 3 || p16 == 7 || p16 == 11 || p16 == 15) &&
-        mRng.chance(clamp01((0.05f + 0.18f * p.brightness + 0.12f * p.sync) * mComposition.useSpark * phraseLeadScale))) {
-        const int32_t degree = generatedLayerDegree(MelodyLayer::Ornament, pieceStep, p16,
-                                                    chordRoot, phrase, section) +
-                               ((p16 == 15) ? 7 : 0);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, mComposition.octaveBias + 1)));
-        scheduleLead(static_cast<int32_t>(stepSamples * (0.10f + 0.34f * mRng.uni())), f,
-                     (0.012f + 0.038f * p.brightness) * accent * phraseLeadScale * mComposition.useSpark,
-                     stepDurationSeconds() * generatedLayerDur(MelodyLayer::Ornament, p16),
-                     mRng.bipolar() * 0.86f,
-                     clamp01(mComposition.sparkTone + 0.05f * evolution.paletteDrift + mRng.bipolar() * 0.040f));
-        eventHappened = true;
-    }
-
-    if (mComposition.useSub > 0.02f && (downbeat || p16 == 8 || (section == SectionType::Orbit && p16 == 4)) &&
-        mRng.chance(clamp01((0.24f + 0.28f * p.bass) * mComposition.useSub * phraseBassScale))) {
-        const int32_t degree = generatedLayerDegree(MelodyLayer::Bass, pieceStep, p16,
-                                                    chordRoot, phrase, section);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, -1)));
-        scheduleBass(humanizeSamples(0.10f, downbeat, false), f,
-                     (0.090f + 0.090f * p.bass) * phraseBassScale * mComposition.useSub,
-                     stepDurationSeconds() * (downbeat ? 3.6f : 2.0f), mRng.bipolar() * 0.035f,
-                     clamp01(mComposition.subTone + 0.04f * evolution.paletteDrift + 0.02f * mRng.bipolar()));
-        eventHappened = true;
-    }
-
-    if (mComposition.useEcho > 0.02f && phrase != PhraseType::Suspension && (p16 == 2 || p16 == 6 || p16 == 10 || p16 == 14) &&
-        mRng.chance(clamp01((0.10f + 0.34f * p.melodyRun) * mComposition.useEcho * phraseLeadScale))) {
-        const float eg = generatedLayerGate(MelodyLayer::Counter, pieceStep, (p16 + 4) & 15,
-                                            PhraseType::Answer, section);
-        const float ed = generatedLayerDur(MelodyLayer::Counter, (p16 + 4) & 15);
-        if (eg > 0.02f) {
-            const int32_t themeEcho = generatedLayerDegree(MelodyLayer::Counter, pieceStep,
-                                                           (p16 + 4) & 15, chordRoot,
-                                                           PhraseType::Answer, section);
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(themeEcho, mComposition.octaveBias + 1)));
-            scheduleLead(static_cast<int32_t>(stepSamples * (0.52f + 0.18f * mRng.uni())), f,
-                         (0.016f + 0.046f * p.melody) * phraseLeadScale * mComposition.useEcho * eg,
-                         stepDurationSeconds() * (0.34f + 0.52f * ed), mRng.bipolar() * 0.84f,
-                         clamp01(mComposition.echoTone + 0.05f * evolution.paletteDrift + 0.04f * mRng.bipolar()));
-            eventHappened = true;
-        }
-    }
-
-    if (mComposition.useOrbit > 0.02f && (section == SectionType::Orbit || p16 == 0 || p16 == 5 || p16 == 10 || p16 == 15) &&
-        mRng.chance(clamp01((0.08f + 0.26f * p.texture + 0.16f * p.melody) * mComposition.useOrbit))) {
-        const int32_t deg = generatedLayerDegree(MelodyLayer::Arp, pieceStep,
-                                                 (p16 + phraseNumber) & 15,
-                                                 chordRoot, phrase, section);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias)));
-        scheduleLead(humanizeSamples(0.36f, false, false), f,
-                     (0.015f + 0.042f * mPattern.melody) * phraseLeadScale * mComposition.useOrbit,
-                     stepDurationSeconds() * (section == SectionType::Orbit ? 1.1f : 0.52f), mRng.bipolar() * 0.72f,
-                     clamp01(mComposition.orbitTone + 0.045f * evolution.paletteDrift + mRng.bipolar() * 0.035f));
-        eventHappened = true;
-    }
-
-    if (mComposition.useBloom > 0.02f && mComposition.useChord > 0.0f &&
-        (downbeat || section == SectionType::Mirror || section == SectionType::Surge) &&
-        mRng.chance(clamp01((0.10f + 0.30f * p.chord + 0.14f * p.texture) *
-                            mComposition.useBloom * phraseChordScale))) {
-        const int32_t bloomArticulation = (mComposition.chordArticulation == 3)
-            ? 4 : ((mComposition.chordArticulation + 1) % 5);
-        scheduleChordGesture(humanizeSamples(0.18f, downbeat, false),
-                             chordRoot + ((section == SectionType::Mirror) ? 2 : 0),
-                             (0.020f + 0.054f * p.chord) * phraseChordScale * mComposition.useBloom,
-                             stepDurationSeconds() * (0.78f + 1.40f * p.space),
-                             mRng.bipolar() * 0.52f,
-                             clamp01(mComposition.bloomTone + mRng.bipolar() * 0.030f),
-                             bloomArticulation);
-        eventHappened = true;
-    }
-
-    if (mComposition.useGlyph > 0.02f && (p16 == 1 || p16 == 5 || p16 == 9 || p16 == 13 || section == SectionType::Cascade) &&
-        mRng.chance(clamp01((0.045f + 0.16f * p.rough + 0.12f * p.sync) * mComposition.useGlyph))) {
-        if (mRng.chance(0.58f)) {
-            scheduleDrum(static_cast<int32_t>(stepSamples * (0.15f + 0.60f * mRng.uni())),
-                         mRng.chance(0.50f) ? DrumType::Zap : DrumType::Rim,
-                         0.022f + 0.070f * mPattern.roughness, mRng.bipolar() * 0.86f,
-                         0.025f + 0.070f * mRng.uni(), clamp01(mComposition.glyphTone + mRng.bipolar() * 0.060f));
+    // Every supporting role uses a fixed instrument selected at composition
+    // time. Its rhythm and register come from the tune's generated grammar,
+    // replacing the former regular high sparkle/bell and reward-like cascades.
+    const std::array<float, kSupportLanes> tones{{
+        mComposition.arpTone, mComposition.counterTone, mComposition.stabTone,
+        mComposition.droneTone, mComposition.sparkTone, mComposition.echoTone,
+        mComposition.orbitTone, mComposition.bloomTone, mComposition.glyphTone,
+        mComposition.subTone, mComposition.sheenTone, mComposition.pluckTone,
+        mComposition.bellTone, mComposition.pulseTone, mComposition.cometTone,
+        mComposition.rotorTone
+    }};
+    const std::array<MelodyLayer, kSupportLanes> grammars{{
+        MelodyLayer::Arp, MelodyLayer::Counter, MelodyLayer::Pulse, MelodyLayer::Counter,
+        MelodyLayer::Ornament, MelodyLayer::Counter, MelodyLayer::Arp, MelodyLayer::Pulse,
+        MelodyLayer::Pulse, MelodyLayer::Bass, MelodyLayer::Ornament, MelodyLayer::Lead,
+        MelodyLayer::Counter, MelodyLayer::Pulse, MelodyLayer::Lead, MelodyLayer::Arp
+    }};
+    const bool foregroundSpeaking = !foreground.rest && leadGate > 0.04f;
+    int32_t supportingEvents = 0;
+    const int32_t supportLimit = p.intent <= 1 ? 1 : 2;
+    // Rotate evaluation priority as the phrase develops; one lane cannot always
+    // consume the shared gap before another selected instrument is considered.
+    const int32_t laneStart = static_cast<int32_t>((mComposition.phrasePlanSeed +
+        static_cast<uint32_t>(pieceStep / kPhraseSteps)) % kSupportLanes);
+    for (int32_t order = 0; order < kSupportLanes && supportingEvents < supportLimit; ++order) {
+        const int32_t lane = (laneStart + order) % kSupportLanes;
+        const float weight = supportLaneWeight(lane);
+        if (weight <= 0.02f || foreground.instrumentSlot == lane + 3 || afterCadence) continue;
+        const bool harmonic = lane == 2 || lane == 3 || lane == 7 || lane == 15;
+        if ((harmonic && foreground.instrumentSlot == 2) || (lane == 9 && foreground.instrumentSlot == 1)) continue;
+        const uint32_t laneHash = mixSeed(mComposition.arcSeed ^
+            static_cast<uint32_t>(lane + 1) * 0x85ebca6bu);
+        const uint32_t stepHash = mixSeed(laneHash ^
+            (static_cast<uint32_t>(pieceStep) + 1u) * 0x9e3779b9u);
+        const float room = foregroundSpeaking ? (0.12f + 0.20f * p.motion) : (0.56f + 0.24f * p.motion);
+        const float choice = static_cast<float>(stepHash >> 8u) * (1.0f / 16777216.0f);
+        if (choice > room) continue;
+        const int32_t source = (p16 + static_cast<int32_t>((laneHash >> 3u) & 15u) +
+                               phrasePlan.rhythmShift + 16) & 15;
+        const MelodyLayer grammar = grammars[lane];
+        const float gate = generatedLayerGate(grammar, pieceStep, source, phrase, section);
+        if (gate <= 0.02f || !mRng.chance(clamp01(gate * weight * (0.38f + 0.30f * p.motion)))) continue;
+        int32_t degree = generatedLayerDegree(grammar, pieceStep, source, chordRoot, phrase, section);
+        float duration = stepDurationSeconds() * generatedLayerDur(grammar, source) * p.noteLength;
+        const float color = clamp01(tones[lane] + 0.04f * evolution.paletteDrift);
+        const float amp = (0.022f + 0.054f * mPattern.melody) * weight *
+                           accent * (harmonic ? chordPresence : leadPresence);
+        if (harmonic) {
+            if (hasSustainedPad(0.12f)) continue;
+            scheduleChordGesture(humanizeSamples(0.25f, false, false), chordRoot + (degree - chordRoot) / 3,
+                                 amp, std::max(duration, stepDurationSeconds() * 1.8f),
+                                 mRng.bipolar() * 0.40f, color, mComposition.chordArticulation);
+        } else if (lane == 9) {
+            const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, -1)));
+            scheduleBass(humanizeSamples(0.18f, false, false), freq, amp * 1.8f,
+                         std::max(duration, stepDurationSeconds() * 1.5f), 0.0f, color);
         } else {
-            const int32_t deg = generatedLayerDegree(MelodyLayer::Ornament, pieceStep, p16,
-                                                     chordRoot, phrase, section) + 5;
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias + 1)));
-            scheduleLead(static_cast<int32_t>(stepSamples * (0.20f + 0.48f * mRng.uni())), f,
-                         0.012f + 0.036f * mComposition.useGlyph,
-                         stepDurationSeconds() * (0.14f + 0.18f * mRng.uni()), mRng.bipolar() * 0.90f,
-                         clamp01(mComposition.glyphTone + mRng.bipolar() * 0.050f));
+            const int32_t octave = std::min(2, mComposition.octaveBias);
+            for (int32_t pass = 0; pass < 4; ++pass) {
+                if (scaleDegreeToMidi(degree, octave) > (p.intent == 0 ? 76 : 86)) degree -= scaleLength();
+                else if (scaleDegreeToMidi(degree, octave) < 48) degree += scaleLength();
+            }
+            const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(degree, octave)));
+            duration = std::max(duration, stepDurationSeconds() * (p.intent == 0 ? 0.72f : 0.24f));
+            scheduleLead(humanizeSamples(0.42f, false, false), freq, amp, duration,
+                         mRng.bipolar() * 0.64f, color, lane + 3);
         }
-        eventHappened = true;
-    }
-
-    if (mComposition.useSheen > 0.02f && phrase != PhraseType::Suspension && (p16 == 3 || p16 == 7 || p16 == 11 || p16 == 15) &&
-        mRng.chance(clamp01((0.05f + 0.20f * p.brightness + 0.16f * p.melodyRun) * mComposition.useSheen * phraseLeadScale))) {
-        const int32_t deg = generatedLayerDegree(MelodyLayer::Ornament, pieceStep, p16,
-                                                 chordRoot, phrase, section) +
-                            ((p16 == 15) ? 7 : 4);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias + 2)));
-        scheduleLead(static_cast<int32_t>(stepSamples * (0.06f + 0.30f * mRng.uni())), f,
-                     (0.010f + 0.032f * p.brightness) * phraseLeadScale * mComposition.useSheen,
-                     stepDurationSeconds() * (0.12f + 0.16f * mRng.uni()), mRng.bipolar() * 0.94f,
-                     clamp01(mComposition.sheenTone + 0.05f * evolution.paletteDrift + mRng.bipolar() * 0.040f));
-        eventHappened = true;
-    }
-
-    if (mComposition.usePluck > 0.02f && phrase != PhraseType::Suspension &&
-        (p16 == 0 || p16 == 3 || p16 == 6 || p16 == 10 || p16 == 13) &&
-        mRng.chance(clamp01((0.09f + 0.24f * p.melodyRun + 0.10f * p.sync) * mComposition.usePluck * phraseLeadScale))) {
-        bool pr = false; float pg = 0.0f; float pd = 0.0f;
-        int32_t deg = grammarDegree(phrase, p16, chordRoot, pr, pg, pd);
-        deg = applyThemeTransform(deg, pieceStep, p16, chordRoot, phrase);
-        if (!pr) {
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias + (mRng.chance(0.35f) ? 1 : 0))));
-            scheduleLead(humanizeSamples(0.30f, false, false), f,
-                         (0.018f + 0.050f * mPattern.melody) * accent * phraseLeadScale * mComposition.usePluck,
-                         stepDurationSeconds() * (0.20f + 0.34f * pd), mRng.bipolar() * 0.76f,
-                         clamp01(mComposition.pluckTone + 0.04f * mRng.bipolar()));
-            eventHappened = true;
-        }
-    }
-
-    if (mComposition.useBell > 0.02f && (p16 == 7 || p16 == 15 || (section == SectionType::Hook && (p16 == 0 || p16 == 8))) &&
-        mRng.chance(clamp01((0.06f + 0.22f * p.brightness + 0.16f * mComposition.longMemory) * mComposition.useBell * phraseLeadScale))) {
-        bool br = false; float bg = 0.0f; float bd = 0.0f;
-        int32_t deg = grammarDegree((section == SectionType::Hook) ? PhraseType::Hook : PhraseType::Answer, p16, chordRoot, br, bg, bd);
-        deg = applyThemeTransform(deg, pieceStep, p16, chordRoot, phrase);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg + (p16 == 15 ? 0 : 2), mComposition.octaveBias + 2)));
-        scheduleLead(static_cast<int32_t>(stepSamples * (0.04f + 0.12f * mRng.uni())), f,
-                     (0.010f + 0.038f * p.brightness) * phraseLeadScale * mComposition.useBell,
-                     stepDurationSeconds() * (0.42f + 0.72f * bd), mRng.bipolar() * 0.82f,
-                     clamp01(mComposition.bellTone + 0.05f * mRng.bipolar()));
-        eventHappened = true;
-    }
-
-    // Theme braid: a low-mid answer and a high afterimage can appear
-    // around strong phrase joints, giving the lead line a conversational frame
-    // without adding heavy DSP or extra instrument classes.
-    if (phrase != PhraseType::Suspension && (p16 == 4 || p16 == 12) &&
-        mComposition.useCounter > 0.02f && mComposition.useLead > 0.02f &&
-        mRng.chance(clamp01((0.055f + 0.18f * mComposition.callResponse + 0.10f * p.melody) * phraseLeadScale))) {
-        const int32_t braid = counterpointDegree(pieceStep, p16, chordRoot);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(braid, std::max(1, mComposition.octaveBias - 1))));
-        scheduleLead(static_cast<int32_t>(stepSamples * (0.28f + 0.10f * mRng.uni())), f,
-                     (0.014f + 0.042f * mPattern.melody) * accent * phraseLeadScale * mComposition.useCounter,
-                     stepDurationSeconds() * (0.78f + 0.72f * mComposition.longMemory),
-                     mRng.bipolar() * 0.58f, clamp01(mComposition.counterTone + 0.03f * mRng.bipolar()));
-        if (mComposition.useSheen > 0.02f && mRng.chance(0.36f + 0.24f * p.brightness)) {
-            const float fHi = midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot + ((p16 == 12) ? 7 : 4), mComposition.octaveBias + 2)));
-            scheduleLead(static_cast<int32_t>(stepSamples * 0.62f), fHi,
-                         (0.006f + 0.020f * p.brightness) * phraseLeadScale * mComposition.useSheen,
-                         stepDurationSeconds() * 0.86f, mRng.bipolar() * 0.92f,
-                         clamp01(mComposition.sheenTone + 0.04f));
-        }
-        eventHappened = true;
-    }
-
-    // Bass glides sometimes answer the melody instead of merely anchoring it.
-    if (mComposition.useBass > 0.02f && (p16 == 2 || p16 == 14) &&
-        (section == SectionType::Variation || section == SectionType::Mirror || section == SectionType::Afterimage || phrase == PhraseType::Answer) &&
-        mRng.chance(clamp01((0.055f + 0.16f * p.bass + 0.10f * mComposition.counterpoint) * phraseBassScale))) {
-        const int32_t bdeg = generatedLayerDegree(MelodyLayer::Bass, pieceStep, p16,
-                                                  chordRoot, PhraseType::Answer, section);
-        const float bf = midiToHz(static_cast<float>(scaleDegreeToMidi(bdeg, -1)));
-        scheduleBass(static_cast<int32_t>(stepSamples * 0.38f), bf,
-                     (0.050f + 0.060f * p.bass) * phraseBassScale * mComposition.useBass,
-                     stepDurationSeconds() * 1.25f, mRng.bipolar() * 0.06f,
-                     clamp01(mComposition.bassTone + 0.06f * mRng.bipolar()));
-        eventHappened = true;
-    }
-
-    if (mComposition.usePulse > 0.02f && phrase != PhraseType::Suspension &&
-        generatedLayerGate(MelodyLayer::Pulse, pieceStep, p16, phrase, section) > 0.02f &&
-        mRng.chance(clamp01((0.18f + 0.42f * p.sync + 0.14f * p.density) *
-                            mComposition.usePulse * phraseLeadScale))) {
-        const int32_t deg = generatedLayerDegree(MelodyLayer::Pulse, pieceStep, p16,
-                                                 chordRoot, phrase, section);
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias)));
-        scheduleLead(humanizeSamples(0.34f, false, false), f,
-                     (0.012f + 0.038f * mPattern.melody) * accent * phraseLeadScale * mComposition.usePulse,
-                     stepDurationSeconds() * generatedLayerDur(MelodyLayer::Pulse, p16), mRng.bipolar() * 0.70f,
-                     clamp01(mComposition.pulseTone + 0.05f * evolution.paletteDrift + 0.04f * mRng.bipolar()));
-        eventHappened = true;
-    }
-
-    if (mComposition.useGrain > 0.02f && (section == SectionType::Cascade || p16 == 5 || p16 == 13) &&
-        mRng.chance(clamp01((0.035f + 0.16f * p.rough + 0.10f * p.texture) * mComposition.useGrain))) {
-        if (mRng.chance(0.64f)) {
-            scheduleDrum(static_cast<int32_t>(stepSamples * (0.12f + 0.70f * mRng.uni())),
-                         mRng.chance(0.55f) ? DrumType::Noise : DrumType::Zap,
-                         0.020f + 0.060f * mPattern.roughness, mRng.bipolar() * 0.96f,
-                         0.020f + 0.090f * mRng.uni(), clamp01(mComposition.grainTone + 0.08f * mRng.bipolar()));
-        } else {
-            const int32_t deg = generatedLayerDegree(MelodyLayer::Ornament, pieceStep, p16,
-                                                     chordRoot, phrase, section);
-            const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias + 1)));
-            scheduleLead(static_cast<int32_t>(stepSamples * (0.20f + 0.50f * mRng.uni())), f,
-                         0.010f + 0.030f * mComposition.useGrain,
-                         stepDurationSeconds() * (0.12f + 0.16f * mRng.uni()), mRng.bipolar() * 0.94f,
-                         clamp01(mComposition.grainTone + 0.06f * mRng.bipolar()));
-        }
-        eventHappened = true;
-    }
-
-    if (mComposition.useComet > 0.02f && downbeat && (section == SectionType::Surge || section == SectionType::Hook || (phraseNumber % std::max(2, mComposition.recallCycle)) == 0) &&
-        mRng.chance(clamp01((0.04f + 0.18f * mComposition.drama + 0.10f * p.melody) * mComposition.useComet))) {
-        const int32_t themeIdx = themeIndexForStep(pieceStep);
-        const int32_t deg = chordRoot + mComposition.themeOffset[themeIdx] + 7;
-        const float f = midiToHz(static_cast<float>(scaleDegreeToMidi(deg, mComposition.octaveBias + 1)));
-        scheduleLead(0, f,
-                     (0.012f + 0.034f * p.melody) * phraseLeadScale * mComposition.useComet,
-                     stepDurationSeconds() * (2.2f + 2.6f * mComposition.longMemory),
-                     mRng.bipolar() * 0.70f, clamp01(mComposition.cometTone + 0.04f));
-        eventHappened = true;
-    }
-
-    const bool rotorJoint = (tensionDevice != TensionDevice::None && p16 == tensionFocus) ||
-                            (section == SectionType::Orbit && (p16 == 4 || p16 == 12));
-    if (mComposition.useRotor > 0.02f && mComposition.useChord > 0.0f &&
-        (downbeat || rotorJoint) &&
-        mRng.chance(clamp01((0.08f + 0.26f * p.chord + 0.16f * p.space) *
-                            mComposition.useRotor * phraseChordScale))) {
-        const int32_t offset = (section == SectionType::Mirror) ? 2 :
-                               ((section == SectionType::Orbit && p16 >= 8) ? 4 : 0);
-        scheduleChordGesture(humanizeSamples(0.16f, downbeat, false), chordRoot + offset,
-                             (0.020f + 0.050f * p.chord) * phraseChordScale * mComposition.useRotor,
-                             stepDurationSeconds() * (0.84f + 1.28f * p.space),
-                             mRng.bipolar() * 0.60f,
-                             clamp01(mComposition.rotorTone + 0.03f * mRng.bipolar()),
-                             (mComposition.chordArticulation + 2) % 5);
-        eventHappened = true;
-    }
-
-    if (mComposition.useFx > 0.02f && !p.ambient && (p16 == 15 || ((section == SectionType::Surge || section == SectionType::Cascade) && (p16 == 6 || p16 == 14))) &&
-        mRng.chance(clamp01((0.045f + 0.18f * mComposition.drama + 0.14f * p.rough) * mComposition.useFx))) {
-        scheduleDrum(static_cast<int32_t>(stepSamples * (0.20f + 0.50f * mRng.uni())),
-                     mRng.chance(0.55f) ? DrumType::Zap : DrumType::Noise,
-                     0.030f + 0.070f * mPattern.roughness, mRng.bipolar() * 0.82f,
-                     0.035f + 0.080f * mRng.uni(), clamp01(mComposition.fxTone + mRng.bipolar() * 0.060f));
-        eventHappened = true;
-    }
-
-    if ((section == SectionType::Surge || section == SectionType::Cascade) && downbeat &&
-        mComposition.drama > 0.60f && mComposition.useChord > 0.0f &&
-        mRng.chance(0.38f + 0.30f * mComposition.drama)) {
-        scheduleChordGesture(0, chordRoot,
-                             (0.034f + 0.062f * mPattern.texture) * phraseChordScale,
-                             stepDurationSeconds() * (0.90f + 1.16f * p.space),
-                             mRng.bipolar() * 0.34f,
-                             clamp01(mComposition.padTone + 0.08f),
-                             (mComposition.chordArticulation == 3) ? 1 :
-                                 mComposition.chordArticulation);
-        eventHappened = true;
-    }
-
-    if ((phrase == PhraseType::Surge || phrase == PhraseType::Cascade) && (p16 == 14 || p16 == 15) && mRng.chance(0.18f + 0.20f * p.rough) && !p.ambient) {
-        const int32_t repeats = mRng.rangeInt(2, 4);
-        for (int32_t r = 0; r < repeats; ++r) {
-            scheduleDrum(static_cast<int32_t>(stepSamples * (static_cast<float>(r) / static_cast<float>(repeats))),
-                         mRng.chance(0.45f) ? DrumType::Zap : DrumType::Noise,
-                         0.052f + 0.075f * mPattern.roughness,
-                         mRng.bipolar() * 0.80f,
-                         0.025f + 0.045f * mRng.uni(), clamp01(mComposition.percTone + mRng.bipolar() * 0.10f));
-        }
+        ++supportingEvents;
         eventHappened = true;
     }
 
     if (eventHappened) mSilentSteps = 0;
     if (mSilentSteps > (p.ambient ? 96 : 28)) {
-        scheduleDrum(0, DrumType::Kick, p.ambient ? 0.20f : 0.62f, 0.0f, 0.45f, mComposition.kickTone);
-        scheduleBass(0, midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot, p.ambient ? 0 : -1))),
-                     p.ambient ? 0.18f : 0.36f, stepDurationSeconds() * 2.0f, 0.0f, mComposition.bassTone);
+        if (!afterCadence && mComposition.useKick > 0.02f) {
+            scheduleDrum(0, DrumType::Kick, p.ambient ? 0.20f : 0.62f, 0.0f, 0.45f, mComposition.kickTone);
+        }
+        if (!afterCadence && mComposition.useBass > 0.02f) {
+            scheduleBass(0, midiToHz(static_cast<float>(scaleDegreeToMidi(chordRoot, p.ambient ? 0 : -1))),
+                         p.ambient ? 0.18f : 0.36f, stepDurationSeconds() * 2.0f, 0.0f, mComposition.bassTone);
+        }
         mSilentSteps = 0;
     }
 }
@@ -5445,7 +4377,7 @@ void MusicEngine::processEvents() {
                     triggerPad(event.degree, event.amp, event.dur, event.pan, event.aux);
                     break;
                 case EventKind::Lead:
-                    triggerLead(event.freq, event.amp, event.dur, event.pan, event.aux);
+                    triggerLead(event.freq, event.amp, event.dur, event.pan, event.aux, event.instrumentSlot);
                     break;
             }
             event.active = false;
@@ -5476,11 +4408,14 @@ int32_t MusicEngine::humanizeSamples(float amount, bool downbeat, bool backbeat)
 }
 
 void MusicEngine::scheduleDrum(int32_t offsetSamples, DrumType type, float amp, float pan, float dur, float aux) {
+    if (type == DrumType::Zap || type == DrumType::Noise) return;
     for (auto& e : mEvents) {
         if (e.active) continue;
         e.active = true;
         e.samples = std::max(0, offsetSamples);
         e.kind = EventKind::Drum;
+        e.instrumentSlot = -1;
+        e.foreground = false;
         e.drumType = type;
         e.amp = amp;
         e.pan = clamp(pan, -1.0f, 1.0f);
@@ -5490,12 +4425,14 @@ void MusicEngine::scheduleDrum(int32_t offsetSamples, DrumType type, float amp, 
     }
 }
 
-void MusicEngine::scheduleBass(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color) {
+void MusicEngine::scheduleBass(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color, bool foreground) {
     for (auto& e : mEvents) {
         if (e.active) continue;
         e.active = true;
         e.samples = std::max(0, offsetSamples);
         e.kind = EventKind::Bass;
+        e.instrumentSlot = 1;
+        e.foreground = foreground;
         e.freq = freq;
         e.amp = amp;
         e.dur = std::max(0.025f, dur);
@@ -5505,14 +4442,31 @@ void MusicEngine::scheduleBass(int32_t offsetSamples, float freq, float amp, flo
     }
 }
 
-void MusicEngine::schedulePad(int32_t offsetSamples, int32_t degree, float amp, float dur, float pan, float color) {
-    // Slow pads are never allowed to accumulate into the old recurring wall.
-    if (hasSustainedPad(0.12f)) return;
+void MusicEngine::schedulePad(int32_t offsetSamples, int32_t degree, float amp, float dur, float pan, float color, bool foreground) {
+    // A foreground answer must be audible even when an accompaniment chord is
+    // still releasing. Retire that chord smoothly before the new one begins,
+    // retaining the single-harmony-voice limit instead of discarding the answer.
+    if (foreground) {
+        for (auto& event : mEvents) {
+            if (event.active && event.kind == EventKind::Pad) event.active = false;
+        }
+        const int32_t releaseSamples = std::max(1, static_cast<int32_t>(mSampleRate * 0.008));
+        for (auto& voice : mPads) {
+            if (!voice.active) continue;
+            voice.forcedReleaseSamples = releaseSamples;
+            voice.forcedReleaseTotal = releaseSamples;
+            offsetSamples = std::max(offsetSamples, releaseSamples + 1);
+        }
+    } else if (hasSustainedPad(0.12f)) {
+        return;
+    }
     for (auto& e : mEvents) {
         if (e.active) continue;
         e.active = true;
         e.samples = std::max(0, offsetSamples);
         e.kind = EventKind::Pad;
+        e.instrumentSlot = 2;
+        e.foreground = foreground;
         e.degree = degree;
         e.amp = amp;
         e.dur = std::max(0.050f, dur);
@@ -5522,12 +4476,14 @@ void MusicEngine::schedulePad(int32_t offsetSamples, int32_t degree, float amp, 
     }
 }
 
-void MusicEngine::scheduleLead(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color) {
+void MusicEngine::scheduleLead(int32_t offsetSamples, float freq, float amp, float dur, float pan, float color, int32_t instrumentSlot, bool foreground) {
     for (auto& e : mEvents) {
         if (e.active) continue;
         e.active = true;
         e.samples = std::max(0, offsetSamples);
         e.kind = EventKind::Lead;
+        e.instrumentSlot = instrumentSlot;
+        e.foreground = foreground;
         e.freq = freq;
         e.amp = amp;
         e.dur = std::max(0.020f, dur);
@@ -5553,57 +4509,13 @@ void MusicEngine::scheduleChordGesture(int32_t offsetSamples,
                                        float dur,
                                        float pan,
                                        float color,
-                                       int32_t articulation) {
-    const float step = static_cast<float>(stepDurationSamples());
-    articulation = ((articulation % 5) + 5) % 5;
-    amp = std::max(0.0f, amp);
-    dur = std::max(0.08f, dur);
-
-    auto leadAt = [&](float fraction, int32_t rel, int32_t octave, float gain,
-                      float durationScale, float panning, float toneShift) {
-        const float freq = midiToHz(static_cast<float>(scaleDegreeToMidi(degree + rel, octave)));
-        scheduleLead(offsetSamples + static_cast<int32_t>(step * fraction), freq,
-                     amp * gain, dur * durationScale,
-                     clamp(pan + panning, -1.0f, 1.0f),
-                     clamp01(color + toneShift));
-    };
-
-    switch (articulation) {
-        case 0: // Split dyad: unequal spacing prevents a march-like pulse.
-            leadAt(0.00f, 0, std::max(0, mComposition.octaveBias - 1), 0.74f, 0.62f, -0.24f, -0.08f);
-            leadAt(0.41f, 4, mComposition.octaveBias, 0.58f, 0.46f, 0.28f, 0.04f);
-            break;
-
-        case 1: // Unequal cascade: 0, 0.19 and 0.57 are deliberately nonuniform.
-            leadAt(0.00f, 0, std::max(0, mComposition.octaveBias - 1), 0.62f, 0.50f, -0.30f, -0.06f);
-            leadAt(0.19f, 2, mComposition.octaveBias, 0.52f, 0.42f, 0.06f, 0.00f);
-            leadAt(0.57f, 4, mComposition.octaveBias, 0.44f, 0.34f, 0.34f, 0.06f);
-            break;
-
-        case 2: { // Polarity frame: low and high voices pull toward the center.
-            const float low = midiToHz(static_cast<float>(scaleDegreeToMidi(degree - 3,
-                                                                            std::max(0, mComposition.octaveBias - 1))));
-            scheduleBass(offsetSamples, low, amp * 0.72f, dur * 0.58f,
-                         clamp(pan - 0.18f, -1.0f, 1.0f),
-                         clamp01(mComposition.bassTone - 0.08f));
-            leadAt(0.33f, 5, mComposition.octaveBias + 1, 0.48f, 0.40f, 0.32f, 0.07f);
-            break;
-        }
-
-        case 3: // Rare Pad Breath: single, short, and concurrency-limited.
-            if (!hasSustainedPad(std::min(0.32f, dur * 0.30f))) {
-                schedulePad(offsetSamples, degree, amp * 0.68f,
-                            std::min(dur, stepDurationSeconds() * 3.4f),
-                            pan * 0.58f, clamp01(color - 0.04f));
-            }
-            break;
-
-        case 4: // Harmonic beam: related tones overlap without a chord-pad envelope.
-        default:
-            leadAt(0.00f, 0, mComposition.octaveBias, 0.58f, 0.78f, -0.20f, -0.02f);
-            leadAt(0.29f, 7, mComposition.octaveBias, 0.40f, 0.56f, 0.24f, 0.08f);
-            break;
-    }
+                                       int32_t articulation,
+                                       bool foreground) {
+    // Harmony keeps its own selected instrument. All notes of the generated
+    // voicing arrive together: no universal rising three-note chime figure.
+    const float articulationScale = 0.80f + 0.10f * static_cast<float>(clampInt32(articulation, 0, 4));
+    schedulePad(offsetSamples, degree, std::max(0.0f, amp) * 1.12f,
+                std::max(0.10f, dur * articulationScale), pan * 0.72f, color, foreground);
 }
 
 void MusicEngine::triggerDrum(DrumType type, float amp, float pan, float dur, float aux) {
@@ -5627,7 +4539,6 @@ void MusicEngine::triggerDrum(DrumType type, float amp, float pan, float dur, fl
     chosen->noiseMix = mComposition.drumNoise;
     chosen->noiseState = mRng.nextU32();
     panGains(pan, chosen->panL, chosen->panR);
-    if (type == DrumType::Kick) mSidechain = std::min(mSidechain, 0.46f);
 }
 
 void MusicEngine::triggerBass(float freq, float amp, float dur, float pan, float color) {
@@ -5645,8 +4556,7 @@ void MusicEngine::triggerBass(float freq, float amp, float dur, float pan, float
     chosen->cutoff = 0.025f + 0.080f * clamp01(color);
     chosen->drive = 1.2f + 3.2f * clamp01(color);
     chosen->color = color;
-    chosen->model = (mComposition.bassModel +
-                     static_cast<int32_t>(clamp01(color) * 3.99f)) % 12;
+    chosen->model = mComposition.bassModel;
     chosen->attackShape = mComposition.bassAttack;
     chosen->releasePoint = mComposition.bassRelease;
     chosen->glide = mComposition.bassGlide;
@@ -5668,8 +4578,7 @@ void MusicEngine::triggerPad(int32_t degree, float amp, float dur, float pan, fl
     chosen->count = clampInt32(mComposition.padVoiceCount, 2, 4);
     chosen->cutoff = 0.014f + 0.060f * color + 0.030f * mPattern.texture;
     chosen->color = color;
-    chosen->model = (mComposition.padModel +
-                     static_cast<int32_t>(clamp01(color) * 2.99f)) % 10;
+    chosen->model = mComposition.padModel;
     chosen->attackShape = mComposition.padAttack;
     chosen->releasePoint = mComposition.padRelease;
     chosen->detune = mComposition.padDetune;
@@ -5678,16 +4587,22 @@ void MusicEngine::triggerPad(int32_t degree, float amp, float dur, float pan, fl
     panGains(pan, chosen->panL, chosen->panR);
 
     for (int32_t i = 0; i < chosen->count; ++i) {
-        const int32_t octave = (i >= 3) ? 2 : 1;
+        const int32_t octave = 1;
         const int32_t interval = mComposition.padIntervals[i];
-        const float hz = midiToHz(static_cast<float>(scaleDegreeToMidi(degree + interval, octave)));
+        int32_t voicedDegree = degree + interval;
+        for (int32_t pass = 0; pass < 5; ++pass) {
+            const int32_t midi = scaleDegreeToMidi(voicedDegree, octave);
+            if (midi > (mPattern.intent == 0 ? 76 : 85)) voicedDegree -= scaleLength();
+            else if (midi < 45) voicedDegree += scaleLength();
+        }
+        const float hz = midiToHz(static_cast<float>(scaleDegreeToMidi(voicedDegree, octave)));
         const float detune = (mRng.bipolar() * 0.0035f) * (0.18f + chosen->detune);
         chosen->freq[i] = hz * (1.0f + detune);
         chosen->phase[i] = mRng.uni();
     }
 }
 
-void MusicEngine::triggerLead(float freq, float amp, float dur, float pan, float color) {
+void MusicEngine::triggerLead(float freq, float amp, float dur, float pan, float color, int32_t instrumentSlot) {
     LeadVoice* chosen = nullptr;
     for (auto& v : mLeads) {
         if (!v.active) { chosen = &v; break; }
@@ -5701,8 +4616,9 @@ void MusicEngine::triggerLead(float freq, float amp, float dur, float pan, float
     chosen->targetFreq = freq;
     chosen->cutoff = 0.035f + 0.16f * color + 0.08f * mPattern.melody;
     chosen->color = color;
-    chosen->model = (mComposition.leadModel +
-                     static_cast<int32_t>(clamp01(color) * 5.99f)) % 16;
+    chosen->instrumentSlot = clampInt32(instrumentSlot, 0, kSupportLanes + 2);
+    chosen->model = instrumentSlot >= 3 && instrumentSlot < kSupportLanes + 3 ?
+        mComposition.supportModels[instrumentSlot - 3] : mComposition.leadModel;
     chosen->attackShape = mComposition.leadAttack;
     chosen->releasePoint = mComposition.leadRelease;
     chosen->glide = mComposition.leadGlide;
@@ -5723,13 +4639,13 @@ float MusicEngine::renderDrum(DrumVoice& v) {
         return 0.0f;
     }
 
-    const int32_t kit = (v.kit % 8 + 8) % 8;
+    const int32_t kit = clampInt32(v.kit, 0, kDrumKits - 1);
     const float bodyColor = clamp01(v.body);
     const float metalColor = clamp01(v.metal);
     const float noiseColor = clamp01(v.noiseMix);
-    static constexpr float pitchBias[8] = {-7.0f, 0.0f, 8.0f, -3.0f, 12.0f, 4.0f, -10.0f, 6.0f};
-    static constexpr float decayBias[8] = {0.4f, -0.5f, 1.2f, 0.0f, 1.8f, -1.0f, 0.8f, -0.2f};
-    static constexpr float metalRatio[8] = {1.37f, 1.61f, 1.91f, 2.17f, 2.43f, 2.71f, 3.07f, 3.41f};
+    static constexpr float pitchBias[kDrumKits] = {-7.0f, 0.0f, 8.0f, -3.0f, 12.0f, 4.0f, -10.0f, 6.0f, -5.0f, 10.0f, -1.0f, 3.0f};
+    static constexpr float decayBias[kDrumKits] = {0.4f, -0.5f, 1.2f, 0.0f, 1.8f, -1.0f, 0.8f, -0.2f, -1.4f, 2.2f, 0.2f, -0.7f};
+    static constexpr float metalRatio[kDrumKits] = {1.37f, 1.61f, 1.91f, 2.17f, 2.43f, 2.71f, 3.07f, 3.41f, 1.23f, 2.89f, 1.79f, 3.19f};
 
     float out = 0.0f;
     switch (v.type) {
@@ -5874,10 +4790,10 @@ float MusicEngine::renderBass(BassVoice& v) {
     const float env = attack * release;
     v.freq += (v.targetFreq - v.freq) * (0.0008f + 0.026f * clamp01(v.glide));
 
-    const float motion = std::sin(kTwoPi * v.phase2 * (1.0f + 0.75f * v.motion));
+    const float motion = std::sin(kTwoPi * v.age * (0.30f + 0.70f * v.motion));
     const float freq = v.freq * (1.0f + motion * (0.0004f + 0.0032f * v.motion));
     v.phase += freq / sr;
-    v.phase2 += freq * (0.492f + 0.020f * color) / sr;
+    v.phase2 += freq * 0.50f / sr;
     if (v.phase >= 1.0f) v.phase -= 1.0f;
     if (v.phase2 >= 1.0f) v.phase2 -= 1.0f;
 
@@ -5886,9 +4802,9 @@ float MusicEngine::renderBass(BassVoice& v) {
     const float saw = 2.0f * v.phase - 1.0f;
     const float tri = 1.0f - 4.0f * std::fabs(v.phase - 0.5f);
     const float pulse = (v.phase < clamp(v.pulseWidth, 0.10f, 0.84f)) ? 1.0f : -1.0f;
-    const float mod = std::sin(kTwoPi * v.phase2 * (1.5f + 2.8f * v.motion));
+    const float mod = std::sin(kTwoPi * v.phase * 2.0f);
     float raw = 0.0f;
-    switch ((v.model % 12 + 12) % 12) {
+    switch (clampInt32(v.model, 0, kBassModels - 1)) {
         case 0: raw = 0.56f * sine + 0.48f * sub; break; // clean sub current
         case 1: raw = 0.44f * std::tanh(sine * (2.2f + 2.0f * color)) +
                       0.38f * sub + 0.24f * tri; break; // rubber saturation
@@ -5917,18 +4833,33 @@ float MusicEngine::renderBass(BassVoice& v) {
             break;
         }
         case 9:
-            raw = 0.44f * sine + 0.27f * std::sin(kTwoPi * v.phase * 2.01f + 0.5f) +
-                  0.15f * std::sin(kTwoPi * v.phase * 3.02f + 1.1f) + 0.34f * sub;
+            raw = 0.44f * sine + 0.27f * std::sin(kTwoPi * v.phase * 2.0f + 0.5f) +
+                  0.15f * std::sin(kTwoPi * v.phase * 3.0f + 1.1f) + 0.34f * sub;
             break;
         case 10:
-            raw = 0.54f * tri + 0.32f * std::sin(kTwoPi * v.phase * 1.503f) +
+            raw = 0.54f * tri + 0.32f * std::sin(kTwoPi * v.phase * 2.0f) +
                   0.34f * sub;
             break;
-        default: {
+        case 11: {
             const float stepped = v.phase < 0.20f ? -0.72f :
                                   (v.phase < 0.46f ? -0.22f :
                                   (v.phase < 0.73f ? 0.34f : 0.82f));
             raw = 0.40f * stepped + 0.32f * tri + 0.40f * sub;
+            break;
+        }
+        default: {
+            const int32_t family = clampInt32(v.model - 12, 0, 7);
+            const float breath = std::exp(-(1.0f + 0.34f * static_cast<float>(family)) * t);
+            const float second = std::sin(kTwoPi * v.phase * 2.0f);
+            const float third = std::sin(kTwoPi * v.phase * 3.0f);
+            const float fourth = std::sin(kTwoPi * v.phase * 4.0f);
+            const float evenWeight = (family & 1) ? 0.08f + 0.22f * color : 0.30f - 0.14f * color;
+            const float oddWeight = (family & 2) ? 0.26f : 0.10f;
+            const float body = 0.66f * sine + evenWeight * second * breath +
+                               oddWeight * third * (0.45f + 0.55f * breath) +
+                               0.08f * fourth * color * breath;
+            raw = (family & 4) ? std::tanh(body * (1.1f + 0.9f * v.motion)) : body;
+            raw += sub * (0.16f + 0.16f * (1.0f - v.motion));
             break;
         }
     }
@@ -5945,7 +4876,7 @@ float MusicEngine::renderPad(PadVoice& v) {
     const float sr = static_cast<float>(mSampleRate);
     const float dt = 1.0f / sr;
     const float t = v.age / std::max(0.001f, v.dur);
-    if (t >= 1.0f) {
+    if (t >= 1.0f || v.forcedReleaseSamples == 0) {
         v.active = false;
         return 0.0f;
     }
@@ -5958,7 +4889,10 @@ float MusicEngine::renderPad(PadVoice& v) {
     const float releaseStart = clamp(v.releasePoint, 0.54f, 0.98f);
     const float release = 1.0f - clamp((t - releaseStart) /
                                       std::max(0.02f, 1.0f - releaseStart), 0.0f, 1.0f);
-    const float env = attack * release;
+    const float priorityRelease = v.forcedReleaseSamples < 0 ? 1.0f :
+        static_cast<float>(v.forcedReleaseSamples) / static_cast<float>(std::max(1, v.forcedReleaseTotal));
+    const float env = attack * release * priorityRelease;
+    if (v.forcedReleaseSamples > 0) --v.forcedReleaseSamples;
     const float slowMotion = std::sin(kTwoPi *
         (v.age / std::max(0.25f, v.dur)) * (0.25f + 1.2f * v.motion));
     float raw = 0.0f;
@@ -5974,43 +4908,58 @@ float MusicEngine::renderPad(PadVoice& v) {
         const float pulse = ph < clamp(0.24f + 0.45f * v.width +
                                      0.06f * slowMotion, 0.12f, 0.88f) ? 1.0f : -1.0f;
         float osc = 0.0f;
-        switch ((v.model % 10 + 10) % 10) {
+        switch (clampInt32(v.model, 0, kPadModels - 1)) {
             case 0: osc = 0.82f * sine + 0.18f * tri; break; // mist
             case 1:
                 osc = 0.66f * tri + 0.22f * sine +
-                      0.12f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i);
+                      0.12f * std::sin(kTwoPi * ph * 2.0f + 0.4f * i);
                 break;
             case 2: osc = 0.48f * tri + 0.34f * saw + 0.18f * sine; break;
             case 3:
                 osc = std::sin(kTwoPi * ph + (0.7f + 2.6f * v.motion) *
-                               std::sin(kTwoPi * ph * 2.003f + 0.4f * i));
+                               std::sin(kTwoPi * ph * 2.0f + 0.4f * i));
                 break;
             case 4: osc = 0.46f * pulse + 0.34f * tri + 0.20f * sine; break;
             case 5:
                 osc = 0.48f * sine +
-                      0.30f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i) +
-                      0.18f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                      0.30f * std::sin(kTwoPi * ph * 2.0f + 0.4f * i) +
+                      0.18f * std::sin(kTwoPi * ph * 3.0f + 0.8f * i);
                 break;
             case 6: {
-                const float partial2 = std::sin(kTwoPi * ph * 2.003f + 0.4f * i);
+                const float partial2 = std::sin(kTwoPi * ph * 2.0f + 0.4f * i);
                 const float warped = ph + (0.04f + 0.16f * v.motion) * partial2;
                 osc = 0.68f * std::sin(kTwoPi * warped) + 0.25f * tri;
                 break;
             }
             case 7:
-                osc = 0.62f * sine + 0.26f * std::sin(kTwoPi * ph * 1.501f) +
-                      0.12f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                osc = 0.62f * sine + 0.26f * std::sin(kTwoPi * ph * 2.0f) +
+                      0.12f * std::sin(kTwoPi * ph * 3.0f + 0.8f * i);
                 break;
             case 8:
                 osc = 0.42f * tri +
-                      0.26f * std::sin(kTwoPi * ph * 2.003f + 0.4f * i) +
-                      0.22f * std::sin(kTwoPi * ph * 4.017f);
+                      0.26f * std::sin(kTwoPi * ph * 2.0f + 0.4f * i) +
+                      0.22f * std::sin(kTwoPi * ph * 4.0f);
                 break;
-            default: {
+            case 9: {
                 const float fold = std::sin(kTwoPi *
                     (ph + 0.18f * saw * (0.3f + v.motion)));
                 osc = 0.56f * fold + 0.24f * sine +
-                      0.16f * std::sin(kTwoPi * ph * 3.011f + 0.8f * i);
+                      0.16f * std::sin(kTwoPi * ph * 3.0f + 0.8f * i);
+                break;
+            }
+            default: {
+                const int32_t family = clampInt32(v.model - 10, 0, 7);
+                const float second = std::sin(kTwoPi * ph * 2.0f);
+                const float third = std::sin(kTwoPi * ph * 3.0f);
+                const float fifth = std::sin(kTwoPi * ph * 5.0f);
+                const float opening = 0.60f + 0.40f * std::sin(kPi * clamp01(t));
+                const float evenWeight = (family & 1) ? 0.09f : 0.24f;
+                const float oddWeight = (family & 2) ? 0.28f : 0.12f;
+                osc = 0.70f * sine + evenWeight * second * opening +
+                      oddWeight * third * (0.65f + 0.35f * color) +
+                      0.06f * fifth * color;
+                if (family & 4) osc = std::sin(kTwoPi * ph +
+                    (0.12f + 0.30f * v.motion) * second * opening) * 0.78f + 0.20f * osc;
                 break;
             }
         }
@@ -6058,13 +5007,7 @@ float MusicEngine::renderLead(LeadVoice& v) {
     const float saw = 2.0f * v.phase - 1.0f;
     const float mod = std::sin(kTwoPi * v.modPhase);
     const float pulse = v.phase < (0.18f + 0.48f * color) ? 1.0f : -1.0f;
-    const int32_t modelIndex = (v.model % 16 + 16) % 16;
-    float airNoise = 0.0f;
-    if (modelIndex == 5 || modelIndex == 13 || v.air > 0.62f) {
-        const float n = noise(v.noiseState);
-        v.lp += (n - v.lp) * (0.025f + 0.060f * v.air);
-        airNoise = n - v.lp;
-    }
+    const int32_t modelIndex = clampInt32(v.model, 0, kLeadModels - 1);
 
     float raw = 0.0f;
     switch (modelIndex) {
@@ -6073,7 +5016,7 @@ float MusicEngine::renderLead(LeadVoice& v) {
                               (0.8f + 4.4f * v.modRatio) * mod); break;
         case 2:
             raw = 0.70f * sine + 0.25f * tri +
-                  0.12f * std::sin(kTwoPi * v.modPhase * 0.503f);
+                  0.12f * std::sin(kTwoPi * v.phase * 2.0f);
             break;
         case 3:
             raw = std::tanh((0.56f * saw + 0.32f * sine) *
@@ -6087,19 +5030,18 @@ float MusicEngine::renderLead(LeadVoice& v) {
             break;
         }
         case 5:
-            raw = 0.66f * std::sin(kTwoPi * v.phase + 1.8f * mod) +
-                  0.24f * airNoise * v.air;
+            raw = 0.66f * std::sin(kTwoPi * v.phase + 1.8f * mod) + 0.22f * sine;
             break;
         case 6: {
-            const float vowel = sine + 0.44f * std::sin(kTwoPi * v.phase * 2.01f + 0.7f) +
-                                0.24f * std::sin(kTwoPi * v.phase * 3.02f + 1.4f);
+            const float vowel = sine + 0.44f * std::sin(kTwoPi * v.phase * 2.0f + 0.7f) +
+                                0.24f * std::sin(kTwoPi * v.phase * 3.0f + 1.4f);
             raw = std::tanh(vowel * 0.82f);
             break;
         }
         case 7: {
             const float glass = sine +
-                                0.38f * std::sin(kTwoPi * v.phase * 2.414f + 0.30f) +
-                                0.18f * std::sin(kTwoPi * v.phase * 3.732f + 1.10f);
+                                0.38f * std::sin(kTwoPi * v.phase * 2.0f + 0.30f) +
+                                0.18f * std::sin(kTwoPi * v.phase * 4.0f + 1.10f);
             raw = std::tanh(glass * (0.60f + 0.30f * env));
             break;
         }
@@ -6117,85 +5059,82 @@ float MusicEngine::renderLead(LeadVoice& v) {
         }
         case 10: {
             const float wrapped = std::fmod(v.phase *
-                (1.6f + 2.8f * v.modRatio), 1.0f);
+                (2.0f + static_cast<float>(static_cast<int32_t>(v.modRatio * 3.0f))), 1.0f);
             raw = 0.48f * (2.0f * wrapped - 1.0f) + 0.38f * sine;
             break;
         }
         case 11: {
-            const float p2 = std::fmod(v.phase * 1.503f, 1.0f) < 0.42f ? 1.0f : -1.0f;
+            const float p2 = std::fmod(v.phase * 2.0f, 1.0f) < 0.42f ? 1.0f : -1.0f;
             raw = 0.42f * pulse + 0.34f * p2 + 0.22f * tri;
             break;
         }
         case 12:
             raw = 0.56f * sine +
-                  0.26f * std::sin(kTwoPi * v.phase * 2.997f + 0.4f) +
-                  0.14f * std::sin(kTwoPi * v.phase * 5.011f + 1.1f);
+                  0.26f * std::sin(kTwoPi * v.phase * 3.0f + 0.4f) +
+                  0.14f * std::sin(kTwoPi * v.phase * 5.0f + 1.1f);
             break;
         case 13: {
             const float chirp = std::sin(kTwoPi * v.phase +
                                          (0.4f + 2.4f * env) * mod);
-            raw = 0.64f * chirp + 0.22f * tri + 0.12f * airNoise * v.air;
+            raw = 0.64f * chirp + 0.22f * tri;
             break;
         }
         case 14:
             raw = 0.42f * sine + 0.28f * std::sin(kTwoPi * v.phase * 2.0f) +
                   0.18f * std::sin(kTwoPi * v.phase * 4.0f) + 0.14f * pulse;
             break;
-        default: {
+        case 15: {
             const float stack = sine +
-                0.31f * std::sin(kTwoPi * v.phase * 1.997f + mod * 0.20f) +
-                0.16f * std::sin(kTwoPi * v.phase * 4.003f + 0.8f);
+                0.31f * std::sin(kTwoPi * v.phase * 2.0f + mod * 0.20f) +
+                0.16f * std::sin(kTwoPi * v.phase * 4.0f + 0.8f);
             raw = std::tanh(stack * 0.78f);
+            break;
+        }
+        default: {
+            // Sixteen additional original harmonic designs: reed bodies,
+            // rounded struck strings, open voiced brass, and sustained filaments.
+            // Color continuously changes a family; it never changes its index.
+            const int32_t design = clampInt32(modelIndex - 16, 0, 15);
+            const int32_t family = design / 4;
+            const float variant = static_cast<float>(design % 4) / 3.0f;
+            const float second = std::sin(kTwoPi * v.phase * 2.0f);
+            const float third = std::sin(kTwoPi * v.phase * 3.0f);
+            const float fourth = std::sin(kTwoPi * v.phase * 4.0f);
+            const float fifth = std::sin(kTwoPi * v.phase * 5.0f);
+            const float bloom = std::exp(-(1.0f + 2.8f * variant) * t);
+            if (family == 0) {
+                raw = 0.70f * sine + (0.12f + 0.18f * variant) * third +
+                      (0.04f + 0.10f * color) * fifth * (0.55f + 0.45f * bloom) +
+                      0.08f * second * (1.0f - variant);
+            } else if (family == 1) {
+                raw = 0.74f * sine + (0.10f + 0.26f * color) * second * bloom +
+                      (0.06f + 0.18f * variant) * third * bloom * bloom +
+                      0.08f * fourth * color * bloom;
+            } else if (family == 2) {
+                const float body = 0.72f * sine + (0.16f + 0.18f * color) * second +
+                                   (0.06f + 0.18f * variant) * third;
+                raw = std::tanh(body * (1.05f + 1.20f * color)) * 0.82f + 0.08f * fourth * bloom;
+            } else {
+                const float bow = 0.60f + 0.40f * std::sin(kPi * clamp01(t));
+                raw = 0.70f * sine + (0.08f + 0.12f * variant) * second * bow +
+                      (0.16f - 0.10f * variant) * third +
+                      0.08f * fifth * color * bow;
+            }
             break;
         }
     }
 
-    raw += airNoise * (0.02f + 0.12f * v.air) * env;
+    const float fundamentalWeight = mPattern.intent <= 1 ? 0.36f : 0.22f;
+    raw = raw * (1.0f - fundamentalWeight) + sine * fundamentalWeight;
     v.lp += (raw - v.lp) * clamp(v.cutoff *
         (0.38f + 1.42f * env + 0.38f * color), 0.006f, 0.52f);
     v.age += dt;
     return v.lp * env * v.amp;
 }
 
-float MusicEngine::renderTexture() {
-    const float sr = static_cast<float>(mSampleRate);
-    const float tone = clamp01(mComposition.textureTone);
-    const float profileTexture = mPattern.profileTexture;
-    const float amount = (0.010f + mPattern.texture * (0.022f + 0.052f * profileTexture)) * mComposition.useTexture;
-    if (amount <= 0.0001f) return 0.0f;
-    mTexturePhaseA += (0.030f + 0.070f * profileTexture + 0.030f * tone) / sr;
-    mTexturePhaseB += (0.045f + 0.062f * mPattern.roughness + 0.050f * tone) / sr;
-    if (mTexturePhaseA >= 1.0f) mTexturePhaseA -= 1.0f;
-    if (mTexturePhaseB >= 1.0f) mTexturePhaseB -= 1.0f;
-    const float n = noise(mTextureNoise) * (0.08f + 0.22f * tone);
-    const float slow = std::sin(kTwoPi * mTexturePhaseA) * (0.45f + 0.20f * (1.0f - tone)) +
-                       std::sin(kTwoPi * mTexturePhaseB * (1.0f + tone)) * (0.22f + 0.26f * tone) + n;
-    mTextureLp += (slow - mTextureLp) * 0.0017f;
-    mTextureHp += (mTextureLp - mTextureHp) * 0.00022f;
-    return (mTextureLp - 0.30f * mTextureHp) * amount;
-}
-
-void MusicEngine::applyDelayAndMaster(float& left, float& right) {
-    if (!mDelayL.empty() && !mDelayR.empty()) {
-        const int32_t size = static_cast<int32_t>(mDelayL.size());
-        const float bpm = std::max(40.0f, mBpm);
-        const float beatSeconds = 60.0f / bpm;
-        const float desired = beatSeconds * (mPattern.profileAmbient ? 0.75f : (mPattern.profileBreakbeat ? 0.375f : 0.50f));
-        const int32_t targetDelay = clamp(static_cast<float>(desired * static_cast<float>(mSampleRate)), 1200.0f, static_cast<float>(size - 1));
-        mDelaySamples += static_cast<int32_t>((targetDelay - mDelaySamples) * 0.00002f);
-        mDelaySamples = std::max(1, std::min(size - 1, mDelaySamples));
-        const int32_t read = (mDelayWrite - mDelaySamples + size) % size;
-        const float dl = mDelayL[read];
-        const float dr = mDelayR[read];
-        const float send = mPattern.delay * (0.22f + 0.55f * mPattern.space);
-        const float feedback = clamp(0.18f + 0.42f * mPattern.space + 0.10f * mPattern.profileTexture, 0.10f, 0.66f);
-        mDelayL[mDelayWrite] = std::tanh((left * send + dr * feedback) * 0.92f);
-        mDelayR[mDelayWrite] = std::tanh((right * send + dl * feedback) * 0.92f);
-        mDelayWrite = (mDelayWrite + 1) % size;
-        left += dl * (0.16f + 0.35f * mPattern.delay);
-        right += dr * (0.16f + 0.35f * mPattern.delay);
-    }
-
+void MusicEngine::applyMaster(float& left, float& right) {
+    // This drive is fixed when the song is generated (or explicitly imported).
+    // Preserve that v30 tone and its fixed DC filter without riding mix levels.
     const float drive = 1.05f + 0.82f * mPattern.drive;
     left = std::tanh(left * drive) / std::tanh(drive);
     right = std::tanh(right * drive) / std::tanh(drive);
@@ -6207,30 +5146,9 @@ void MusicEngine::applyDelayAndMaster(float& left, float& right) {
     mDcOutL = hpL;
     mDcOutR = hpR;
 
-    float normL = hpL;
-    float normR = hpR;
-    const float instantPower = 0.5f * (normL * normL + normR * normR);
-    if (mTransitionStage == TransitionStage::None && instantPower > 0.000001f) {
-        const float rmsCoeff = 1.0f / std::max(1.0f, static_cast<float>(mSampleRate) * 0.42f);
-        mAgcRms += (instantPower - mAgcRms) * rmsCoeff;
-        const float targetRms = 0.105f;
-        const float measured = std::sqrt(std::max(0.000001f, mAgcRms));
-        const float desiredGain = clamp(targetRms / measured, 0.54f, 2.45f);
-        const float gainCoeff = desiredGain < mAgcGain ? 0.00048f : 0.000075f;
-        mAgcGain += (desiredGain - mAgcGain) * gainCoeff;
-    }
-
-    normL *= mAgcGain;
-    normR *= mAgcGain;
-    const float peak = std::max(std::fabs(normL), std::fabs(normR));
-    if (peak > 0.94f) {
-        const float scale = 0.94f / peak;
-        normL *= scale;
-        normR *= scale;
-    }
-
-    left = std::tanh(normL * mMaster * 1.10f) * 0.93f;
-    right = std::tanh(normR * mMaster * 1.10f) * 0.93f;
+    left = hpL;
+    right = hpR;
+    OutputStage::process(left, right);
 }
 
 float MusicEngine::noise(uint32_t& state) {
@@ -6245,7 +5163,7 @@ float MusicEngine::midiToHz(float midi) const {
 }
 
 int32_t MusicEngine::scaleLength() const {
-    return mPattern.scaleMode == 4 ? 5 : 7;
+    return (mPattern.scaleMode == 4 || mPattern.scaleMode == 8) ? 5 : 7;
 }
 
 int32_t MusicEngine::scaleDegreeToMidi(int32_t degree, int32_t octaveOffset) const {
@@ -6254,6 +5172,10 @@ int32_t MusicEngine::scaleDegreeToMidi(int32_t degree, int32_t octaveOffset) con
     static constexpr int32_t phrygian[7] = {0, 1, 3, 5, 7, 8, 10};
     static constexpr int32_t harmonicMinor[7] = {0, 2, 3, 5, 7, 8, 11};
     static constexpr int32_t minorPent[5] = {0, 3, 5, 7, 10};
+    static constexpr int32_t major[7] = {0, 2, 4, 5, 7, 9, 11};
+    static constexpr int32_t lydian[7] = {0, 2, 4, 6, 7, 9, 11};
+    static constexpr int32_t mixolydian[7] = {0, 2, 4, 5, 7, 9, 10};
+    static constexpr int32_t majorPent[5] = {0, 2, 4, 7, 9};
 
     const int32_t len = scaleLength();
     int32_t octave = 0;
@@ -6267,6 +5189,10 @@ int32_t MusicEngine::scaleDegreeToMidi(int32_t degree, int32_t octaveOffset) con
         case 2: semitone = phrygian[idx]; break;
         case 3: semitone = harmonicMinor[idx]; break;
         case 4: semitone = minorPent[idx]; break;
+        case 5: semitone = major[idx]; break;
+        case 6: semitone = lydian[idx]; break;
+        case 7: semitone = mixolydian[idx]; break;
+        case 8: semitone = majorPent[idx]; break;
         case 0:
         default: semitone = naturalMinor[idx]; break;
     }

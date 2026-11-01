@@ -1,0 +1,97 @@
+TECHNOMATIC 2105 v30.1 - Output design
+====================================
+
+Purpose
+-------
+This revision makes two changes: it permits the full digital sample range,
+and it removes automatic or composition-driven changes to the band's volume.
+Android and the listener continue to control the system playback volume.
+
+1. Fixed output and full digital range
+-------------------------------------
+MusicEngine no longer contains the RMS AGC (mAgcRms/mAgcGain), mMaster
+attenuation, kick-driven mSidechain ducking, or mTransitionGain. The old
+fade/dead-air state machine and its timers are removed. Legacy next() now
+switches immediately; the app's forceNewPiece() path remains immediate.
+Export no longer applies a final tailGain fade. It converts exactly the
+requested [Start, End) interval, including its final samples.
+
+The original per-song static drive and fixed DC filter remain to preserve
+the existing tone. Drive is selected at generation/import and does not
+evolve. The DC filter has ordinary filter history, not a level detector or
+automatic gain control.
+
+OutputStage.h applies this fixed transfer independently to each channel.
+Here x is the sample after the retained drive and DC filter:
+
+    G = 1.0                 fixed gain
+    K = 0.80                knee
+    C = 1.0                 digital sample ceiling
+    z = G * x
+
+    F(x) = z                                      if abs(z) <= K
+    F(x) = sign(z) * [K + (C-K) *
+             tanh((abs(z)-K)/(C-K))]               otherwise
+
+Value and slope meet continuously at the knee. Samples below the knee
+remain linear; higher peaks are smoothly rounded. There is no output
+detector, attack/release controller, lookahead, normalization, added latency,
+buffer, or persistent stage state. A loud sample cannot change a later
+sample's gain or impose gain reduction on the other channel.
+
+The source sample range is bounded by [-1.0, 1.0], with no lower app ceiling.
+This is a sample bound, not a reconstructed true-peak guarantee. Resampling
+or codec reconstruction can produce intersample peaks above digital full
+scale. The requested full-range setting is retained without an adaptive
+controller or additional attenuation.
+
+2. No coordinated section-volume envelopes
+------------------------------------------
+The nine scheduling amplitude sites are kick, snare/clap, closed hats,
+open hats, percussion, bass, harmony, foreground, and supporting voices.
+Their positive amplitudes retain fixed role levels, existing user/support
+weights, and individual accents. Section and device volume multipliers
+have been removed from all nine sites.
+
+The former phraseDrum/Bass/Lead/ChordScale variables are now named
+drumActivity, bassActivity, leadActivity, and chordActivity. Their existing
+arithmetic, note conditions, probabilities, and RNG calls are retained for
+scheduling. They do not continuously scale played-note amplitudes.
+
+Only structural presence reaches the amplitude path:
+
+    Presence(A) = 1.0 if A > 0.0, otherwise 0.0
+
+These binary masks preserve previously silent events at completed endings,
+including forced anchors. They cannot create a gradual volume swell or dip.
+Intro/outro reveals, Hook boosts, Shadow/OpenRelease dips, Confluence gain
+accents, and long-term level drift therefore no longer change the band's
+note levels together. Their scheduling and melodic devices remain.
+
+Individual instrument attack/decay/release envelopes, per-note accents,
+rolls, flams, rests, and fixed role balance remain part of the music.
+An exact export cut can end on a nonzero waveform; no file-edge fade is
+added to conceal that cut.
+
+Recipe and switching consistency
+--------------------------------
+Snapshots retain engine=30 and add outputrev=1. Old or missing outputrev
+fields do not select a quieter output path: all recipes use the current
+fixed delivery processing.
+
+A switching defect could retain the previous song's mPocketLate backbeat
+delay. generateSeededSong() now derives that timing from a separate local
+RNG using the same initial draws as reset(). This preserves reset/load
+timing and the composition RNG streams while making both Next paths agree
+with a fresh load of their saved recipe.
+
+Validation companion
+--------------------
+Results and measurement limits are recorded separately in:
+
+    docs/LOUDNESS_V30_1_VALIDATION.txt
+
+Source files:
+    app/src/main/cpp/MusicEngine.cpp
+    app/src/main/cpp/MusicEngine.h
+    app/src/main/cpp/OutputStage.h

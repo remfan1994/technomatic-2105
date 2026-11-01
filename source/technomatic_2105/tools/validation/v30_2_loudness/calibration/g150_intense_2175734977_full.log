@@ -1,0 +1,30 @@
+COMMAND ffmpeg -hide_banner -nostats -ss 0 -t 88 -i /tmp/tm302-measure/calibration-audio/g150_intense_2175734977.wav -af ebur128=peak=true:framelog=verbose -f null -
+[aist#0:0/pcm_f32le @ 0x557c19aa2200] Guessed Channel Layout: stereo
+Input #0, wav, from '/tmp/tm302-measure/calibration-audio/g150_intense_2175734977.wav':
+  Duration: 00:01:28.00, bitrate: 3072 kb/s
+  Stream #0:0: Audio: pcm_f32le ([3][0][0][0] / 0x0003), 48000 Hz, 2 channels, flt, 3072 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (pcm_f32le (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+[out#0/null @ 0x557c19a9e880] video:0kB audio:16500kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:01:27.90 bitrate=N/A speed= 111x    
+[Parsed_ebur128_0 @ 0x557c19a9f900] Summary:
+
+  Integrated loudness:
+    I:          -8.3 LUFS
+    Threshold: -18.4 LUFS
+
+  Loudness range:
+    LRA:         1.7 LU
+    Threshold: -28.4 LUFS
+    LRA low:    -9.1 LUFS
+    LRA high:   -7.5 LUFS
+
+  True peak:
+    Peak:        1.4 dBFS

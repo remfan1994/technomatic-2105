@@ -1,0 +1,17 @@
+Metadata host checks passed: 1049
+ffprobe: OGG and FLAC expose seed, engine 30, neutral retired-channel fields and Unicode notes.
+FLAC decoded PCM equals all 1,536,000 source bytes (384,000 stereo frames, 8 seconds).
+OGG metadata insertion/growth/shrinkage: decoded PCM and duration unchanged across 9 outputs.
+Opus decoded PCM SHA-256: 733626367fcadcb68236950455ce3125bc646da07173b9f1012e0157c7316e01
+FLAC/source PCM SHA-256: e9ae13bdb7962f149ecfdc46bda654ddfe1b47ec24b47f220e81d6762898c78b
+opusinfo: tagged.ogg tags visible
+metaflac: tagged.flac tags visible
+mediainfo: tagged.ogg tags visible
+mediainfo: tagged.flac tags visible
+flac --test: frame CRC and STREAMINFO MD5 passed
+Primary format references:
+https://www.rfc-editor.org/rfc/rfc7845.html#section-5.2
+https://www.rfc-editor.org/rfc/rfc3533.html#section-6
+https://www.rfc-editor.org/rfc/rfc9639.html#name-vorbis-comment
+https://www.xiph.org/vorbis/doc/v-comment.html
+Android codec and MediaStore UI still require device-level verification.

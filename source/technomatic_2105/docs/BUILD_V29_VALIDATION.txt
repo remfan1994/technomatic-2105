@@ -1,0 +1,72 @@
+TECHNOMATIC 2105 v29 - Android build verification
+
+Build date: 2026-10-18 UTC
+versionName: 0.29.0
+versionCode: 41
+
+Final Gradle invocation:
+  gradle --no-daemon --max-workers=2 assembleDebug assembleRelease lintDebug
+
+The invocation used Gradle 8.9, Android Gradle Plugin 8.7.3, JDK 17,
+Android platform 33, build-tools 34.0.0, NDK 26.3.11579264, and CMake 3.22.1.
+The source project includes its Gradle 8.9 wrapper for reproduction.
+
+Result: BUILD SUCCESSFUL in 47 seconds.
+101 actionable tasks: 39 executed, 62 up-to-date.
+Both Java variants and all native ABI variants compiled successfully.
+
+Debug APK:
+  Package: vip.thatiam.technomatic2105.debug
+  Version: 0.29.0-debug (41)
+  Bytes: 6121442
+  SHA-256:
+  ac34e27f6689181d866e158ad5a45b00d4187f61df026dc56235ba7ace018e95
+  apksigner verify --verbose: passed, APK Signature Scheme v2.
+
+Unsigned release APK:
+  Package: vip.thatiam.technomatic2105
+  Version: 0.29.0 (41)
+  Bytes: 5471473
+  SHA-256:
+  e528972f58890680a54c281999b1aadcfa06fb60dba11704cecbdf6757dd84d8
+  This package needs release signing before installation.
+
+Both APKs:
+  Minimum Android API: 26.
+  Target Android API: 33.
+  Native ABIs: arm64-v8a, armeabi-v7a, x86_64.
+  Each ABI contains libtechnomatic_2105.so, liboboe.so, libc++_shared.so.
+  ZIP CRC checks: passed.
+  Manifest/version/ABI checks with aapt: passed.
+
+Lint:
+  Errors: 0.
+  Warnings: 21.
+  InlinedApi: 1; OldTargetApi: 1; UnusedAttribute: 1;
+  GradleDependency: 2; DataExtractionRules: 1; WakelockTimeout: 1;
+  ObsoleteSdkInt: 8; UnusedResources: 1; MonochromeLauncherIcon: 2;
+  RtlHardcoded: 3.
+The build has not been represented as warning-free. SDK modernization,
+launcher appearance, and unrelated cleanup were outside this revision.
+
+Final tested and built native source SHA-256:
+  MusicEngine.cpp:
+  5a3a3c9f58209f2fee8235fd8925093bb9689c196ec06f4c95b7d7b1eba86658
+  MusicEngine.h:
+  e6e6cec1f09110fd9501265764ca8d6b77ee8d15be02b882f30178562d8c15f6
+  AudioEngine.cpp:
+  dd0d1aaa44d1ce8694740917c834d2ccf81af5b8c7367006120738e7224a41d9
+  AudioEngine.h:
+  50c624dd4859fc41256e367cbdea441e141c2076dbe5646481978e9d67ea91e0
+
+Scope limits:
+No physical Android device or Android emulator was used. Successful native
+and Java compilation, host tests, APK signature verification and lint do
+not verify device MediaCodec, MediaStore permissions, UI rotation/keyboard,
+hardware disconnects or real-time performance on a phone.
+
+The debug APK uses a separate application ID and can coexist with a release
+installation. An update to an existing release installation requires its
+original signing key. No release signing key is included in the project.
+Public Music export currently requires Android 10 or newer; playback
+continues to support Android 8 and newer.

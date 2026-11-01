@@ -1,0 +1,45 @@
+TECHNOMATIC 2105 v30.2 - Export identity validation
+Date: 2026-10-20
+
+The native composition snapshot still records engine=30 and now records
+outputrev=2. The existing ExportMetadata implementation reads that revision
+from each captured recipe and writes OUTPUT_MASTER_VERSION=2 into the
+physical OGG/Opus and FLAC metadata. The metadata writer, encoder, notes
+editor, user-entered fields and automatic seed identity are unchanged.
+
+The production metadata and FLAC helpers passed 1,065 Java host checks.
+The fixture now uses outputrev=2; a separate later capture uses revision 3
+to verify that the first export's recipe and metadata remain immutable.
+Missing, invalid and stale revisions retain the established behavior.
+
+FFprobe verified the output revision, seed, engine, complete regeneration
+recipe, export interval and Unicode user notes in both tagged audio files.
+All 1,536,000 decoded FLAC PCM bytes matched the source fixture exactly.
+Nine OGG tag insertion/growth/shrinkage cases retained identical decoded
+PCM and duration. Container lacing, sequence, CRC, granule, cancellation
+and boundary tests passed as part of the same suite.
+
+This run used JDK 17.0.20.1 and the installed FFmpeg/FFprobe. The optional
+opusinfo, metaflac and MediaInfo executables were unavailable and were
+explicitly skipped; the report does not claim those independent inspector
+checks. Android MediaCodec and phone playback are separate from this
+host-generated container test.
+
+Reproduce from the project root with a JDK and FFmpeg on PATH:
+
+  python3 tools/test_metadata.py --output /tmp/technomatic-metadata-v302
+
+Raw evidence:
+  tools/validation/v30_2_metadata/metadata-test-report.txt
+  tools/validation/v30_2_metadata/tagged.ogg.ffprobe.json
+  tools/validation/v30_2_metadata/tagged.flac.ffprobe.json
+
+Source fixture / decoded FLAC SHA-256:
+e9ae13bdb7962f149ecfdc46bda654ddfe1b47ec24b47f220e81d6762898c78b
+
+Decoded Opus PCM SHA-256:
+733626367fcadcb68236950455ce3125bc646da07173b9f1012e0157c7316e01
+
+The unchanged writer's original design and format references are recorded
+in docs/METADATA_V30_1_VALIDATION.txt. The output-level measurements for
+this release are recorded in docs/LOUDNESS_V30_2_VALIDATION.txt.

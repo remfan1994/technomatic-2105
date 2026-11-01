@@ -1,0 +1,93 @@
+TECHNOMATIC 2105 v30 - Android build verification
+
+Build date: 2026-10-18 UTC
+versionName: 0.30.0
+versionCode: 42
+
+Final Gradle invocation:
+  gradle --no-daemon --max-workers=2 assembleDebug assembleRelease lintDebug
+
+Toolchain used:
+  Gradle 8.9; Android Gradle Plugin 8.7.3; JDK 17.
+  Android platform 33; build-tools 34.0.0; CMake 3.22.1.
+  NDK 30.0.14904198, exactly the owner's requested revision.
+  The official package identifies itself as r30-beta1 with BaseRevision
+  30.0.14904198. No NDK downgrade or special compiler workaround was used.
+
+The source includes its Gradle 8.9 wrapper. app/build.gradle and both Android
+workflows pin the requested NDK. AGENTS.md records the owner's installed path
+/home/tutan/Android/Sdk/ndk/30.0.14904198 for future versions. The shared build
+uses ndkVersion; Android Studio's local SDK root remains machine-specific.
+
+Result: BUILD SUCCESSFUL in 26 seconds.
+101 actionable tasks: 22 executed, 79 up-to-date.
+The final native source compiled for debug and release across all three ABIs.
+Java debug and release compilation also passed in the complete build sequence.
+Raw final Gradle output: tools/validation/v30_android_build.log.
+
+Debug APK:
+  Filename: technomatic_2105_v30_debug.apk
+  Package: vip.thatiam.technomatic2105.debug
+  Version: 0.30.0-debug (42)
+  Bytes: 6024002
+  SHA-256:
+  cf3db2c06d267fd30d4bca96865df31ecbd36ac59f56cf180f227586f8d1c0b4
+  apksigner verify --verbose: passed, APK Signature Scheme v2.
+  Debug certificate SHA-256:
+  b35e0a972195d9fbe6d47a2e6bca2adcf94b3110aaf27cc8c8a00f0f6ae8837b
+
+Unsigned release APK:
+  Filename: technomatic_2105_v30_release_unsigned.apk
+  Package: vip.thatiam.technomatic2105
+  Version: 0.30.0 (42)
+  Bytes: 5684773
+  SHA-256:
+  f1c94df6003201e4a8ebfeb13c292b0dd91408f3629b6053d272da510098be3d
+  Release signing is required before installation or distribution.
+
+Both APKs:
+  Minimum API: 26; target API: 33.
+  Native ABIs: arm64-v8a, armeabi-v7a, x86_64.
+  Each ABI contains libtechnomatic_2105.so, liboboe.so and libc++_shared.so.
+  aapt manifest/version/ABI checks passed; ZIP CRC checks passed.
+  No INTERNET permission, bundled audio assets, MIDI songs or soundfonts.
+
+Lint:
+  0 errors, 20 warnings.
+  InlinedApi: 1; OldTargetApi: 1; UnusedAttribute: 1;
+  GradleDependency: 2; DataExtractionRules: 1; WakelockTimeout: 1;
+  ObsoleteSdkInt: 8; UnusedResources: 1; MonochromeLauncherIcon: 2;
+  RtlHardcoded: 2.
+  The v29 report recorded 21 warnings. This build is not warning-free.
+  Raw report: tools/validation/v30_android_lint.txt.
+
+Final built native source SHA-256:
+  MusicEngine.cpp:
+  759885caecfaaa12dc07e83977e94948f17d853b1a69284ab1dd7adfcfe58496
+  MusicEngine.h:
+  8acddec9294a13dc4a5854503b1f0c30e3f3c3e05ea731577d4e1170427ee18b
+  AudioEngine.cpp:
+  739f0aa431199dbcf338f4242b24ee3e875ea8434d8f3899865f1035a0935ccd
+  AudioEngine.h:
+  14e9afa1533a663f215399cb11ab2a2111cf98bfd89d8033a5fecb1157bd2efc
+  native-lib.cpp:
+  0d864ac101aa5cfc2ea43fdd118875962b57cb940b3644426f6cc5b2cbf1729b
+
+Installation and scope
+
+The debug package has a separate application ID from the release package.
+Its signing certificate differs from the supplied v29 debug APK certificate
+(341c248860a93f879831a61e5de0da9c279d32a2c613920215ed586a205724f2),
+so this downloadable debug APK is not a direct update over that APK. Building
+the source locally with the same key used for an existing installation is
+the appropriate update path. No private signing key is included.
+
+An existing release installation requires the owner's original release key
+for an in-place update. The unsigned release package has not been signed with
+an invented release identity.
+
+No physical Android device or emulator was used. Compilation, host tests,
+file-inspector checks and lint do not test real MediaCodec/MediaStore behavior,
+device keyboard/rotation, hardware disconnects or real-time speed on a phone.
+Public Music export currently requires Android 10 or newer; playback supports
+Android 8 or newer. See docs/RELEASE.md for remaining device checks.

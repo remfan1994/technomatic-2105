@@ -20,6 +20,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Install metadata inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg flac opus-tools mediainfo
+
+      - name: Validate music generation, controls, and embedded metadata
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            app/src/main/cpp/MusicEngine.cpp tools/validate_v30.cpp \
+            -Iapp/src/main/cpp -o /tmp/technomatic-validate-v30
+          /tmp/technomatic-validate-v30
+          python3 tools/test_fixed_output.py --output /tmp/technomatic-fixed-output-validation
+          python3 tools/test_audio_controls.py --output /tmp/technomatic-controls-validation
+          python3 tools/test_edited_snapshots.py --output /tmp/technomatic-edited-snapshots-validation
+          python3 tools/test_metadata.py --output /tmp/technomatic-metadata-validation
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
@@ -28,8 +44,8 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager \
             "platforms;android-33" \
-            "build-tools;33.0.2" \
-            "ndk;26.3.11579264" \
+            "build-tools;34.0.0" \
+            "ndk;30.0.14904198" \
             "cmake;3.22.1"
 
       - name: Set up Gradle
@@ -38,7 +54,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon assembleDebug lintDebug
 
       - name: Build unsigned release APK
         run: ./gradlew --no-daemon assembleRelease

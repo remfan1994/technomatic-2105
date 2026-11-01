@@ -1,0 +1,268 @@
+TECHNOMATIC 2105 v30
+Version 0.30.0 / Android versionCode 42
+2026-10-18 UTC
+
+PURPOSE
+
+v30 expands the available musical vocabulary while preserving the size of
+each song's ensemble. Its center remains a recognizable generated theme,
+complementary answers and continuing improvisation. There is one coherent
+generator, without separate radio-accessibility and demonstration modes.
+
+The owner's Bismillah intention and the importance of reciprocal musical
+relationships are recorded in the project guidance. The musical implementation
+uses thematic relationships, space, developing phrases and exchanges between
+existing instruments. It does not add sound effects or commercial references.
+
+NDK AND FUTURE BUILDS
+
+The project and both Android workflows pin NDK 30.0.14904198. The final debug
+and release packages were actually built with that exact revision. AGENTS.md
+records the owner's installation:
+
+  /home/tutan/Android/Sdk/ndk/30.0.14904198
+
+Android Studio should use /home/tutan/Android/Sdk as the SDK location on the
+owner's machine. The shared Gradle file uses ndkVersion, so another machine
+can resolve the same revision under its own SDK root.
+
+The included wrapper uses Gradle 8.9. The remaining toolchain is JDK 17,
+Android Gradle Plugin 8.7.3, platform 33, build-tools 34.0.0 and CMake 3.22.1.
+
+MORE INSTRUMENT CHOICES, SAME ENSEMBLE RULES
+
+                         v29       v30
+  Bass models             12        20
+  Melodic models          16        32
+  Harmony/pad models      10        18
+  Drum-kit families        8        12
+
+New designs include odd-harmonic reed-like bodies, rounded struck tones,
+controlled saturated voices and sustained tones with gradual harmonic opening.
+They are equations and generated parameters, not recorded instruments or
+commercial patches. Attack, release, glide, articulation and harmonic balance
+vary within those families.
+
+The v29 rule selecting supporting roles is retained. Lead, bass and harmony
+each keep one synthesis family. Supporting melodic roles share at most three
+additional families, for at most six pitched synthesis families in a song.
+The fixed voice/event capacities are unchanged. Only the selected model is
+evaluated for a sounding voice; the whole catalogue is not rendered at once.
+
+In a paired audit of 256 seeds, every seed kept its v29 supporting-role count.
+Across 128 phrases per seed, the mean number of actually triggered pitched
+families fell from 5.996 to 4.836, and the maximum fell from nine to six. This
+reduction removes incidental family switches caused by tone offsets. These
+counts describe instrument families across a song, not simultaneous notes.
+
+CHANNELS RETIRED
+
+Channels are removed from the main interface, history and Metadata Editor.
+Old channel preferences are discarded without clearing unrelated user fields.
+Legacy native setters are inert. Loading an older recipe cannot restore a
+named-channel profile. The full generator supplies the music.
+
+An internal synthesis design named VelvetDrift remains distinct from the
+removed Velvet Circuit channel; it is not an active channel selector.
+
+WHAT THE REPETITION INVESTIGATION FOUND
+
+The user did not supply a reproducible seed/time range for the rare repetitive
+example, so the investigation used a deterministic sample of 256 seeds and
+512 post-introduction bars per seed.
+
+The old pieces were not literally almost all chorus: Hook sections occupied
+about 21.9 percent of the measured bars on average. The stronger cause was
+foreground reuse. The primary line used only 4-9 distinct note/rest rhythm
+patterns per seed, with a median of seven. Changing accompaniment or tone
+could make the total arrangement appear more varied while that line repeated.
+
+The new phrase plan coordinates 10-18-bar development cycles. One or two bars
+recall the theme; related variations and exchanges develop it, followed by a
+question, arrival and release. Interior note placement and contour can change
+while retaining phrase anchors and relationships to the generated theme.
+
+Final paired measurements:
+
+  Median distinct primary rhythm plans:           7 -> 167
+  Median distinct foreground note/rest plans:   147 -> 459.5 of 512 bars
+  Worst top-four foreground phrase occupancy:   187 -> 95 of 512 bars
+  Longest identical primary-turn run:              4 -> 2
+
+The v30 main lead also develops independently of instrument handoffs: its
+median is 314 distinct plans across a median 363 main-lead turns. Instrument
+identity, gain changes and different timbres are not counted as new melodies.
+The distinct-plan metrics count exact chord-relative note/rest plans. They
+are measures of structural development, not a score for perceived quality.
+
+Two measured weak cases:
+
+  Seed 3041712678, 61.72 BPM:
+    v29: 87 distinct foreground plans across 512 bars.
+    v30: 471 across 512; main lead has 318 across its 352 turns.
+
+  Seed 2514750925, 86.39 BPM:
+    v29: 99 distinct foreground plans across 512 bars.
+    v30: 477 across 512; main lead has 322 across its 351 turns.
+
+Short same-seed audio comparisons are supplied separately. Because v30 changes
+synthesis and composition logic together, those comparisons are whole-engine
+comparisons, not an isolated experiment on one parameter.
+
+FIVE COORDINATED MUSICAL DEVICES
+
+Counterweight
+  An answering voice changes the latter phrase's direction and span around a
+  generated exchange point, keeping a relationship with the theme.
+
+Pocket Exchange
+  Interior notes move within bounded rhythmic windows while preserving their
+  order and important phrase anchors. An existing voice can take the lead.
+
+Held Question
+  The line leaves a continuing or suspended thought while drums and harmony
+  make room for the ending of the phrase.
+
+Confluence
+  Melody reaches a chord member and bass reaches the root at a shared generated
+  arrival point, with coordinated emphasis and a requested harmony arrival.
+
+Open Release
+  The next phrase reduces activity and leaves space after the arrival. Some
+  releases let the existing harmony instrument carry the foreground.
+
+Answers promote an instrument already selected for the song. Its accompaniment
+part yields rather than adding another complete melody. A sustained old pad
+now releases before a new foreground harmony answer; the tested replacement
+emits after 385 samples at 48 kHz with no overlapping active pad. Ordinary
+accompaniment can still have brief release-tail overlaps.
+
+SLOW MUSIC
+
+The older weak tail included very high lead registers, repeated root endings
+and articulation that did not always follow the developed phrase. For example,
+seed 3816266512 averaged MIDI 92.75 in the measured old lead plan, with 505 of
+512 phrases ending on the root. v30 averages MIDI 67.11 for the same seed's
+main lead and gives its foreground phrases 92 root endings out of 512.
+
+The fixes use MIDI 52-78 for slow non-bass foreground and MIDI 45-76 for actual
+slow harmony components, including generated arrivals and closing notes.
+Octave choices preserve pitch classes and prefer nearby notes. Harmony can
+span two or three bars. Interior phrases may finish on another chord member
+or a suspension; recalls and arrivals keep their resolving role. Note duration
+follows the actual gaps in the developed slow phrase.
+
+Across the measured slow subset, root-ending foreground phrases fell from
+80.3 percent to 20.7 percent. This is a consequence of the phrase roles, not
+a target imposed on every song. All four slow-to-intense musical intents remain.
+
+ORIGINALITY AND THE REPORTED GLITTERING CUE
+
+No imported commercial musical content was identified in the inspected v28,
+v29 or v30 project. Their music paths use local synthesis and generated grammar.
+The source inventories and both final APKs contain no audio assets, soundfonts
+or MIDI songs, and have no INTERNET permission. Existing Oboe audio-I/O code
+is attributed in NOTICE; general scales and synthesis techniques are building
+blocks, not a claim that all underlying mathematics was newly invented.
+
+The removed Velvet Circuit profile cannot reactivate. Regular high sparkle
+and bell placements, upper-register afterimages and recurring rising chord
+cascades were replaced with generated phrase-related instrument responses.
+Several fractional partial relationships on wrapped oscillator phases were
+revised to harmonic ratios, avoiding the associated repeated discontinuities.
+
+These address identifiable causes of chiming/reward-like behavior. There was
+no recording or seed for the reported Zelda resemblance, so its precise cause
+could not be confirmed. Source inspection cannot guarantee that no generated
+short phrase will ever resemble existing music. No commercial cue was fetched,
+sampled or transcribed for the new designs.
+
+METADATA AND EXACT REPLAY
+
+The Metadata Editor automatically shows the current identity:
+
+  Seed: 141414419
+  Engine: 30
+
+User notes remain editable separately. Both OGG OpusTags and FLAC comments
+physically embed seed, engine, export range, user notes and the complete recipe.
+Legacy channel tags are explicitly neutral, not active sound selections.
+Metadata is captured once for the export; later playback or editor changes
+cannot retag an export already running.
+
+The full recipe matters: it retains the winning candidate and any exact edit
+inputs as well as the seed. An inherited edited-recipe bug reapplied rounded
+derived summaries as fresh controls, causing drift on reload. Canonical v30
+snapshots instead retain the exact original edit inputs and their presence.
+
+All 48 edited-recipe regression cases passed three successive reloads, covering
+all 40 supported controls: 144 reloads, 12,582 assertions and 23,040,000 exact
+float samples compared. Both original drift cases replayed 12 seconds per pass
+with zero differing samples. A muted lead no longer silences a bass-owned
+answer, and disabled foundation roles remain muted through arrivals and export.
+
+Metadata verification passed 1,049 Java checks. MediaInfo, ffprobe, opusinfo and
+metaflac exposed the expected physical fields. FLAC recovered all 1,536,000
+source PCM bytes exactly; nine OGG tag-rewrite cases retained identical decoded
+audio and timing. The production playback controls passed 93 host checks.
+
+Useful inspection commands after copying a recording from the phone:
+
+  opusinfo track.ogg
+  mediainfo track.ogg
+  ffprobe -v error -show_entries stream_tags:format_tags -of json track.ogg
+  metaflac --export-tags-to=- track.flac
+  mediainfo track.flac
+
+BUILD, VALIDATION AND INSTALLATION
+
+Final assembleDebug, assembleRelease and lintDebug succeeded using the requested
+NDK. All three native ABIs built: arm64-v8a, armeabi-v7a and x86_64. Lint reports
+0 errors and 20 warnings. Both APKs passed ZIP CRC and manifest/version checks;
+the debug signature verified. The native suite passed 63 checks spanning
+catalogue coverage, foreground development and ownership, register limits,
+palette bounds, sample-exact snapshots, finite exports and continuing playback.
+
+The full 63-check native suite also passed AddressSanitizer and
+UndefinedBehaviorSanitizer with no reported errors. Leak detection was disabled
+for a host restriction; this run is not a leak-freedom certification.
+
+The debug APK uses vip.thatiam.technomatic2105.debug and can coexist with a
+release installation. Its certificate differs from the supplied v29 debug
+APK, so it cannot directly update that APK. Build the source locally with the
+existing installation's signing key for an in-place update. The release APK
+is intentionally unsigned and requires the owner's release key. No private
+signing key is included.
+
+No physical Android phone or emulator was used. The included listening examples
+are host renders. Device playback speed, MediaCodec/MediaStore behavior and
+keyboard/rotation remain device checks. Structural tests do not certify musical
+taste, and a finite deterministic generator cannot guarantee that every possible
+note sequence is unique over mathematical infinity. Motif recurrence is intended;
+ordinary playback continues developing the current seed without a fixed audio
+loop or automatic replacement.
+
+v30 interprets older seeds and recipes with its new engine and ignores retired
+channels. It does not recreate v29 waveforms exactly. Preserve old recordings
+and the old project for exact historical playback.
+
+EVIDENCE INCLUDED IN THE SOURCE PROJECT
+
+  README.md and CHANGELOG.md
+  AGENTS.md
+  docs/V30_VALIDATION.md
+  docs/BUILD_V30_VALIDATION.txt
+  docs/METADATA_V30_VALIDATION.txt
+  docs/AUDIO_CONTROL_V30_VALIDATION.txt
+  docs/EDITED_SNAPSHOT_V30_VALIDATION.txt
+  docs/SOURCE_AUDIT_V30.txt
+  docs/SOURCE_V28_V29_INVENTORY.json
+  docs/SOURCE_V30_INVENTORY.json
+  tools/validation/v29_primary_development.csv
+  tools/validation/v30_primary_development.csv
+  tools/validation/v29_triggered_palette.csv
+  tools/validation/v30_triggered_palette.csv
+  tools/validation/v30_scheduled_foreground.csv
+
+Run commands and the limits of each validation method are recorded in those
+reports. Historical reports and validators are retained as historical evidence.

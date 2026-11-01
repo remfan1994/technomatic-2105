@@ -1,0 +1,20 @@
+{
+  "source_sha256": "64b1f6b09e6887e2b8074b562e444d161f74c9188f54113f035888ec7d0f3067",
+  "header_sha256": "e63ff5acfdb4b94874bb7596ff01dfb66b32a1764bddc2eb44c587b789720d78",
+  "instrumented_raw_voice_sum": false,
+  "command": [
+    "g++",
+    "-std=c++17",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-DTECHNOMATIC_ENGINE_HEADER=\"/workspace/scratch/93254bfec215/volume_work/technomatic_2105/app/src/main/cpp/MusicEngine.h\"",
+    "-I",
+    "/workspace/scratch/93254bfec215/volume_work/technomatic_2105/app/src/main/cpp",
+    "/workspace/scratch/93254bfec215/volume_work/technomatic_2105/tools/loudness_probe.cpp",
+    "/workspace/scratch/93254bfec215/volume_work/technomatic_2105/app/src/main/cpp/MusicEngine.cpp",
+    "-o",
+    "/tmp/tm302-measure/final-probe"
+  ]
+}

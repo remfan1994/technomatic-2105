@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/tmp/tm302-measure/tone-probe",
+    "/tmp/tm302-measure/raw-audio/raw_groove_543445131.wav",
+    "/tmp/tm302-measure/wide-knee-audio/tone_groove_543445131.wav",
+    "0.510444402695"
+  ],
+  "processing": {
+    "rms": 0.217425033451,
+    "peak": 1.06662917137,
+    "knee_samples": 0,
+    "samples": 8448000,
+    "gain": 1,
+    "knee": 0.72000002861,
+    "ceiling": 0.939999997616
+  }
+}

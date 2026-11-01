@@ -1,0 +1,148 @@
+TECHNOMATIC 2105 v30.2 - Louder fixed output
+Version: 0.30.2
+Version code: 44
+Composition engine: 30
+Output revision: 2
+Date: 2026-10-20
+
+WHAT CHANGED
+
+This update increases the average level of TECHNOMATIC 2105's generated music
+while preserving the music, controls and both earlier v30.1 volume fixes.
+
+The output calibration changes from 1.0 to 1.75. In the linear region that
+means +4.86 dB. A wider, gentler peak curve keeps strong samples within the
+same full digital range. The ceiling remains 1.0, or 100 percent.
+
+The final constants are:
+
+  fixed gain G = 1.75
+  rounding onset K = 0.40
+  sample ceiling C = 1.00
+
+K is where smooth rounding begins. It is not a 40-percent output cap.
+
+There is still one fixed output treatment for all tracks and all times.
+Android's media volume remains the listener's control. The app does not
+reintroduce automatic gain riding, kick ducking, fades, master swells/dips,
+coordinated part-volume changes or a lookahead limiter. Individual note
+envelopes, accents and rests remain musical behaviors.
+
+MEASURED IMPROVEMENT
+
+Sixteen matched seeds were rendered for 88 seconds each at 48 kHz stereo.
+The same [40,88) second excerpts had:
+
+  Median paired loudness increase:      +4.50 LU
+  Median paired RMS increase:           +4.52 dB
+  Per-track loudness increase:          +3.7 to +4.7 LU
+  Median v30.1 loudness:                -14.05 LUFS
+  Median v30.2 loudness:                 -9.60 LUFS
+
+Examples at the same source playback setting:
+
+  Slow seed 1013904226:          -14.4 ->  -9.8 LUFS
+  Groove seed 2654435761:        -16.0 -> -11.3 LUFS
+  Quiet driving 3711502885:      -16.4 -> -11.7 LUFS
+  Intense seed 3668339987:       -10.1 ->  -6.4 LUFS
+
+The improvement is average source-audio level. Full-scale peaks alone do
+not establish the perceived loudness of a track. These measurements do not
+claim the same subjective increase in every song, earbud or environment.
+
+WHY THE GENTLER CURVE
+
+Stronger fixed gain requires more rounding of strong peaks. The first
+louder candidate retained the old 0.80 rounding onset; its densest test
+produced substantial reconstructed overrange after Opus decoding.
+
+The final 0.40 onset widens the curve while keeping the 1.0 ceiling. It
+retains almost all the measured average increase and reduces that test's
+overfull decoded sample count by about 85.49% relative to the rejected
+1.75/0.80 candidate. It is a measured compromise, not distortion-free gain.
+
+All final native samples in the 16-seed test are finite and bounded; the
+largest observed magnitude is 0.998284. Reconstructed/codec peaks remain a
+different matter: native reconstructed peaks reach +1.4 dBTP, and the final
+intense host Opus excerpt has about 0.483% of decoded samples above full
+scale. That is lower than the rejected boosted candidate's 3.328%, but higher
+than delivered v30.1's 0.0174% for the same intense excerpt. No universal
+clipping-free or subjective-quality claim is made.
+
+MUSIC, FEATURES AND METADATA
+
+The composition engine, instruments, per-song ensemble size, themes,
+complementary phrases, slow-jam grammar, note accents and improvisation are
+unchanged. All 16 score, amplitude and RNG signatures match v30.1, covering
+20,247 scheduled events. Independent reconstruction of the final output
+matches all 135,168,000 actual float channel samples exactly.
+
+MusicEngine.cpp changes only two output-revision serialization values.
+Every Java source file, AudioEngine, JNI and MusicEngine.h remains byte-
+identical to v30.1. The other runtime change is OutputStage's calibration.
+
+Live playback and OGG/FLAC export use the same stronger output. Captured
+recipes retain engine=30 and record outputrev=2; embedded audio metadata
+records OUTPUT_MASTER_VERSION=2. Automatic seed metadata, full regeneration
+recipes, user notes and the metadata editor remain intact. Previously saved
+recipes receive the current output when loaded.
+
+Playback controls, latest-20 history and memory behavior remain those of
+v30.1. The cancelled scanner/rewind work and postponed track-naming/history
+features are excluded from this release.
+
+VALIDATION AND BUILD
+
+Final native checks passed: 62 focused output checks, 93 AudioEngine control
+checks, 12,582 edited-recipe checks, and the 64-check native music gate.
+The metadata/container suite passed 1,065 checks; FFprobe confirmed physical
+output-revision, seed and recipe tags in OGG/FLAC. Optional MediaInfo,
+opusinfo and metaflac executables were unavailable in this run and were
+explicitly skipped.
+
+Android debug and release builds plus lint passed for arm64-v8a,
+armeabi-v7a and x86_64. Lint has 0 errors and the same 20 warning issue counts
+as v30.1. No physical phone or emulator was used.
+
+NDK remains exactly 30.0.14904198, matching the owner's installation:
+
+  /home/tutan/Android/Sdk/ndk/30.0.14904198
+
+The shared project uses ndkVersion, not an absolute ndkPath. On the owner's
+machine, Android Studio should use SDK root /home/tutan/Android/Sdk. The
+included Gradle wrapper is 8.9; AGP is 8.7.3 and JDK is 17.
+
+Open the technomatic_2105 directory in Android Studio. Build with the same
+signing key used for the installed app to preserve the ordinary update path.
+The supplied debug APK uses this build environment's temporary debug key,
+which differs from the earlier delivered debug key. The release APK is
+unsigned and requires the owner's existing signing configuration.
+
+FILES
+
+  technomatic_2105_android_project_v30_2.zip
+    Complete Android Studio project, source, build configuration and tests.
+
+  technomatic_2105_v30_2_release_notes.txt
+    These release notes.
+
+  technomatic_2105_v30_2_loudness_auditions.zip
+    Four matched before/after pairs, eight FLAC files. A is v30.1; B is
+    v30.2. Same seeds and [40,88) excerpts, with no level matching. All eight
+    files decode exactly to their intended PCM16 samples. Keep the player
+    volume fixed and disable any player normalization for a direct comparison.
+
+  technomatic_2105_v30_2_debug.apk
+    Verified debug test build with a separate .debug package identifier.
+
+  technomatic_2105_v30_2_release_unsigned.apk
+    Verified unsigned release build for the production package identifier.
+
+The source ZIP excludes compiled outputs, toolchain installations, local
+machine paths in build configuration and signing keys. Source design and
+full measurement details are inside docs/OUTPUT_V30_2_DESIGN.txt,
+docs/LOUDNESS_V30_2_VALIDATION.txt and docs/BUILD_V30_2_VALIDATION.txt.
+
+This release provides a measured increase in the generated signal. It has
+not been compared directly against the owner's RFS or FM-radio hardware
+path, and it does not promise identical real-world loudness across players.

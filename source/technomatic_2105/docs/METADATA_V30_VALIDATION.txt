@@ -1,0 +1,158 @@
+TECHNOMATIC 2105 v30: metadata after channel retirement
+
+The v0.30.1 output-revision extension and its separate test run are
+documented in METADATA_V30_1_VALIDATION.txt. The results below describe
+the original v30 metadata run.
+
+Current behavior
+
+The music channel selector, its main-screen button, channel labels and
+dominant-channel controls have been removed. Playback and seed loading use
+the full generator. Startup removes only the four old channel preference
+keys: v23_channel_mode, v24_channel_mask, v24_channel_blend and
+v24_channel_primary. Existing user metadata and export-range preferences
+are retained. AudioService ignores the old channel intent extras.
+The native compatibility/control behavior passed 93 focused host checks;
+see AUDIO_CONTROL_V30_VALIDATION.txt for the exact coverage and limits.
+
+The Metadata Editor automatically displays the actual current seed and,
+when supplied by the native snapshot, its engine version. For example:
+
+Seed: 141414419
+Engine: 30
+
+The editable user notes remain separate. Existing handwritten notes are
+not scrubbed, even if they mention old channel names. The generated seed
+details are recomputed from currentSongData when the editor opens and as
+the current sound changes. Missing identity is reported explicitly.
+The native loader's longstanding zero-input fallback remains unchanged;
+metadata uses the actual returned seed, not a guessed input value.
+
+Title still comes from the export filename. A blank Album still uses the
+captured export date. A blank Genre now uses "Generative music"; an explicit
+user Genre is retained. Track Listing displays seed and listened duration,
+and retired channel fields no longer distinguish history entries with the
+same seed and candidate.
+
+Embedded file fields
+
+Both OGG and FLAC retain the real embedded metadata implementation added
+in v29. Each export uses one immutable snapshot captured before its worker
+starts, including user fields, date, seed, engine, composition intent,
+exact native recipe and export interval. MediaStore publishing uses that
+same snapshot. Later edits cannot change the metadata of an export already
+in progress.
+
+COMMENT and DESCRIPTION both contain the generated seed details, optional
+user notes and export interval. SEED, ENGINE_VERSION, COMPOSITION_INTENT,
+COMPOSITION_INTENT_ID, EXPORT_START_SECONDS, EXPORT_END_SECONDS and
+TECHNOMATIC_SONG_DATA remain machine-readable fields.
+
+Old channel fields are kept explicitly neutral for readers that recognize
+them. Every v30 export writes these values, even if a legacy recipe is
+provided to the metadata helper:
+
+CHANNELS=Retired
+CHANNEL_MASK=0
+CHANNEL_BLEND=none
+CHANNEL_PRIMARY=None
+CHANNEL_PRIMARY_ID=0
+
+The full recipe field is retained exactly as captured. The native v30
+engine canonicalizes loaded historical channel settings to zero; the
+metadata layer does not invent an engine version or silently rewrite a
+recipe. These neutral compatibility tags do not indicate an active choice
+and do not affect the audio. Older already-recorded audio files are not
+modified by this change.
+
+OpusTags insertion retains vendor, unknown codec-specific fields, binary
+extensions, audio packets, lacing, stream serial, OpusHead and pre-skip,
+granules and flags. Header repaging updates sequence numbers and CRC.
+FLAC uses the same UTF-8 Vorbis-comment payload and retains lossless PCM
+encoding. Existing channel tags in an input OpusTags packet are replaced
+by the neutral v30 values rather than surviving as misleading duplicates.
+
+Reproducible verification
+
+Requirements: a JDK providing javac/java, FFmpeg with ffprobe and libopus.
+opusinfo, MediaInfo, metaflac and flac add independent inspector checks
+when installed. Run from the project root:
+
+JAVA_HOME=/path/to/jdk python3 tools/test_metadata.py --output /tmp/metadata-v30-check
+
+Actual v30 run completed with Java 17 compiling the helpers for Java 8:
+
+- 1,049 Java host checks passed.
+- ffprobe exposed the expected seed, engine 30, range, notes, exact recipe
+  and neutral retired-channel fields in both OGG and FLAC.
+- opusinfo showed physical COMMENT and DESCRIPTION, no structure warnings
+  and eight seconds of playback.
+- MediaInfo displayed the identity and notes in both formats.
+- metaflac exposed the physical FLAC Vorbis comments.
+- flac --test passed frame CRC and STREAMINFO MD5 checks.
+- FLAC decoding recovered all 1,536,000 source PCM bytes exactly
+  (384,000 stereo frames at 48 kHz).
+- Nine OGG insertion/growth/shrink outputs decoded identically to their
+  source Opus stream and retained its reported duration.
+- Independent Ogg checks covered CRC, sequence, audio payload, lacing,
+  flags, granules and stream serial, including comment packet lengths
+  65,024 / 65,025 / 65,026 / 130,050 bytes.
+- Additional cases covered immutable snapshots, fresh seed identity,
+  unsigned seed bounds, legacy recipe neutrality, ignored obsolete labels,
+  preserved handwritten notes, UTF-8, multiline notes, header extensions,
+  no-EOS input, malformed lengths, corruption, truncation and cancellation.
+
+Source/FLAC PCM SHA-256 for this run:
+e9ae13bdb7962f149ecfdc46bda654ddfe1b47ec24b47f220e81d6762898c78b
+
+Decoded Opus PCM SHA-256 for this run:
+733626367fcadcb68236950455ce3125bc646da07173b9f1012e0157c7316e01
+
+The runner writes metadata-test-report.txt, raw inspector output and the
+encoded fixtures into its selected output directory. The v29 metadata
+test sources are archived under tools/historical/v29; their channel
+assertions describe that version and are not v30 verification counts.
+
+Preserved Android behavior and limits
+
+Code review confirms that the v29 Notes orientation draft behavior,
+Back/Save handling, export-range selection, immutable job capture,
+cancellation, temporary-file cleanup and pending MediaStore rollback
+remain intact. Export still requires Android 10/API 29 because the public
+Music path uses pending/relative-path MediaStore support and OGG muxing
+requires that API. The app minimum remains API 26 for playback.
+
+Host fixtures exercise the production Java metadata and FLAC code with an
+independent Opus encoder. They do not exercise Android MediaCodec, the
+keyboard, orientation changes on a device or real MediaStore permissions.
+Those checks still require an Android device; Android build results are
+recorded separately. No external network service is required to write tags.
+
+Inspecting a copied audio file
+
+opusinfo track.ogg
+mediainfo track.ogg
+ffprobe -v error -show_entries stream_tags:format_tags -of json track.ogg
+metaflac --export-tags-to=- track.flac
+mediainfo track.flac
+flac --test track.flac
+
+ffprobe may alias DESCRIPTION to COMMENT. opusinfo and metaflac expose
+both physical fields, so a single ffprobe alias does not imply a missing tag.
+
+Primary format references
+
+OpusTags, comment encoding, paging and granules:
+https://www.rfc-editor.org/rfc/rfc7845.html#section-5.2
+
+Ogg lacing, sequence numbers and CRC:
+https://www.rfc-editor.org/rfc/rfc3533.html#section-6
+
+FLAC Vorbis-comment block:
+https://www.rfc-editor.org/rfc/rfc9639.html#name-vorbis-comment
+
+Vorbis text-description field conventions:
+https://www.xiph.org/vorbis/doc/v-comment.html
+
+Android OGG muxer API availability:
+https://developer.android.com/reference/android/media/MediaMuxer.OutputFormat#MUXER_OUTPUT_OGG
